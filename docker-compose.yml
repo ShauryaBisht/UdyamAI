@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  database:
+    image: postgis/postgis:15-3.3
+    container_name: udyam_db
+    environment:
+      POSTGRES_DB: udyam_db
+      POSTGRES_USER: udyam_user
+      POSTGRES_PASSWORD: udyam_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infrastructure/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - udyam_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: udyam_backend
+    environment:
+      - DATABASE_URL=postgresql://udyam_user:udyam_password@database:5432/udyam_db
+    ports:
+      - "8000:8000"
+    depends_on:
+      - database
+    networks:
+      - udyam_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../infrastructure/docker/frontend.Dockerfile
+    container_name: udyam_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - udyam_network
+
+volumes:
+  pgdata:
+
+networks:
+  udyam_network:
+    driver: bridge
