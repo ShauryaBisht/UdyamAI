@@ -1,0 +1,15 @@
+name: E2E and Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run tests docker environment
+      run: |
+        docker-compose up -d
+        # Run tests here
