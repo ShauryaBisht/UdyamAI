@@ -3,13 +3,37 @@ name: E2E and Integration Tests
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   e2e:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Run tests docker environment
+    - uses: actions/checkout@v4
+
+    - name: Build Docker images
+      run: docker compose build
+
+    - name: Start services
+      run: docker compose up -d
+
+    - name: Wait for services to be healthy
       run: |
-        docker-compose up -d
-        # Run tests here
+        echo "Waiting for database..."
+        until docker compose exec database pg_isready -U udyam_user -d udyam_db; do
+          sleep 2
+        done
+        echo "Waiting for backend..."
+        until docker compose exec backend python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" 2>/dev/null; do
+          sleep 2
+        done
+        echo "All services healthy!"
+
+    - name: Run integration tests
+      run: |
+        docker compose exec backend pytest -v
+
+    - name: Tear down services
+      if: always()
+      run: docker compose down -v
