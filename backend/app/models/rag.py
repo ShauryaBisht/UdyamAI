@@ -10,10 +10,35 @@ if TYPE_CHECKING:
     from app.models.scheme import Scheme, SchemeEligibilityRule, SchemeRule
 
 
+import json
+
+
 # Custom PGVector UserDefinedType for SQLAlchemy
 class PGVectorType(UserDefinedType):
     def get_col_spec(self, **kw):
         return "VECTOR"
+
+    def bind_processor(self, dialect):
+        if dialect.name == "sqlite":
+
+            def process(value):
+                if value is None:
+                    return None
+                return json.dumps(value)
+
+            return process
+        return super().bind_processor(dialect)
+
+    def result_processor(self, dialect, coltype):
+        if dialect.name == "sqlite":
+
+            def process(value):
+                if value is None:
+                    return None
+                return json.loads(value)
+
+            return process
+        return super().result_processor(dialect, coltype)
 
 
 class Document(SQLModel, table=True):

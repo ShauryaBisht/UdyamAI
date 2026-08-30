@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # CORS Configuration
     CORS_ORIGINS: list[str] = ["*"]
 
+    # RAG Configuration
+    RAG_CHUNK_SIZE: int = 800
+    RAG_CHUNK_OVERLAP: int = 150
+
     # Security Configuration
     SECRET_KEY: str = "supersecretjwtkey"
 
