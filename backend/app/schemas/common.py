@@ -1,26 +1,26 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SupportedLanguage(str, Enum):
+class SupportedLanguage(StrEnum):
     EN = "en"
     HI = "hi"
     MR = "mr"
 
 
-class AnalysisStatus(str, Enum):
+class AnalysisStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
 
 
-class SchemeMatchStatus(str, Enum):
+class SchemeMatchStatus(StrEnum):
     POTENTIAL_MATCH = "potential_match"
     NOT_MATCHED = "not_matched"
     INSUFFICIENT_INFORMATION = "insufficient_information"
 
 
-class BeneficiaryCategory(str, Enum):
+class BeneficiaryCategory(StrEnum):
     SC = "SC"
     ST = "ST"
     OBC = "OBC"
@@ -29,3 +29,4 @@ class BeneficiaryCategory(str, Enum):
     MINORITY = "Minority"
     DIFFERENTLY_ABLED = "Differently Abled"
     EX_SERVICEMEN = "Ex-Servicemen"
+
