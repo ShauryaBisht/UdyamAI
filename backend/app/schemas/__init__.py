@@ -27,6 +27,7 @@ from app.schemas.location import (
     VillageResponse,
 )
 from app.schemas.report import ReportCreateRequest, ReportResponse
+from app.schemas.rag import ChunkCreate, ChunkRead, DocumentCreate, DocumentRead
 from app.schemas.scheme import (
     SchemeMatchRequest,
     SchemeMatchResultResponse,
@@ -55,6 +56,10 @@ __all__ = [
     "FinanceCalculateRequest",
     "FinanceCalculateResponse",
     "RepaymentScheduleItemResponse",
+    "DocumentCreate",
+    "DocumentRead",
+    "ChunkCreate",
+    "ChunkRead",
     "SchemeResponse",
     "SchemeMatchRequest",
     "SchemeMatchResultResponse",
