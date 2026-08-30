@@ -30,12 +30,37 @@ setup_exception_handlers(app)
 # Include Routers
 app.include_router(health.router, prefix="/health", tags=["Health"])
 app.include_router(locations.router, prefix="/locations", tags=["Locations"])
+app.include_router(
+    locations.router, prefix="/api/v1/locations", tags=["Locations"], include_in_schema=False
+)
 app.include_router(businesses.router, prefix="/business-categories", tags=["Business Categories"])
+app.include_router(
+    businesses.router,
+    prefix="/api/v1/business-categories",
+    tags=["Business Categories"],
+    include_in_schema=False,
+)
 app.include_router(schemes.router, prefix="/schemes", tags=["Schemes"])
+app.include_router(
+    schemes.router, prefix="/api/v1/schemes", tags=["Schemes"], include_in_schema=False
+)
 app.include_router(analysis.router, prefix="/analysis", tags=["Feasibility Analysis"])
+app.include_router(
+    analysis.router,
+    prefix="/api/v1/analysis",
+    tags=["Feasibility Analysis"],
+    include_in_schema=False,
+)
 app.include_router(finance.router, prefix="/finance", tags=["Finance"])
+app.include_router(
+    finance.router, prefix="/api/v1/finance", tags=["Finance"], include_in_schema=False
+)
 app.include_router(reports.router, prefix="/reports", tags=["Reports"])
+app.include_router(
+    reports.router, prefix="/api/v1/reports", tags=["Reports"], include_in_schema=False
+)
 app.include_router(users.router, prefix="/users", tags=["Users"])
+app.include_router(users.router, prefix="/api/v1/users", tags=["Users"], include_in_schema=False)
 
 
 @app.get("/")
