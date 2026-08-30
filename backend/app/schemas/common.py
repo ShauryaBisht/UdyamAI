@@ -29,4 +29,3 @@ class BeneficiaryCategory(StrEnum):
     MINORITY = "Minority"
     DIFFERENTLY_ABLED = "Differently Abled"
     EX_SERVICEMEN = "Ex-Servicemen"
-

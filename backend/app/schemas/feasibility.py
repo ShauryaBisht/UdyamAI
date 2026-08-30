@@ -19,10 +19,16 @@ class AnalysisRunCreate(BaseModel):
         default=None, description="Business category ID (UUID) or category slug (e.g., 'dairy')"
     )
     available_capital: float | None = Field(
-        default=None, ge=0.0, le=100_000_000.0, description="Available capital/own investment in INR (>= 0)"
+        default=None,
+        ge=0.0,
+        le=100_000_000.0,
+        description="Available capital/own investment in INR (>= 0)",
     )
     desired_project_cost: float | None = Field(
-        default=None, gt=0.0, le=100_000_000.0, description="Desired total project setup cost in INR (> 0)"
+        default=None,
+        gt=0.0,
+        le=100_000_000.0,
+        description="Desired total project setup cost in INR (> 0)",
     )
     language: SupportedLanguage = Field(
         default=SupportedLanguage.EN, description="Preferred report language ('en', 'hi', 'mr')"
@@ -45,7 +51,9 @@ class AnalysisRunResponse(BaseModel):
 class AnalysisStatusResponse(BaseModel):
     id: UUID
     status: AnalysisStatus
-    progress_percentage: int = Field(default=0, ge=0, le=100, description="Task execution progress percentage (0-100)")
+    progress_percentage: int = Field(
+        default=0, ge=0, le=100, description="Task execution progress percentage (0-100)"
+    )
     current_step: str | None = Field(default=None, max_length=150)
     created_at: datetime
     completed_at: datetime | None = None

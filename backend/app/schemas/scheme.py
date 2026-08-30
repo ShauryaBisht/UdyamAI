@@ -33,7 +33,9 @@ class SchemeMatchRequest(BaseModel):
         default=None, ge=0, le=100_000_000.0, description="Annual household income in INR"
     )
     location_id: UUID | None = Field(default=None, description="Target village location ID")
-    business_category_id: UUID | None = Field(default=None, description="Target business category ID")
+    business_category_id: UUID | None = Field(
+        default=None, description="Target business category ID"
+    )
     desired_project_cost: float | None = Field(
         default=None, gt=0, le=100_000_000.0, description="Total project investment cost in INR"
     )

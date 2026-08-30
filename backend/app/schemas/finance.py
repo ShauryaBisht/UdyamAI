@@ -3,13 +3,22 @@ from pydantic import BaseModel, Field
 
 class FinanceCalculateRequest(BaseModel):
     desired_project_cost: float = Field(
-        ..., gt=0, le=100_000_000.0, description="Desired total project/setup cost in INR (gt 0, max 10 Cr)"
+        ...,
+        gt=0,
+        le=100_000_000.0,
+        description="Desired total project/setup cost in INR (gt 0, max 10 Cr)",
     )
     available_capital: float = Field(
-        ..., ge=0, le=100_000_000.0, description="Available capital/own equity investment in INR (ge 0, max 10 Cr)"
+        ...,
+        ge=0,
+        le=100_000_000.0,
+        description="Available capital/own equity investment in INR (ge 0, max 10 Cr)",
     )
     loan_percent: float | None = Field(
-        default=None, ge=0.0, le=100.0, description="Percentage of project cost funded by loan (0-100%)"
+        default=None,
+        ge=0.0,
+        le=100.0,
+        description="Percentage of project cost funded by loan (0-100%)",
     )
     interest_rate: float = Field(
         ..., ge=0.0, le=100.0, description="Annual interest rate percentage (0-100%)"
@@ -27,7 +36,9 @@ class RepaymentScheduleItemResponse(BaseModel):
     principal_amount: float = Field(..., ge=0, description="Principal paid in this period")
     interest_amount: float = Field(..., ge=0, description="Interest paid in this period")
     payment_amount: float = Field(..., ge=0, description="Total payment amount for period")
-    remaining_principal: float = Field(..., ge=0, description="Remaining loan principal after payment")
+    remaining_principal: float = Field(
+        ..., ge=0, description="Remaining loan principal after payment"
+    )
     is_moratorium: bool = Field(..., description="Whether this period falls in moratorium")
 
 

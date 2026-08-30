@@ -28,9 +28,15 @@ class VillageResponse(BaseModel):
     taluka_id: UUID
     gram_panchayat_id: UUID | None = None
     lgd_code: str | None = Field(default=None, max_length=20)
-    pin_code: str | None = Field(default=None, pattern=r"^\d{6}$", description="6-digit Indian PIN code")
-    latitude: float | None = Field(default=None, ge=-90.0, le=90.0, description="Latitude between -90 and 90")
-    longitude: float | None = Field(default=None, ge=-180.0, le=180.0, description="Longitude between -180 and 180")
+    pin_code: str | None = Field(
+        default=None, pattern=r"^\d{6}$", description="6-digit Indian PIN code"
+    )
+    latitude: float | None = Field(
+        default=None, ge=-90.0, le=90.0, description="Latitude between -90 and 90"
+    )
+    longitude: float | None = Field(
+        default=None, ge=-180.0, le=180.0, description="Longitude between -180 and 180"
+    )
 
     model_config = {"from_attributes": True}
 
