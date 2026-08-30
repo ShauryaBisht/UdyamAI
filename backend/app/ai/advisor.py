@@ -13,11 +13,12 @@ import logging
 from typing import Any
 
 from app.ai import context_builder, guardrails, llm, prompts, recommendation
+from app.schemas.ai import AIAdvice, AnalysisContext
 
 logger = logging.getLogger(__name__)
 
 
-def generate_advice(analysis_context: dict[str, Any], language: str = "en") -> dict[str, Any]:
+def generate_advice(analysis_context: AnalysisContext, language: str = "en") -> AIAdvice:
     """Turn a verified AnalysisContext into structured AIAdvice.
 
     Args:
