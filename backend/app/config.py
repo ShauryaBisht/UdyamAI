@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     # Security Configuration
     SECRET_KEY: str = "supersecretjwtkey"
 
+    # Default Finance Fallback Settings
+    DEFAULT_BENEFICIARY_CONTRIBUTION_PERCENT: float = 10.0
+    DEFAULT_INTEREST_RATE: float = 8.5
+    DEFAULT_TENURE_MONTHS: int = 84
+    DEFAULT_PAYMENT_FREQUENCY: str = "monthly"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
