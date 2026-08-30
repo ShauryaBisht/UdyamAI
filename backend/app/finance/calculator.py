@@ -17,6 +17,11 @@ from app.finance.project_cost import (
 from app.finance.working_capital import calculate_working_capital
 from app.schemas.finance import FinanceCalculateRequest, FinanceCalculateResponse
 
+# Module-level defaults used as fallback when scheme rule parameters are unpopulated
+DEFAULT_BENEFICIARY_CONTRIBUTION_PERCENT: float = 10.0
+DEFAULT_INTEREST_RATE: float = 8.5
+DEFAULT_TENURE_MONTHS: int = 84
+
 
 def calculate_finance_engine(
     request: FinanceCalculateRequest, scheme_rule: Any
@@ -27,10 +32,10 @@ def calculate_finance_engine(
     available_capital = request.available_capital
     desired_project_cost = request.desired_project_cost
 
-    # Extract scheme parameters
+    # Extract scheme parameters with explicit module-level default fallbacks
     b_percent = getattr(scheme_rule, "beneficiary_contribution_percent", None)
     if b_percent is None or b_percent <= 0:
-        b_percent = 10.0  # default fallback if completely unpopulated in test context
+        b_percent = DEFAULT_BENEFICIARY_CONTRIBUTION_PERCENT
 
     l_percent = getattr(scheme_rule, "loan_percent", None)
     if l_percent is None:
@@ -42,11 +47,11 @@ def calculate_finance_engine(
 
     interest_rate = getattr(scheme_rule, "interest_rate", None)
     if interest_rate is None:
-        interest_rate = 8.5
+        interest_rate = DEFAULT_INTEREST_RATE
 
     tenure_months = getattr(scheme_rule, "tenure_months", None)
     if tenure_months is None or tenure_months <= 0:
-        tenure_months = 84
+        tenure_months = DEFAULT_TENURE_MONTHS
 
     moratorium_months = getattr(scheme_rule, "moratorium_months", None) or 0
     moratorium_months = validate_moratorium(moratorium_months, tenure_months)

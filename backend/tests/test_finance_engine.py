@@ -156,3 +156,19 @@ def test_finance_engine_database_rule_and_persistence(session: Session):
         session.query(FinancialScenario).filter_by(financial_analysis_id=db_analysis.id).all()
     )
     assert len(scenarios) == 3
+
+
+def test_finance_engine_database_error_handling(monkeypatch):
+    """Test that a database exception returns a graceful database_error response."""
+
+    class BrokenSession:
+        def exec(self, statement):
+            raise RuntimeError("Database connection lost")
+
+    req = FinanceCalculateRequest(
+        available_capital=100000.0,
+        scheme_id=uuid4(),
+    )
+    res = FinanceService.calculate_finance(req, session=BrokenSession())
+    assert res.status == "database_error"
+    assert "database error" in res.message.lower()

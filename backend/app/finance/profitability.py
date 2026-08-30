@@ -12,7 +12,7 @@ def generate_financial_scenarios(
     monthly_emi: float,
 ) -> list[FinancialScenarioResponse]:
     """
-    Generates 3 financial scenarios (worst_case, expected_case, best_case) with DSCR repayment coverage.
+    Generates 3 financial scenarios (worst_case, expected_case, best_case) with DSCR repayment coverage and detailed cash flow tracking.
     """
     if monthly_revenue is None or monthly_operating_cost is None:
         return []
@@ -34,6 +34,14 @@ def generate_financial_scenarios(
         if monthly_emi > 0:
             coverage = round(scen_prof / monthly_emi, 2)
 
+        cash_flow_details = {
+            "gross_revenue": scen_rev,
+            "operating_expenses": scen_exp,
+            "operating_cash_flow": scen_prof,
+            "debt_service_emi": round(monthly_emi, 2),
+            "net_cash_flow": round(scen_prof - monthly_emi, 2) if monthly_emi > 0 else scen_prof,
+        }
+
         scenario_responses.append(
             FinancialScenarioResponse(
                 scenario_type=name,
@@ -41,7 +49,7 @@ def generate_financial_scenarios(
                 monthly_expenses=scen_exp,
                 monthly_profit=scen_prof,
                 repayment_coverage=coverage,
-                cash_flow={"net_cash_flow": scen_prof},
+                cash_flow=cash_flow_details,
             )
         )
 

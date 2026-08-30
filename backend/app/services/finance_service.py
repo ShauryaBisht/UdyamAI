@@ -1,7 +1,9 @@
 """
 Finance Service for UdyamAI.
-Handles database lookup for scheme rules, calculation orchestration, and DB persistence.
+Handles database lookup for scheme rules, calculation orchestration, error handling, and DB persistence.
 """
+
+import logging
 
 from sqlmodel import Session, select
 
@@ -14,6 +16,8 @@ from app.schemas.finance import (
     SchemeRuleInput,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class FinanceService:
     @staticmethod
@@ -22,19 +26,31 @@ class FinanceService:
     ) -> FinanceCalculateResponse:
         """
         Orchestrates financial calculations using dynamic scheme rules.
+        Handles database scheme lookup and DB persistence with structured error handling.
         """
         rule = None
 
         # 1. Look up scheme rule from DB if scheme_rule_id or scheme_id is provided
-        if session is not None:
-            if request.scheme_rule_id is not None:
-                rule = session.exec(
-                    select(SchemeRule).where(SchemeRule.id == request.scheme_rule_id)
-                ).first()
-            elif request.scheme_id is not None:
-                rule = session.exec(
-                    select(SchemeRule).where(SchemeRule.scheme_id == request.scheme_id)
-                ).first()
+        if session is not None and (
+            request.scheme_rule_id is not None or request.scheme_id is not None
+        ):
+            try:
+                if request.scheme_rule_id is not None:
+                    rule = session.exec(
+                        select(SchemeRule).where(SchemeRule.id == request.scheme_rule_id)
+                    ).first()
+                elif request.scheme_id is not None:
+                    rule = session.exec(
+                        select(SchemeRule).where(SchemeRule.scheme_id == request.scheme_id)
+                    ).first()
+            except Exception as exc:
+                logger.error("Database lookup failed for scheme rule: %s", exc, exc_info=True)
+                return FinanceCalculateResponse(
+                    status="database_error",
+                    available_capital=request.available_capital,
+                    required_contribution=0.0,
+                    message="Failed to fetch scheme rule from database due to a database error.",
+                )
 
         # 2. Use scheme_rule_override if provided
         if rule is None and request.scheme_rule_override is not None:
@@ -70,6 +86,20 @@ class FinanceService:
             and request.analysis_run_id is not None
             and response.status == "success"
         ):
+            FinanceService._persist_analysis_results(session, request, response)
+
+        return response
+
+    @staticmethod
+    def _persist_analysis_results(
+        session: Session,
+        request: FinanceCalculateRequest,
+        response: FinanceCalculateResponse,
+    ) -> None:
+        """
+        Extracts persistence logic for financial analysis, repayment schedules, and financial scenarios into a separate transaction unit.
+        """
+        try:
             financial_record = FinancialAnalysis(
                 analysis_run_id=request.analysis_run_id,
                 scheme_id=request.scheme_id,
@@ -127,5 +157,8 @@ class FinanceService:
                 session.add(scen_item)
 
             session.commit()
-
-        return response
+        except Exception as exc:
+            logger.error(
+                "Failed to persist financial analysis results to DB: %s", exc, exc_info=True
+            )
+            session.rollback()
