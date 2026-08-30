@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from sqlmodel import Session, create_engine
+from sqlmodel import Session, create_engine, select
 
 from app.config import settings
 from app.models.rag import Document, DocumentChunk
@@ -244,12 +244,163 @@ def test_ingest_document_deduplication(mock_embed, mock_parse, db_session, temp_
     )
     db_session.add(existing_doc)
     db_session.commit()
+    db_session.refresh(existing_doc)
+
+    # Mock parsing to return 1 chunk data
+    mock_parse.return_value = [{"page_number": 1, "text": "PMFME scheme loans eligibility rule."}]
+    mock_embed.return_value = [[0.05] * 1536]
+
+    # Create the complete chunk in database
+    db_chunk = DocumentChunk(
+        document_id=existing_doc.id,
+        chunk_index=0,
+        content="PMFME scheme loans eligibility rule.",
+        page_number=1,
+        embedding=[0.05] * 1536,
+    )
+    existing_doc.chunks.append(db_chunk)
+    db_session.add(existing_doc)
+    db_session.commit()
+    db_session.expire_all()
 
     # Attempting to ingest again
     result = ingest_document(
         db=db_session, file_path=temp_file, title="Duplicate Ingestion Attempt"
     )
 
-    # Check that duplication check skipped the file
+    # Check that duplication check skipped the file because it is already complete
     assert result is None
-    assert mock_parse.call_count == 0
+    assert mock_embed.call_count == 0
+
+
+@patch("app.rag.knowledge_base.parse_pdf")
+@patch("app.rag.knowledge_base.generate_embeddings")
+def test_ingest_document_incomplete_resumes(mock_embed, mock_parse, db_session, temp_file):
+    # 1. Register incomplete document (0 chunks) in database
+    content_hash = calculate_sha256(temp_file)
+    existing_doc = Document(
+        title="Incomplete Document",
+        source_name="MoFPI",
+        document_type="scheme_guideline",
+        content_hash=content_hash,
+        file_path=temp_file,
+    )
+    db_session.add(existing_doc)
+    db_session.commit()
+    db_session.refresh(existing_doc)
+
+    # Mock parser and embeddings
+    mock_parse.return_value = [{"page_number": 1, "text": "PMFME scheme loans eligibility rule."}]
+    mock_embed.return_value = [[0.05] * 1536]
+
+    # 2. Run ingestion (it should resume instead of skipping)
+    result = ingest_document(
+        db=db_session,
+        file_path=temp_file,
+        title="Incomplete Document",
+    )
+
+    assert result is not None
+    assert result.id == existing_doc.id
+
+    # Verify that the document now has its chunk and no duplicate document row was created
+    db_doc = db_session.get(Document, existing_doc.id)
+    assert len(db_doc.chunks) == 1
+    assert db_doc.chunks[0].content == "PMFME scheme loans eligibility rule."
+
+    docs_count = len(db_session.exec(select(Document)).all())
+    assert docs_count == 1
+
+
+@patch("app.rag.knowledge_base.parse_pdf")
+@patch("app.rag.knowledge_base.generate_embeddings")
+def test_ingest_document_rollback_on_embedding_failure(
+    mock_embed, mock_parse, db_session, temp_file
+):
+    # Mock parser to return 1 chunk data
+    mock_parse.return_value = [{"page_number": 1, "text": "PMFME scheme loans eligibility rule."}]
+    # Mock embedding to fail
+    mock_embed.side_effect = Exception("OpenAI API Failure")
+
+    # Ingestion should fail and raise the exception
+    with pytest.raises(Exception) as excinfo:
+        ingest_document(
+            db=db_session,
+            file_path=temp_file,
+            title="Failed Doc",
+        )
+    assert "OpenAI API Failure" in str(excinfo.value)
+
+    # Verify that transaction rolled back and NO document was saved in database
+    docs = db_session.exec(select(Document)).all()
+    assert len(docs) == 0
+
+    # Mock embedding to succeed now
+    mock_embed.side_effect = None
+    mock_embed.return_value = [[0.05] * 1536]
+
+    # Re-try ingestion
+    doc = ingest_document(
+        db=db_session,
+        file_path=temp_file,
+        title="Success Doc",
+    )
+    assert doc is not None
+
+    # Assert exactly 1 document and its chunks exist
+    docs = db_session.exec(select(Document)).all()
+    assert len(docs) == 1
+    assert len(docs[0].chunks) == 1
+
+
+@patch("app.rag.knowledge_base.parse_pdf")
+@patch("app.rag.knowledge_base.generate_embeddings")
+def test_ingest_document_retry_no_duplicate_chunks(mock_embed, mock_parse, db_session, temp_file):
+    # Mock parser to return 2 chunks expected
+    mock_parse.return_value = [
+        {"page_number": 1, "text": "New chunk text 1"},
+        {"page_number": 2, "text": "New chunk text 2"},
+    ]
+    mock_embed.return_value = [[0.05] * 1536, [0.06] * 1536]
+
+    # Create incomplete document in DB
+    content_hash = calculate_sha256(temp_file)
+    existing_doc = Document(
+        title="Duplicate Check Doc",
+        source_name="MoFPI",
+        document_type="scheme_guideline",
+        content_hash=content_hash,
+        file_path=temp_file,
+    )
+    db_session.add(existing_doc)
+    db_session.commit()
+    db_session.refresh(existing_doc)
+
+    # Insert a dangling chunk (only 1 exists in DB, making it incomplete)
+    dangling_chunk = DocumentChunk(
+        document_id=existing_doc.id,
+        chunk_index=0,
+        content="Old incomplete text",
+        page_number=1,
+        embedding=[0.01] * 1536,
+    )
+    existing_doc.chunks.append(dangling_chunk)
+    db_session.add(existing_doc)
+    db_session.commit()
+    db_session.expire_all()
+
+    # Ingesting the document again (resuming) should wipe the dangling chunk and insert the 2 new ones
+    result = ingest_document(
+        db=db_session,
+        file_path=temp_file,
+        title="Duplicate Check Doc",
+    )
+
+    assert result is not None
+    assert result.id == existing_doc.id
+
+    # Verify document chunks were replaced and not duplicated
+    db_doc = db_session.get(Document, existing_doc.id)
+    assert len(db_doc.chunks) == 2
+    assert db_doc.chunks[0].content == "New chunk text 1"
+    assert db_doc.chunks[1].content == "New chunk text 2"

@@ -18,13 +18,6 @@ def calculate_sha256(file_path: str) -> str:
     return sha256.hexdigest()
 
 
-def check_document_exists(db: Session, content_hash: str) -> bool:
-    """Check if a document with the given content hash has already been ingested."""
-    statement = select(Document).where(Document.content_hash == content_hash)
-    result = db.exec(statement).first()
-    return result is not None
-
-
 def ingest_document(
     db: Session,
     file_path: str,
@@ -43,55 +36,91 @@ def ingest_document(
     """
     content_hash = calculate_sha256(file_path)
 
-    if check_document_exists(db, content_hash):
-        return None  # Skip duplicate
-
-    # Parse page-by-page (handles errors itself)
+    # 1. Parse the PDF page-by-page first to generate chunk candidate data
     pages = parse_pdf(file_path)
 
-    # Create new document record in the DB
-    db_doc = Document(
-        title=title,
-        source_name=source_name,
-        source_url=source_url,
-        document_type=document_type,
-        language=language,
-        file_path=file_path,
-        content_hash=content_hash,
-        active=True,
-    )
-    db.add(db_doc)
-    db.commit()
-    db.refresh(db_doc)
+    # 2. Query the document by content hash
+    statement = select(Document).where(Document.content_hash == content_hash)
+    existing_doc = db.exec(statement).first()
 
-    # Chunk the pages text
-    chunks_data = chunk_document(
-        pages=pages,
-        document_id=db_doc.id,
-        source_title=title,
-        source_url=source_url,
-        document_version=document_version,
-    )
+    db_doc = None
 
-    if not chunks_data:
+    try:
+        if existing_doc:
+            # Query existing chunks count in database
+            chunks_stmt = select(DocumentChunk).where(DocumentChunk.document_id == existing_doc.id)
+            existing_chunks = db.exec(chunks_stmt).all()
+
+            # Generate chunks to see how many we expect
+            chunks_data = chunk_document(
+                pages=pages,
+                document_id=existing_doc.id,
+                source_title=title,
+                source_url=source_url,
+                document_version=document_version,
+            )
+
+            # Verify completeness: does chunk count match expected?
+            if len(chunks_data) > 0 and len(existing_chunks) == len(chunks_data):
+                # Genuinely complete! Return None to indicate skipped
+                return None
+
+            # If chunk count doesn't match expected or is 0, we treat it as incomplete and rebuild
+            db_doc = existing_doc
+
+            # Clean up all existing chunks associated with this document ID
+            db_doc.chunks = []
+            db.add(db_doc)
+            # Flush changes so the deletion executes in the transaction
+            db.flush()
+        else:
+            # If completely new document
+            db_doc = Document(
+                title=title,
+                source_name=source_name,
+                source_url=source_url,
+                document_type=document_type,
+                language=language,
+                file_path=file_path,
+                content_hash=content_hash,
+                active=True,
+            )
+            db.add(db_doc)
+            # Flush to get the generated UUID without committing
+            db.flush()
+
+        # 3. Chunk the pages text
+        chunks_data = chunk_document(
+            pages=pages,
+            document_id=db_doc.id,
+            source_title=title,
+            source_url=source_url,
+            document_version=document_version,
+        )
+
+        if chunks_data:
+            # Extract contents for batch embedding generation
+            texts = [chunk["content"] for chunk in chunks_data]
+            embeddings = generate_embeddings(texts)
+
+            # Store chunks along with their vector embeddings in pgvector
+            for i, chunk in enumerate(chunks_data):
+                db_chunk = DocumentChunk(
+                    document_id=db_doc.id,
+                    scheme_id=scheme_id,
+                    chunk_index=chunk["chunk_index"],
+                    content=chunk["content"],
+                    page_number=chunk["page_number"],
+                    section_title=chunk["section_heading"],
+                    embedding=embeddings[i] if i < len(embeddings) else None,
+                )
+                db.add(db_chunk)
+
+        # Commit everything atomically at the end
+        db.commit()
+        db.refresh(db_doc)
         return db_doc
 
-    # Extract contents for batch embedding generation
-    texts = [chunk["content"] for chunk in chunks_data]
-    embeddings = generate_embeddings(texts)
-
-    # Store chunks along with their vector embeddings in pgvector
-    for i, chunk in enumerate(chunks_data):
-        db_chunk = DocumentChunk(
-            document_id=db_doc.id,
-            scheme_id=scheme_id,
-            chunk_index=chunk["chunk_index"],
-            content=chunk["content"],
-            page_number=chunk["page_number"],
-            section_title=chunk["section_heading"],
-            embedding=embeddings[i] if i < len(embeddings) else None,
-        )
-        db.add(db_chunk)
-
-    db.commit()
-    return db_doc
+    except Exception as e:
+        db.rollback()
+        raise e
