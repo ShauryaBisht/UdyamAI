@@ -1,7 +1,11 @@
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
+
+if TYPE_CHECKING:
+    from app.models.user import Profile
+    from app.models.analysis import AnalysisRun
 
 class Conversation(SQLModel, table=True):
     __tablename__ = "conversations"

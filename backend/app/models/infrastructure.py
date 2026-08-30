@@ -1,9 +1,12 @@
-from typing import Optional, Any
+from typing import Optional, Any, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column
 from geoalchemy2 import Geography
+
+if TYPE_CHECKING:
+    from app.models.location import Village
 
 class Infrastructure(SQLModel, table=True):
     __tablename__ = "infrastructure"

@@ -1,8 +1,18 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column, JSON
+
+if TYPE_CHECKING:
+    from app.models.user import Profile
+    from app.models.location import Village
+    from app.models.business import BusinessCategory
+    from app.models.finance import FinancialAnalysis
+    from app.models.market import MarketAnalysis, CompetitorAnalysis
+    from app.models.scheme import SchemeMatch
+    from app.models.report import Report
+    from app.models.ai import Conversation
 
 class AnalysisRun(SQLModel, table=True):
     __tablename__ = "analysis_runs"

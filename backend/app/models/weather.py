@@ -1,7 +1,10 @@
 import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
+
+if TYPE_CHECKING:
+    from app.models.location import Village
 
 class Weather(SQLModel, table=True):
     __tablename__ = "weather"

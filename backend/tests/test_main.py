@@ -10,13 +10,17 @@ def test_root_endpoint(client):
     assert "UdyamAI" in data["message"]
 
 
+from unittest.mock import patch
+
 def test_health_check(client):
     """Test the health check endpoint."""
-    response = client.get("/health")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "healthy"
-    assert "version" in data
+    with patch("app.api.routes.health.verify_db_connection", return_value=True):
+        response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert "version" in data
+
 
 
 def test_docs_endpoint(client):

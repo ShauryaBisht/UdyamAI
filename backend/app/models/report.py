@@ -1,8 +1,12 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column, JSON
+
+if TYPE_CHECKING:
+    from app.models.analysis import AnalysisRun
+    from app.models.user import Profile
 
 class Report(SQLModel, table=True):
     __tablename__ = "reports"

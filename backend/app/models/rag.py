@@ -1,9 +1,12 @@
-from typing import Optional, List, Any
+from typing import Optional, List, Any, TYPE_CHECKING
 from datetime import datetime, date
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column
 from sqlalchemy.types import UserDefinedType
+
+if TYPE_CHECKING:
+    from app.models.scheme import Scheme, SchemeRule, SchemeEligibilityRule
 
 # Custom PGVector UserDefinedType for SQLAlchemy
 class PGVectorType(UserDefinedType):

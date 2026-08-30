@@ -1,7 +1,10 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
+
+if TYPE_CHECKING:
+    from app.models.location import Village
 
 class Agriculture(SQLModel, table=True):
     __tablename__ = "agriculture"

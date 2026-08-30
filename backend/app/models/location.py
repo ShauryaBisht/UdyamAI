@@ -1,9 +1,20 @@
-from typing import Optional, List, Any
+from typing import Optional, List, Any, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column
 from geoalchemy2 import Geography
+
+if TYPE_CHECKING:
+    from app.models.user import Profile
+    from app.models.analysis import AnalysisRun
+    from app.models.business import Business
+    from app.models.agriculture import Agriculture
+    from app.models.livestock import Livestock
+    from app.models.economic import EconomicIndicator
+    from app.models.infrastructure import Infrastructure
+    from app.models.weather import Weather
+    from app.models.market import Market, MarketPrice
 
 class District(SQLModel, table=True):
     __tablename__ = "districts"

@@ -1,9 +1,13 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column, JSON
 from geoalchemy2 import Geography
+
+if TYPE_CHECKING:
+    from app.models.analysis import AnalysisRun
+    from app.models.location import Village
 
 class BusinessCategory(SQLModel, table=True):
     __tablename__ = "business_categories"

@@ -1,8 +1,13 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from datetime import datetime, date
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
 from sqlalchemy import Column, JSON
+
+if TYPE_CHECKING:
+    from app.models.finance import FinancialAnalysis
+    from app.models.rag import Document, DocumentChunk
+    from app.models.analysis import AnalysisRun
 
 class Scheme(SQLModel, table=True):
     __tablename__ = "schemes"
