@@ -82,7 +82,6 @@ class AnalysisStatusResponse(BaseModel):
             self.analysis_id = self.id
 
 
-
 class FeasibilityAnalysisResponse(BaseModel):
     id: UUID
     analysis_run_id: UUID

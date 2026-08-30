@@ -34,4 +34,3 @@ def get_analysis_status(id: UUID, db: Session = Depends(get_session)):
     if not status_response:
         raise HTTPException(status_code=404, detail=f"Analysis run with id {id} not found")
     return status_response
-

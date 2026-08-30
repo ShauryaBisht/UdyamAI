@@ -52,7 +52,9 @@ def test_create_analysis_location_not_found(client):
     }
     with patch(
         "app.api.routes.analysis.AnalysisService.create_analysis_run",
-        side_effect=HTTPException(status_code=404, detail="Location with identifier 'xyz' not found"),
+        side_effect=HTTPException(
+            status_code=404, detail="Location with identifier 'xyz' not found"
+        ),
     ):
         response = client.post("/api/v1/analysis", json=payload)
         assert response.status_code == 404
@@ -101,4 +103,3 @@ def test_get_analysis_status_not_found(client):
         assert response.status_code == 404
         data = response.json()
         assert "not found" in data["detail"]
-

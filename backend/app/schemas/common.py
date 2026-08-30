@@ -15,7 +15,6 @@ class AnalysisStatus(StrEnum):
     FAILED = "failed"
 
 
-
 class SchemeMatchStatus(StrEnum):
     POTENTIAL_MATCH = "potential_match"
     NOT_MATCHED = "not_matched"

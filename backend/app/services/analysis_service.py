@@ -127,4 +127,3 @@ class AnalysisService:
             completed_at=db_run.completed_at,
             error_message=None,
         )
-
