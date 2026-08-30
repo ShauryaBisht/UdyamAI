@@ -5,6 +5,8 @@ Supports scheme payment frequencies (monthly, quarterly, semi_annually, annually
 and stored moratorium interest treatments (interest_only, capitalized, waived, or requiring verification).
 """
 
+import math
+
 from app.schemas.finance import RepaymentScheduleItemResponse
 
 
@@ -56,7 +58,8 @@ def generate_amortization_schedule(
 ) -> tuple[float, float, float, bool, list[RepaymentScheduleItemResponse]]:
     """
     Generates period-by-period amortization schedule adhering strictly to scheme payment frequency
-    and stored moratorium interest treatment rules.
+    and stored moratorium interest treatment rules. Uses ceiling logic for period count so partial
+    months map correctly to complete payment periods.
 
     Moratorium Flow:
     Loan sanctioned -> Moratorium -> Repayment begins
@@ -69,9 +72,14 @@ def generate_amortization_schedule(
     periods_per_year = get_periods_per_year(payment_frequency)
     months_per_period = max(1, 12 // periods_per_year)
 
-    total_periods = max(1, tenure_months // months_per_period)
-    moratorium_periods = max(0, min(moratorium_months // months_per_period, total_periods - 1))
-    active_repayment_periods = total_periods - moratorium_periods
+    # Use math.ceil so partial periods count (e.g. 10 months quarterly = 4 quarters)
+    total_periods = max(1, math.ceil(tenure_months / months_per_period))
+    moratorium_periods = 0
+    if moratorium_months > 0:
+        moratorium_periods = min(
+            math.ceil(moratorium_months / months_per_period), max(0, total_periods - 1)
+        )
+    active_repayment_periods = max(1, total_periods - moratorium_periods)
 
     periodic_rate = (annual_interest_rate / periods_per_year) / 100.0
 
@@ -163,6 +171,7 @@ def generate_amortization_schedule(
             principal_paid = max(0.0, payment_amount - interest_paid)
             closing_bal = opening_bal - principal_paid
 
+            # Reconcile tiny rounding differences in final payment
             if closing_bal < 0.01:
                 principal_paid += closing_bal
                 payment_amount += closing_bal

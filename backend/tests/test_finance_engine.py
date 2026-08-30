@@ -122,6 +122,52 @@ def test_finance_engine_quarterly_frequency_and_capitalized_moratorium():
     assert q3.payment > 0
 
 
+def test_finance_engine_tenure_not_divisible_by_period_and_short_moratorium():
+    """Test tenure 10 months with quarterly frequency (math.ceil -> 4 periods) and moratorium 1 month (math.ceil -> 1 period)."""
+    rule = SchemeRuleInput(
+        beneficiary_contribution_percent=10.0,
+        loan_percent=90.0,
+        interest_rate=12.0,
+        tenure_months=10,  # 10 months / 3 = 3.33 -> 4 quarters
+        moratorium_months=1,  # 1 month / 3 = 0.33 -> 1 quarter moratorium
+        payment_frequency="quarterly",
+        moratorium_interest_treatment="interest_only",
+    )
+    req = FinanceCalculateRequest(
+        available_capital=100000.0,
+        scheme_rule_override=rule,
+    )
+    res = FinanceService.calculate_finance(req)
+
+    assert res.status == "success"
+    assert len(res.repayment_schedule) == 4
+    assert res.repayment_schedule[0].is_moratorium is True
+    assert res.repayment_schedule[1].is_moratorium is False
+
+
+def test_finance_engine_zero_interest_loan_quarterly():
+    """Test zero interest rate calculation with quarterly repayment frequency."""
+    rule = SchemeRuleInput(
+        beneficiary_contribution_percent=10.0,
+        loan_percent=90.0,
+        interest_rate=0.0,
+        tenure_months=12,
+        payment_frequency="quarterly",
+    )
+    req = FinanceCalculateRequest(
+        available_capital=100000.0,
+        scheme_rule_override=rule,
+    )
+    res = FinanceService.calculate_finance(req)
+
+    assert res.status == "success"
+    assert len(res.repayment_schedule) == 4
+    # Potential loan 900,000 / 4 quarters = 225,000 per quarter
+    for item in res.repayment_schedule:
+        assert item.interest == pytest.approx(0.0)
+        assert item.payment == pytest.approx(225000.0)
+
+
 def test_finance_engine_unspecified_moratorium_requires_verification():
     """Test that unspecified moratorium interest treatment sets verification_required=True."""
     rule = SchemeRuleInput(
