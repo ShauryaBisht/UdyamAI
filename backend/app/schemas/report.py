@@ -1,16 +1,18 @@
-from pydantic import BaseModel
-from uuid import UUID
-from typing import Optional, Any, Dict
 from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel
+
 
 class ReportResponse(BaseModel):
     id: UUID
     analysis_run_id: UUID
     user_id: UUID
-    title: Optional[str] = None
-    language: Optional[str] = None
-    report_data: Optional[Dict[str, Any]] = None
-    report_file_path: Optional[str] = None
+    title: str | None = None
+    language: str | None = None
+    report_data: dict[str, Any] | None = None
+    report_file_path: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

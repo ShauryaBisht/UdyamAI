@@ -1,16 +1,18 @@
 import logging
+
 from fastapi import Request, status
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger("udyam_ai")
+
 
 def setup_exception_handlers(app):
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         logger.error(f"HTTP error on {request.url.path}: {exc.detail}")
-        
+
         # If detail is already a dict, return it directly inside "detail" or unpack
         detail = exc.detail
         return JSONResponse(
@@ -18,8 +20,8 @@ def setup_exception_handlers(app):
             content={
                 "detail": detail,
                 "error_code": f"HTTP_{exc.status_code}",
-                "status_code": exc.status_code
-            }
+                "status_code": exc.status_code,
+            },
         )
 
     @app.exception_handler(RequestValidationError)
@@ -32,8 +34,8 @@ def setup_exception_handlers(app):
                 "detail": "Validation error",
                 "errors": errors,
                 "error_code": "VALIDATION_ERROR",
-                "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY
-            }
+                "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY,
+            },
         )
 
     @app.exception_handler(Exception)
@@ -44,6 +46,6 @@ def setup_exception_handlers(app):
             content={
                 "detail": "An unexpected error occurred on the server.",
                 "error_code": "INTERNAL_SERVER_ERROR",
-                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR
-            }
+                "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            },
         )

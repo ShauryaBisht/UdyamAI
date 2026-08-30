@@ -1,5 +1,9 @@
-from app.schemas.finance import FinanceCalculateRequest, FinanceCalculateResponse, RepaymentScheduleItemResponse
-from typing import List
+from app.schemas.finance import (
+    FinanceCalculateRequest,
+    FinanceCalculateResponse,
+    RepaymentScheduleItemResponse,
+)
+
 
 class FinanceService:
     @staticmethod
@@ -27,11 +31,11 @@ class FinanceService:
                 required_contribution = available_capital
                 margin_gap = 0.0
 
-        repayment_schedule: List[RepaymentScheduleItemResponse] = []
-        
+        repayment_schedule: list[RepaymentScheduleItemResponse] = []
+
         monthly_rate = (interest_rate / 12.0) / 100.0
         remaining_principal = calculated_loan
-        
+
         # Determine repayment period
         repayment_months = tenure_months - moratorium_months
         if repayment_months <= 0:
@@ -44,7 +48,11 @@ class FinanceService:
         elif monthly_rate == 0:
             monthly_emi = calculated_loan / repayment_months
         else:
-            monthly_emi = calculated_loan * (monthly_rate * ((1 + monthly_rate) ** repayment_months)) / (((1 + monthly_rate) ** repayment_months) - 1)
+            monthly_emi = (
+                calculated_loan
+                * (monthly_rate * ((1 + monthly_rate) ** repayment_months))
+                / (((1 + monthly_rate) ** repayment_months) - 1)
+            )
 
         total_interest = 0.0
         total_repayment = 0.0
@@ -72,12 +80,12 @@ class FinanceService:
                     if principal_payment < 0:
                         principal_payment = 0.0
                     remaining_principal -= principal_payment
-                    if remaining_principal < 0.01: # handle rounding
+                    if remaining_principal < 0.01:  # handle rounding
                         principal_payment += remaining_principal
                         payment_amount += remaining_principal
                         remaining_principal = 0.0
                     is_mor = False
-            
+
             total_interest += interest_payment
             total_repayment += payment_amount
 
@@ -88,7 +96,7 @@ class FinanceService:
                     interest_amount=round(interest_payment, 2),
                     payment_amount=round(payment_amount, 2),
                     remaining_principal=round(max(0.0, remaining_principal), 2),
-                    is_moratorium=is_mor
+                    is_moratorium=is_mor,
                 )
             )
 
@@ -101,5 +109,5 @@ class FinanceService:
             monthly_emi=round(monthly_emi, 2),
             total_interest=round(total_interest, 2),
             total_repayment=round(total_repayment, 2),
-            repayment_schedule=repayment_schedule
+            repayment_schedule=repayment_schedule,
         )

@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+
 def test_health_endpoint_success(client):
     """Test health check success when DB is connected."""
     with patch("app.api.routes.health.verify_db_connection", return_value=True):
@@ -8,6 +9,7 @@ def test_health_endpoint_success(client):
         data = response.json()
         assert data["status"] == "healthy"
         assert data["database"] == "connected"
+
 
 def test_health_endpoint_failure(client):
     """Test health check failure when DB is offline."""

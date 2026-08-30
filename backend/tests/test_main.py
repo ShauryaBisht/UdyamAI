@@ -1,5 +1,7 @@
 """Tests for the main FastAPI application endpoints."""
 
+from unittest.mock import patch
+
 
 def test_root_endpoint(client):
     """Test the root endpoint returns welcome message."""
@@ -10,8 +12,6 @@ def test_root_endpoint(client):
     assert "UdyamAI" in data["message"]
 
 
-from unittest.mock import patch
-
 def test_health_check(client):
     """Test the health check endpoint."""
     with patch("app.api.routes.health.verify_db_connection", return_value=True):
@@ -20,7 +20,6 @@ def test_health_check(client):
         data = response.json()
         assert data["status"] == "healthy"
         assert "version" in data
-
 
 
 def test_docs_endpoint(client):

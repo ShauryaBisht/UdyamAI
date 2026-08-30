@@ -1,20 +1,22 @@
-from typing import Optional, List, Any, TYPE_CHECKING
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
-from sqlmodel import SQLModel, Field, Relationship
-from sqlalchemy import Column
+
 from geoalchemy2 import Geography
+from sqlalchemy import Column
+from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
-    from app.models.user import Profile
+    from app.models.agriculture import Agriculture
     from app.models.analysis import AnalysisRun
     from app.models.business import Business
-    from app.models.agriculture import Agriculture
-    from app.models.livestock import Livestock
     from app.models.economic import EconomicIndicator
     from app.models.infrastructure import Infrastructure
-    from app.models.weather import Weather
+    from app.models.livestock import Livestock
     from app.models.market import Market, MarketPrice
+    from app.models.user import Profile
+    from app.models.weather import Weather
+
 
 class District(SQLModel, table=True):
     __tablename__ = "districts"
@@ -22,13 +24,13 @@ class District(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str = Field(nullable=False)
     state: str = Field(default="Maharashtra", nullable=False)
-    lgd_code: Optional[str] = Field(default=None)
+    lgd_code: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
-    talukas: List["Taluka"] = Relationship(back_populates="district")
-    gram_panchayats: List["GramPanchayat"] = Relationship(back_populates="district")
-    villages: List["Village"] = Relationship(back_populates="district")
+    talukas: list["Taluka"] = Relationship(back_populates="district")
+    gram_panchayats: list["GramPanchayat"] = Relationship(back_populates="district")
+    villages: list["Village"] = Relationship(back_populates="district")
 
 
 class Taluka(SQLModel, table=True):
@@ -37,13 +39,13 @@ class Taluka(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str = Field(nullable=False)
     district_id: UUID = Field(foreign_key="districts.id", nullable=False)
-    lgd_code: Optional[str] = Field(default=None)
+    lgd_code: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
     district: District = Relationship(back_populates="talukas")
-    gram_panchayats: List["GramPanchayat"] = Relationship(back_populates="taluka")
-    villages: List["Village"] = Relationship(back_populates="taluka")
+    gram_panchayats: list["GramPanchayat"] = Relationship(back_populates="taluka")
+    villages: list["Village"] = Relationship(back_populates="taluka")
 
 
 class GramPanchayat(SQLModel, table=True):
@@ -53,13 +55,13 @@ class GramPanchayat(SQLModel, table=True):
     name: str = Field(nullable=False)
     taluka_id: UUID = Field(foreign_key="talukas.id", nullable=False)
     district_id: UUID = Field(foreign_key="districts.id", nullable=False)
-    lgd_code: Optional[str] = Field(default=None)
+    lgd_code: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
     district: District = Relationship(back_populates="gram_panchayats")
     taluka: Taluka = Relationship(back_populates="gram_panchayats")
-    villages: List["Village"] = Relationship(back_populates="gram_panchayat")
+    villages: list["Village"] = Relationship(back_populates="gram_panchayat")
 
 
 class Village(SQLModel, table=True):
@@ -70,11 +72,13 @@ class Village(SQLModel, table=True):
     district_id: UUID = Field(foreign_key="districts.id", nullable=False)
     taluka_id: UUID = Field(foreign_key="talukas.id", nullable=False)
     gram_panchayat_id: UUID = Field(foreign_key="gram_panchayats.id", nullable=False)
-    lgd_code: Optional[str] = Field(default=None)
-    pin_code: Optional[str] = Field(default=None)
-    latitude: Optional[float] = Field(default=None)
-    longitude: Optional[float] = Field(default=None)
-    geom: Optional[Any] = Field(default=None, sa_column=Column(Geography(geometry_type="POINT", srid=4326), nullable=True))
+    lgd_code: str | None = Field(default=None)
+    pin_code: str | None = Field(default=None)
+    latitude: float | None = Field(default=None)
+    longitude: float | None = Field(default=None)
+    geom: Any | None = Field(
+        default=None, sa_column=Column(Geography(geometry_type="POINT", srid=4326), nullable=True)
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
@@ -83,19 +87,19 @@ class Village(SQLModel, table=True):
     gram_panchayat: GramPanchayat = Relationship(back_populates="villages")
 
     # User profiles & Analysis Runs
-    profiles: List["Profile"] = Relationship(back_populates="location")
-    analysis_runs: List["AnalysisRun"] = Relationship(back_populates="location")
+    profiles: list["Profile"] = Relationship(back_populates="location")
+    analysis_runs: list["AnalysisRun"] = Relationship(back_populates="location")
 
     # Local Datasets Relationships
-    population_records: List["Population"] = Relationship(back_populates="location")
-    businesses: List["Business"] = Relationship(back_populates="location")
-    agriculture_records: List["Agriculture"] = Relationship(back_populates="location")
-    livestock_records: List["Livestock"] = Relationship(back_populates="location")
-    economic_indicator_records: List["EconomicIndicator"] = Relationship(back_populates="location")
-    infrastructure_records: List["Infrastructure"] = Relationship(back_populates="location")
-    weather_records: List["Weather"] = Relationship(back_populates="location")
-    markets: List["Market"] = Relationship(back_populates="location")
-    market_prices: List["MarketPrice"] = Relationship(back_populates="location")
+    population_records: list["Population"] = Relationship(back_populates="location")
+    businesses: list["Business"] = Relationship(back_populates="location")
+    agriculture_records: list["Agriculture"] = Relationship(back_populates="location")
+    livestock_records: list["Livestock"] = Relationship(back_populates="location")
+    economic_indicator_records: list["EconomicIndicator"] = Relationship(back_populates="location")
+    infrastructure_records: list["Infrastructure"] = Relationship(back_populates="location")
+    weather_records: list["Weather"] = Relationship(back_populates="location")
+    markets: list["Market"] = Relationship(back_populates="location")
+    market_prices: list["MarketPrice"] = Relationship(back_populates="location")
 
 
 class Population(SQLModel, table=True):
@@ -104,17 +108,17 @@ class Population(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     location_id: UUID = Field(foreign_key="villages.id", nullable=False)
     year: int = Field(nullable=False, index=True)
-    population_total: Optional[int] = Field(default=None)
-    male_population: Optional[int] = Field(default=None)
-    female_population: Optional[int] = Field(default=None)
-    households: Optional[int] = Field(default=None)
-    working_population: Optional[int] = Field(default=None)
-    literacy_rate: Optional[float] = Field(default=None)
+    population_total: int | None = Field(default=None)
+    male_population: int | None = Field(default=None)
+    female_population: int | None = Field(default=None)
+    households: int | None = Field(default=None)
+    working_population: int | None = Field(default=None)
+    literacy_rate: float | None = Field(default=None)
 
     # Provenance fields
-    source: Optional[str] = Field(default=None)
-    source_url: Optional[str] = Field(default=None)
-    data_year: Optional[int] = Field(default=None)
+    source: str | None = Field(default=None)
+    source_url: str | None = Field(default=None)
+    data_year: int | None = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships

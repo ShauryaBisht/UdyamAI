@@ -1,12 +1,14 @@
-from typing import Optional, Dict, Any, TYPE_CHECKING
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
-from sqlmodel import SQLModel, Field, Relationship
-from sqlalchemy import Column, JSON
+
+from sqlalchemy import JSON, Column
+from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from app.models.analysis import AnalysisRun
     from app.models.user import Profile
+
 
 class Report(SQLModel, table=True):
     __tablename__ = "reports"
@@ -15,10 +17,10 @@ class Report(SQLModel, table=True):
     analysis_run_id: UUID = Field(foreign_key="analysis_runs.id", nullable=False)
     user_id: UUID = Field(foreign_key="profiles.id", nullable=False)
 
-    title: Optional[str] = Field(default=None)
-    language: Optional[str] = Field(default=None)
-    report_data: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
-    report_file_path: Optional[str] = Field(default=None)
+    title: str | None = Field(default=None)
+    language: str | None = Field(default=None)
+    report_data: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+    report_file_path: str | None = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
