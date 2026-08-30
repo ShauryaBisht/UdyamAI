@@ -5,6 +5,7 @@ Orchestrates scheme-rule driven financial calculations, caps, shortfall detectio
 
 from typing import Any
 
+from app.config import settings
 from app.finance.emi import generate_amortization_schedule
 from app.finance.loan import apply_loan_cap, calculate_raw_loan
 from app.finance.moratorium import validate_moratorium
@@ -17,11 +18,11 @@ from app.finance.project_cost import (
 from app.finance.working_capital import calculate_working_capital
 from app.schemas.finance import FinanceCalculateRequest, FinanceCalculateResponse
 
-# Module-level defaults used as fallback when scheme rule parameters are unpopulated
-DEFAULT_BENEFICIARY_CONTRIBUTION_PERCENT: float = 10.0
-DEFAULT_INTEREST_RATE: float = 8.5
-DEFAULT_TENURE_MONTHS: int = 84
-DEFAULT_PAYMENT_FREQUENCY: str = "monthly"
+# Module-level defaults populated from application configuration settings
+DEFAULT_BENEFICIARY_CONTRIBUTION_PERCENT: float = settings.DEFAULT_BENEFICIARY_CONTRIBUTION_PERCENT
+DEFAULT_INTEREST_RATE: float = settings.DEFAULT_INTEREST_RATE
+DEFAULT_TENURE_MONTHS: int = settings.DEFAULT_TENURE_MONTHS
+DEFAULT_PAYMENT_FREQUENCY: str = settings.DEFAULT_PAYMENT_FREQUENCY
 
 
 def calculate_finance_engine(

@@ -63,7 +63,10 @@ class FinanceService:
 
         # 2. Use scheme_rule_override if provided
         if rule is None and request.scheme_rule_override is not None:
-            rule = request.scheme_rule_override
+            override = request.scheme_rule_override
+            if override.beneficiary_contribution_percent <= 0:
+                raise ValueError("beneficiary_contribution_percent must be greater than 0")
+            rule = override
 
         # 3. Fallback to inline parameters provided directly on request
         if rule is None:
