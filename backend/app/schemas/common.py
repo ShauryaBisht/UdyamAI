@@ -8,10 +8,12 @@ class SupportedLanguage(StrEnum):
 
 
 class AnalysisStatus(StrEnum):
+    CREATED = "created"
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+
 
 
 class SchemeMatchStatus(StrEnum):

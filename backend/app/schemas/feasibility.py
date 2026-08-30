@@ -35,21 +35,37 @@ class AnalysisRunCreate(BaseModel):
     )
 
 
+class AnalysisCreateResponse(BaseModel):
+    analysis_id: UUID
+    status: AnalysisStatus = Field(default=AnalysisStatus.CREATED)
+    id: UUID | None = None
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.id is None:
+            self.id = self.analysis_id
+
+
 class AnalysisRunResponse(BaseModel):
     id: UUID
-    user_id: UUID
+    analysis_id: UUID | None = None
+    user_id: UUID | None = None
     location_id: UUID | None = None
     business_category_id: UUID | None = None
     available_capital: float | None = Field(default=None, ge=0)
-    status: AnalysisStatus = Field(default=AnalysisStatus.PENDING)
+    status: AnalysisStatus = Field(default=AnalysisStatus.CREATED)
     created_at: datetime
     completed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
+    def model_post_init(self, __context: Any) -> None:
+        if self.analysis_id is None:
+            self.analysis_id = self.id
+
 
 class AnalysisStatusResponse(BaseModel):
     id: UUID
+    analysis_id: UUID | None = None
     status: AnalysisStatus
     progress_percentage: int = Field(
         default=0, ge=0, le=100, description="Task execution progress percentage (0-100)"
@@ -60,6 +76,11 @@ class AnalysisStatusResponse(BaseModel):
     error_message: str | None = Field(default=None, max_length=1000)
 
     model_config = {"from_attributes": True}
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.analysis_id is None:
+            self.analysis_id = self.id
+
 
 
 class FeasibilityAnalysisResponse(BaseModel):
