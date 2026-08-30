@@ -2,7 +2,7 @@
 Finance Service for UdyamAI.
 Handles database lookup for scheme rules, calculation orchestration, and DB persistence.
 """
-from typing import Optional
+
 from sqlmodel import Session, select
 
 from app.finance.calculator import calculate_finance_engine
@@ -18,7 +18,7 @@ from app.schemas.finance import (
 class FinanceService:
     @staticmethod
     def calculate_finance(
-        request: FinanceCalculateRequest, session: Optional[Session] = None
+        request: FinanceCalculateRequest, session: Session | None = None
     ) -> FinanceCalculateResponse:
         """
         Orchestrates financial calculations using dynamic scheme rules.

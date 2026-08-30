@@ -3,6 +3,7 @@ Core Finance Engine calculator for UdyamAI.
 Orchestrates scheme-rule driven financial calculations, caps, shortfall detection, schedule generation, and scenarios.
 """
 from typing import Any
+
 from app.finance.emi import generate_amortization_schedule
 from app.finance.loan import apply_loan_cap, calculate_raw_loan
 from app.finance.moratorium import validate_moratorium
