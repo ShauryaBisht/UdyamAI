@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # CORS Configuration
     CORS_ORIGINS: list[str] = ["*"]
 
+    # Security Configuration
+    SECRET_KEY: str = "supersecretjwtkey"
+
     # Default Finance Fallback Settings
     DEFAULT_BENEFICIARY_CONTRIBUTION_PERCENT: float = 10.0
     DEFAULT_INTEREST_RATE: float = 8.5

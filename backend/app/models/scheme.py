@@ -50,6 +50,7 @@ class SchemeRule(SQLModel, table=True):
     moratorium_months: int | None = Field(default=None)
     payment_frequency: str | None = Field(default="monthly")
     moratorium_interest_treatment: str | None = Field(default=None)
+    working_capital_percent: float | None = Field(default=None)
 
     min_age: int | None = Field(default=None)
     max_age: int | None = Field(default=None)
