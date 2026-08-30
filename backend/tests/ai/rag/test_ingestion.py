@@ -236,7 +236,11 @@ def test_ingest_document_deduplication(mock_embed, mock_parse, db_session, temp_
     # Register document once in database
     content_hash = calculate_sha256(temp_file)
     existing_doc = Document(
-        title="Already Ingested Document", content_hash=content_hash, file_path=temp_file
+        title="Already Ingested Document",
+        source_name="MoFPI",
+        document_type="scheme_guideline",
+        content_hash=content_hash,
+        file_path=temp_file,
     )
     db_session.add(existing_doc)
     db_session.commit()

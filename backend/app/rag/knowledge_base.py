@@ -30,10 +30,10 @@ def ingest_document(
     file_path: str,
     title: str,
     scheme_id: UUID | None = None,
-    source_name: str | None = None,
+    source_name: str = "Unknown",
     source_url: str | None = None,
-    document_type: str | None = None,
-    language: str | None = None,
+    document_type: str = "scheme_guideline",
+    language: str = "hi",
     document_version: str | None = None,
 ) -> Document | None:
     """

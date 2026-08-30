@@ -1,56 +1,25 @@
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID, uuid4
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column
-from sqlalchemy.types import UserDefinedType
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from app.models.scheme import Scheme, SchemeEligibilityRule, SchemeRule
 
 
-import json
-
-
-# Custom PGVector UserDefinedType for SQLAlchemy
-class PGVectorType(UserDefinedType):
-    def get_col_spec(self, **kw):
-        return "VECTOR"
-
-    def bind_processor(self, dialect):
-        if dialect.name == "sqlite":
-
-            def process(value):
-                if value is None:
-                    return None
-                return json.dumps(value)
-
-            return process
-        return super().bind_processor(dialect)
-
-    def result_processor(self, dialect, coltype):
-        if dialect.name == "sqlite":
-
-            def process(value):
-                if value is None:
-                    return None
-                return json.loads(value)
-
-            return process
-        return super().result_processor(dialect, coltype)
-
-
 class Document(SQLModel, table=True):
     __tablename__ = "documents"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    title: str = Field(nullable=False)
-    source_name: str | None = Field(default=None)
+    title: str = Field(max_length=255, nullable=False)
+    source_name: str = Field(max_length=255, nullable=False)
     source_url: str | None = Field(default=None)
-    document_type: str | None = Field(default=None)  # e.g., scheme_guideline, official_faq
+    document_type: str = Field(max_length=100, nullable=False)
 
-    language: str | None = Field(default=None)
+    language: str = Field(default="hi", max_length=10)
     file_path: str | None = Field(default=None)
 
     published_date: date | None = Field(default=None)
@@ -58,12 +27,14 @@ class Document(SQLModel, table=True):
     effective_until: date | None = Field(default=None)
 
     last_verified_at: datetime | None = Field(default=None)
-    content_hash: str | None = Field(default=None)
-    active: bool = Field(default=True)
+    content_hash: str = Field(max_length=64, unique=True, index=True, nullable=False)
+    active: bool = Field(default=True, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
-    chunks: list["DocumentChunk"] = Relationship(back_populates="document")
+    chunks: list["DocumentChunk"] = Relationship(
+        back_populates="document", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
     scheme_rules: list["SchemeRule"] = Relationship(back_populates="source_document")
     scheme_eligibility_rules: list["SchemeEligibilityRule"] = Relationship(
         back_populates="source_document"
@@ -74,17 +45,17 @@ class DocumentChunk(SQLModel, table=True):
     __tablename__ = "document_chunks"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    document_id: UUID = Field(foreign_key="documents.id", nullable=False)
+    document_id: UUID = Field(foreign_key="documents.id", nullable=False, index=True)
     scheme_id: UUID | None = Field(default=None, foreign_key="schemes.id", nullable=True)
 
-    chunk_index: int | None = Field(default=None)
+    chunk_index: int = Field(nullable=False)
     content: str = Field(nullable=False)
     page_number: int | None = Field(default=None)
     section_title: str | None = Field(default=None)
 
-    # pgvector embedding field
-    embedding: Any | None = Field(
-        default=None, sa_column=Column("embedding", PGVectorType, nullable=True)
+    # pgvector embedding field (1536 dimensions for OpenAI ada-002)
+    embedding: list[float] | None = Field(
+        default=None, sa_column=Column("embedding", Vector(1536), nullable=True)
     )
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
