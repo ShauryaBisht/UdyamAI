@@ -1,28 +1,49 @@
 """
 EMI calculation module for UdyamAI Finance Engine.
-Handles monthly EMI computation and amortization schedules with moratorium support.
+Handles standard loan amortization formula: EMI = P * r * (1+r)^n / ((1+r)^n - 1)
+Supports scheme payment frequencies (monthly, quarterly, semi_annually, annually)
+and stored moratorium interest treatments (interest_only, capitalized, waived, or requiring verification).
 """
 
 from app.schemas.finance import RepaymentScheduleItemResponse
 
 
-def calculate_monthly_emi(
-    loan_amount: float, annual_interest_rate: float, repayment_months: int
+def get_periods_per_year(payment_frequency: str | None) -> int:
+    """
+    Returns the number of payment periods per year for the given scheme payment frequency.
+    """
+    if not payment_frequency:
+        return 12
+
+    freq = payment_frequency.lower().strip()
+    if freq in ("monthly", "month", "m"):
+        return 12
+    elif freq in ("quarterly", "quarter", "q"):
+        return 4
+    elif freq in ("semi_annually", "semi-annually", "half_yearly", "half-yearly", "sa"):
+        return 2
+    elif freq in ("annually", "annual", "yearly", "a", "y"):
+        return 1
+    return 12
+
+
+def calculate_amortization_emi(
+    principal: float, periodic_interest_rate: float, active_repayment_periods: int
 ) -> float:
     """
-    Calculates monthly Equated Monthly Installment (EMI) for given active repayment months.
-    Formula: EMI = P * [r(1+r)^n] / [(1+r)^n - 1]
+    Calculates installment payment for active repayment periods using standard amortization formula:
+    EMI = P * [r(1+r)^n] / [(1+r)^n - 1]
     """
-    if loan_amount <= 0 or repayment_months <= 0:
+    if principal <= 0 or active_repayment_periods <= 0:
         return 0.0
 
-    monthly_rate = (annual_interest_rate / 12.0) / 100.0
-    if monthly_rate == 0:
-        return loan_amount / repayment_months
+    if periodic_interest_rate == 0:
+        return principal / active_repayment_periods
 
-    factor = (1 + monthly_rate) ** repayment_months
-    monthly_emi = loan_amount * (monthly_rate * factor) / (factor - 1)
-    return monthly_emi
+    r = periodic_interest_rate
+    n = active_repayment_periods
+    factor = (1 + r) ** n
+    return principal * (r * factor) / (factor - 1)
 
 
 def generate_amortization_schedule(
@@ -30,61 +51,150 @@ def generate_amortization_schedule(
     annual_interest_rate: float,
     tenure_months: int,
     moratorium_months: int = 0,
-) -> tuple[float, float, float, list[RepaymentScheduleItemResponse]]:
+    payment_frequency: str | None = "monthly",
+    moratorium_interest_treatment: str | None = None,
+) -> tuple[float, float, float, bool, list[RepaymentScheduleItemResponse]]:
     """
-    Generates period-by-period repayment schedule with moratorium handling.
-    Returns (monthly_emi, total_interest, total_repayment, repayment_schedule).
+    Generates period-by-period amortization schedule adhering strictly to scheme payment frequency
+    and stored moratorium interest treatment rules.
+
+    Moratorium Flow:
+    Loan sanctioned -> Moratorium -> Repayment begins
+
+    Returns (installment_amount, total_interest, total_repayment, verification_required, schedule).
     """
     if loan_amount <= 0 or tenure_months <= 0:
-        return 0.0, 0.0, 0.0, []
+        return 0.0, 0.0, 0.0, False, []
 
-    moratorium_months = max(0, min(moratorium_months, tenure_months - 1))
-    repayment_months = tenure_months - moratorium_months
+    periods_per_year = get_periods_per_year(payment_frequency)
+    months_per_period = max(1, 12 // periods_per_year)
 
-    monthly_emi = calculate_monthly_emi(loan_amount, annual_interest_rate, repayment_months)
-    monthly_rate = (annual_interest_rate / 12.0) / 100.0
-    remaining_principal = loan_amount
+    total_periods = max(1, tenure_months // months_per_period)
+    moratorium_periods = max(0, min(moratorium_months // months_per_period, total_periods - 1))
+    active_repayment_periods = total_periods - moratorium_periods
 
+    periodic_rate = (annual_interest_rate / periods_per_year) / 100.0
+
+    # Determine moratorium interest treatment rule
+    verification_required = False
+    treatment = "interest_only"
+    if moratorium_periods > 0:
+        if not moratorium_interest_treatment:
+            verification_required = True
+            treatment = "interest_only"
+        else:
+            t_lower = moratorium_interest_treatment.lower().strip()
+            if "capital" in t_lower:
+                treatment = "capitalized"
+            elif "waiv" in t_lower or "subsid" in t_lower:
+                treatment = "waived"
+            elif "interest" in t_lower or "pay" in t_lower:
+                treatment = "interest_only"
+            else:
+                verification_required = True
+                treatment = "interest_only"
+
+    schedule: list[RepaymentScheduleItemResponse] = []
+    current_balance = loan_amount
     total_interest = 0.0
     total_repayment = 0.0
-    schedule: list[RepaymentScheduleItemResponse] = []
 
-    for month in range(1, tenure_months + 1):
-        if month <= moratorium_months:
-            interest_payment = remaining_principal * monthly_rate
-            principal_payment = 0.0
-            payment_amount = interest_payment
-            is_mor = True
-        else:
-            if remaining_principal <= 0:
-                interest_payment = 0.0
-                principal_payment = 0.0
-                payment_amount = 0.0
-                is_mor = False
-            else:
-                interest_payment = remaining_principal * monthly_rate
-                payment_amount = min(monthly_emi, remaining_principal + interest_payment)
-                principal_payment = max(0.0, payment_amount - interest_payment)
-                remaining_principal -= principal_payment
+    # 1. Moratorium Phase
+    for period_idx in range(1, moratorium_periods + 1):
+        opening_bal = current_balance
+        interest_accrued = opening_bal * periodic_rate
 
-                if remaining_principal < 0.01:
-                    principal_payment += remaining_principal
-                    payment_amount += remaining_principal
-                    remaining_principal = 0.0
-                is_mor = False
+        if treatment == "interest_only":
+            principal_paid = 0.0
+            interest_paid = interest_accrued
+            payment_amount = interest_paid
+            closing_bal = opening_bal
+        elif treatment == "capitalized":
+            principal_paid = 0.0
+            interest_paid = interest_accrued
+            payment_amount = 0.0
+            closing_bal = opening_bal + interest_accrued
+            current_balance = closing_bal
+        elif treatment == "waived":
+            principal_paid = 0.0
+            interest_paid = 0.0
+            payment_amount = 0.0
+            closing_bal = opening_bal
 
-        total_interest += interest_payment
+        total_interest += interest_paid
         total_repayment += payment_amount
 
         schedule.append(
             RepaymentScheduleItemResponse(
-                period_number=month,
-                principal_amount=round(principal_payment, 2),
-                interest_amount=round(interest_payment, 2),
+                period=period_idx,
+                period_number=period_idx,
+                opening_balance=round(opening_bal, 2),
+                payment=round(payment_amount, 2),
                 payment_amount=round(payment_amount, 2),
-                remaining_principal=round(max(0.0, remaining_principal), 2),
-                is_moratorium=is_mor,
+                principal=round(principal_paid, 2),
+                principal_amount=round(principal_paid, 2),
+                interest=round(interest_paid, 2),
+                interest_amount=round(interest_paid, 2),
+                closing_balance=round(max(0.0, closing_bal), 2),
+                remaining_principal=round(max(0.0, closing_bal), 2),
+                is_moratorium=True,
+                verification_required=verification_required,
             )
         )
 
-    return round(monthly_emi, 2), round(total_interest, 2), round(total_repayment, 2), schedule
+    # 2. Calculate Active Repayment Installment
+    repayment_principal_base = current_balance
+    periodic_installment = calculate_amortization_emi(
+        repayment_principal_base, periodic_rate, active_repayment_periods
+    )
+
+    # 3. Active Repayment Phase
+    for period_idx in range(moratorium_periods + 1, total_periods + 1):
+        if current_balance <= 0:
+            opening_bal = 0.0
+            interest_paid = 0.0
+            principal_paid = 0.0
+            payment_amount = 0.0
+            closing_bal = 0.0
+        else:
+            opening_bal = current_balance
+            interest_paid = opening_bal * periodic_rate
+            payment_amount = min(periodic_installment, opening_bal + interest_paid)
+            principal_paid = max(0.0, payment_amount - interest_paid)
+            closing_bal = opening_bal - principal_paid
+
+            if closing_bal < 0.01:
+                principal_paid += closing_bal
+                payment_amount += closing_bal
+                closing_bal = 0.0
+
+            current_balance = closing_bal
+
+        total_interest += interest_paid
+        total_repayment += payment_amount
+
+        schedule.append(
+            RepaymentScheduleItemResponse(
+                period=period_idx,
+                period_number=period_idx,
+                opening_balance=round(opening_bal, 2),
+                payment=round(payment_amount, 2),
+                payment_amount=round(payment_amount, 2),
+                principal=round(principal_paid, 2),
+                principal_amount=round(principal_paid, 2),
+                interest=round(interest_paid, 2),
+                interest_amount=round(interest_paid, 2),
+                closing_balance=round(max(0.0, closing_bal), 2),
+                remaining_principal=round(max(0.0, closing_bal), 2),
+                is_moratorium=False,
+                verification_required=False,
+            )
+        )
+
+    return (
+        round(periodic_installment, 2),
+        round(total_interest, 2),
+        round(total_repayment, 2),
+        verification_required,
+        schedule,
+    )

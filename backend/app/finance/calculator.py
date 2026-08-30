@@ -21,6 +21,7 @@ from app.schemas.finance import FinanceCalculateRequest, FinanceCalculateRespons
 DEFAULT_BENEFICIARY_CONTRIBUTION_PERCENT: float = 10.0
 DEFAULT_INTEREST_RATE: float = 8.5
 DEFAULT_TENURE_MONTHS: int = 84
+DEFAULT_PAYMENT_FREQUENCY: str = "monthly"
 
 
 def calculate_finance_engine(
@@ -56,6 +57,16 @@ def calculate_finance_engine(
     moratorium_months = getattr(scheme_rule, "moratorium_months", None) or 0
     moratorium_months = validate_moratorium(moratorium_months, tenure_months)
 
+    payment_frequency = (
+        getattr(scheme_rule, "payment_frequency", None)
+        or getattr(request, "payment_frequency", None)
+        or DEFAULT_PAYMENT_FREQUENCY
+    )
+
+    moratorium_interest_treatment = getattr(
+        scheme_rule, "moratorium_interest_treatment", None
+    ) or getattr(request, "moratorium_interest_treatment", None)
+
     working_cap_percent = getattr(scheme_rule, "working_capital_percent", None)
 
     # 1. Check if user specified a desired project cost and has insufficient margin
@@ -74,6 +85,8 @@ def calculate_finance_engine(
                 interest_rate=interest_rate,
                 tenure_months=tenure_months,
                 moratorium_months=moratorium_months,
+                payment_frequency=payment_frequency,
+                moratorium_interest_treatment=moratorium_interest_treatment,
                 message=(
                     f"Available capital (₹{available_capital:,.2f}) is insufficient for the "
                     f"required contribution (₹{req_contrib_for_desired:,.2f}) for project cost ₹{desired_project_cost:,.2f}."
@@ -99,7 +112,7 @@ def calculate_finance_engine(
         if available_capital < req_contrib_min:
             shortfall = req_contrib_min - available_capital
             return FinanceCalculateResponse(
-                status="insufficient_margin",
+                status="below_minimum_cost",
                 available_capital=round(available_capital, 2),
                 required_contribution=round(req_contrib_min, 2),
                 shortfall=round(shortfall, 2),
@@ -109,6 +122,8 @@ def calculate_finance_engine(
                 interest_rate=interest_rate,
                 tenure_months=tenure_months,
                 moratorium_months=moratorium_months,
+                payment_frequency=payment_frequency,
+                moratorium_interest_treatment=moratorium_interest_treatment,
                 message=(
                     f"Available capital (₹{available_capital:,.2f}) is below the required contribution "
                     f"(₹{req_contrib_min:,.2f}) for the minimum project cost of ₹{min_pc:,.2f}."
@@ -124,8 +139,19 @@ def calculate_finance_engine(
     margin_shortfall = max(0.0, required_contribution - available_capital)
 
     # 6. EMI, Moratorium & Amortization Schedule
-    monthly_emi, total_interest, total_repayment, schedule = generate_amortization_schedule(
-        potential_loan, interest_rate, tenure_months, moratorium_months
+    (
+        monthly_emi,
+        total_interest,
+        total_repayment,
+        verification_required,
+        schedule,
+    ) = generate_amortization_schedule(
+        loan_amount=potential_loan,
+        annual_interest_rate=interest_rate,
+        tenure_months=tenure_months,
+        moratorium_months=moratorium_months,
+        payment_frequency=payment_frequency,
+        moratorium_interest_treatment=moratorium_interest_treatment,
     )
 
     # 7. Working Capital Support
@@ -157,6 +183,9 @@ def calculate_finance_engine(
         interest_rate=interest_rate,
         tenure_months=tenure_months,
         moratorium_months=moratorium_months,
+        payment_frequency=payment_frequency,
+        moratorium_interest_treatment=moratorium_interest_treatment,
+        verification_required=verification_required,
         monthly_emi=monthly_emi,
         total_interest=total_interest,
         total_repayment=total_repayment,

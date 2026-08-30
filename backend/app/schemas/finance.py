@@ -34,6 +34,14 @@ class SchemeRuleInput(BaseModel):
     moratorium_months: int | None = Field(
         default=0, ge=0, le=60, description="Moratorium period in months (0 to 60 months)"
     )
+    payment_frequency: str | None = Field(
+        default="monthly",
+        description="Payment frequency: 'monthly', 'quarterly', 'semi_annually', 'annually'",
+    )
+    moratorium_interest_treatment: str | None = Field(
+        default=None,
+        description="Treatment of interest during moratorium: 'interest_only', 'capitalized', 'waived', or None (requires verification)",
+    )
     working_capital_percent: float | None = Field(
         default=None,
         ge=0.0,
@@ -70,6 +78,8 @@ class FinanceCalculateRequest(BaseModel):
     moratorium_months: int | None = Field(default=0, ge=0, le=60)
     loan_percent: float | None = Field(default=None, ge=0.0, le=100.0)
     beneficiary_contribution_percent: float | None = Field(default=None, ge=0.0, le=100.0)
+    payment_frequency: str | None = Field(default=None)
+    moratorium_interest_treatment: str | None = Field(default=None)
 
     # Financial performance inputs for scenario generation
     monthly_revenue: float | None = Field(default=None, ge=0.0)
@@ -80,14 +90,23 @@ class FinanceCalculateRequest(BaseModel):
 
 
 class RepaymentScheduleItemResponse(BaseModel):
+    period: int = Field(..., gt=0, description="Period number (1-based index)")
     period_number: int = Field(..., gt=0, description="Period number (1-based index)")
-    principal_amount: float = Field(..., ge=0, description="Principal paid in this period")
-    interest_amount: float = Field(..., ge=0, description="Interest paid in this period")
+    opening_balance: float = Field(..., ge=0, description="Opening balance before payment")
+    payment: float = Field(..., ge=0, description="Total payment amount for period")
     payment_amount: float = Field(..., ge=0, description="Total payment amount for period")
+    principal: float = Field(..., ge=0, description="Principal paid in this period")
+    principal_amount: float = Field(..., ge=0, description="Principal paid in this period")
+    interest: float = Field(..., ge=0, description="Interest paid in this period")
+    interest_amount: float = Field(..., ge=0, description="Interest paid in this period")
+    closing_balance: float = Field(..., ge=0, description="Closing balance after payment")
     remaining_principal: float = Field(
         ..., ge=0, description="Remaining loan principal after payment"
     )
     is_moratorium: bool = Field(..., description="Whether this period falls in moratorium")
+    verification_required: bool = Field(
+        default=False, description="Whether moratorium interest treatment requires verification"
+    )
 
 
 class FinancialScenarioResponse(BaseModel):
@@ -133,6 +152,9 @@ class FinanceCalculateResponse(BaseModel):
     interest_rate: float | None = Field(default=None)
     tenure_months: int | None = Field(default=None)
     moratorium_months: int | None = Field(default=None)
+    payment_frequency: str | None = Field(default="monthly")
+    moratorium_interest_treatment: str | None = Field(default=None)
+    verification_required: bool = Field(default=False)
 
     # Repayment outputs
     monthly_emi: float | None = Field(default=None, ge=0)

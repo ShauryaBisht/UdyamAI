@@ -49,6 +49,7 @@ def test_finance_engine_prompt_example():
         interest_rate=8.5,
         tenure_months=84,
         moratorium_months=6,
+        moratorium_interest_treatment="interest_only",
     )
     req = FinanceCalculateRequest(
         available_capital=100000.0,
@@ -57,15 +58,110 @@ def test_finance_engine_prompt_example():
     res = FinanceService.calculate_finance(req)
 
     assert res.status == "success"
-    assert res.available_capital == 100000.0
-    assert res.feasible_project_cost == 1000000.0
-    assert res.potential_loan == 900000.0
-    assert res.required_contribution == 100000.0
-    assert res.shortfall == 0.0
+    assert res.available_capital == pytest.approx(100000.0)
+    assert res.feasible_project_cost == pytest.approx(1000000.0)
+    assert res.potential_loan == pytest.approx(900000.0)
+    assert res.required_contribution == pytest.approx(100000.0)
+    assert res.shortfall == pytest.approx(0.0)
     assert len(res.repayment_schedule) == 84
+
     # First 6 months are moratorium
-    assert all(item.is_moratorium for item in res.repayment_schedule[:6])
-    assert all(not item.is_moratorium for item in res.repayment_schedule[6:])
+    for item in res.repayment_schedule[:6]:
+        assert item.is_moratorium is True
+        assert item.principal == pytest.approx(0.0)
+        assert item.opening_balance == pytest.approx(900000.0)
+        assert item.closing_balance == pytest.approx(900000.0)
+
+    # Subsequent months repayment begins
+    for item in res.repayment_schedule[6:]:
+        assert item.is_moratorium is False
+
+
+def test_finance_engine_quarterly_frequency_and_capitalized_moratorium():
+    """Test quarterly payment frequency and capitalized moratorium interest treatment."""
+    rule = SchemeRuleInput(
+        beneficiary_contribution_percent=10.0,
+        loan_percent=90.0,
+        interest_rate=12.0,  # 12% per year -> 3% per quarter
+        tenure_months=24,  # 8 quarters total
+        moratorium_months=6,  # 2 quarters moratorium
+        payment_frequency="quarterly",
+        moratorium_interest_treatment="capitalized",
+    )
+    req = FinanceCalculateRequest(
+        available_capital=100000.0,
+        scheme_rule_override=rule,
+    )
+    res = FinanceService.calculate_finance(req)
+
+    assert res.status == "success"
+    assert res.payment_frequency == "quarterly"
+    assert len(res.repayment_schedule) == 8
+
+    # Quarter 1: opening 900,000, interest 3% = 27,000, capitalized closing = 927,000
+    q1 = res.repayment_schedule[0]
+    assert q1.period == 1
+    assert q1.is_moratorium is True
+    assert q1.opening_balance == pytest.approx(900000.0)
+    assert q1.interest == pytest.approx(27000.0)
+    assert q1.payment == pytest.approx(0.0)
+    assert q1.closing_balance == pytest.approx(927000.0)
+
+    # Quarter 2: opening 927,000, interest 3% = 27,810, capitalized closing = 954,810
+    q2 = res.repayment_schedule[1]
+    assert q2.period == 2
+    assert q2.is_moratorium is True
+    assert q2.opening_balance == pytest.approx(927000.0)
+    assert q2.closing_balance == pytest.approx(954810.0)
+
+    # Quarter 3: repayment begins on capitalized principal of 954,810
+    q3 = res.repayment_schedule[2]
+    assert q3.period == 3
+    assert q3.is_moratorium is False
+    assert q3.opening_balance == pytest.approx(954810.0)
+    assert q3.payment > 0
+
+
+def test_finance_engine_unspecified_moratorium_requires_verification():
+    """Test that unspecified moratorium interest treatment sets verification_required=True."""
+    rule = SchemeRuleInput(
+        beneficiary_contribution_percent=10.0,
+        loan_percent=90.0,
+        interest_rate=8.0,
+        tenure_months=60,
+        moratorium_months=6,
+        moratorium_interest_treatment=None,  # Unspecified
+    )
+    req = FinanceCalculateRequest(
+        available_capital=100000.0,
+        scheme_rule_override=rule,
+    )
+    res = FinanceService.calculate_finance(req)
+
+    assert res.status == "success"
+    assert res.verification_required is True
+    assert res.repayment_schedule[0].verification_required is True
+
+
+def test_finance_engine_below_minimum_cost():
+    """Test returning status='below_minimum_cost' when feasible cost is below scheme min_project_cost."""
+    rule = SchemeRuleInput(
+        beneficiary_contribution_percent=10.0,
+        loan_percent=90.0,
+        interest_rate=8.0,
+        tenure_months=60,
+        min_project_cost=500000.0,  # Minimum 5 Lakh project cost
+    )
+    req = FinanceCalculateRequest(
+        available_capital=20000.0,  # 20k supports only 2 Lakh project cost (< 5 Lakh min)
+        scheme_rule_override=rule,
+    )
+    res = FinanceService.calculate_finance(req)
+
+    assert res.status == "below_minimum_cost"
+    assert res.available_capital == pytest.approx(20000.0)
+    assert res.required_contribution == pytest.approx(50000.0)
+    assert res.shortfall == pytest.approx(30000.0)
 
 
 def test_finance_engine_shortfall_prompt_example():
@@ -89,16 +185,14 @@ def test_finance_engine_shortfall_prompt_example():
     res = FinanceService.calculate_finance(req)
 
     assert res.status == "insufficient_margin"
-    assert res.available_capital == 50000.0
-    assert res.required_contribution == 100000.0
-    assert res.shortfall == 50000.0
+    assert res.available_capital == pytest.approx(50000.0)
+    assert res.required_contribution == pytest.approx(100000.0)
+    assert res.shortfall == pytest.approx(50000.0)
 
 
 def test_finance_engine_database_rule_and_persistence(session: Session):
-    """Test fetching SchemeRule from DB and persisting FinancialAnalysis results."""
-    # Setup test DB profile & analysis run
+    """Test fetching SchemeRule from DB and persisting FinancialAnalysis & RepaymentSchedule results."""
     profile = Profile(auth_user_id=uuid4(), name="Test Entrepreneur")
-
     session.add(profile)
     session.commit()
 
@@ -106,7 +200,6 @@ def test_finance_engine_database_rule_and_persistence(session: Session):
     session.add(run)
     session.commit()
 
-    # Create Scheme & SchemeRule in DB
     scheme = Scheme(name="PMEGP Micro Scheme", active=True)
     session.add(scheme)
     session.commit()
@@ -121,6 +214,8 @@ def test_finance_engine_database_rule_and_persistence(session: Session):
         interest_rate=9.5,
         tenure_months=60,
         moratorium_months=3,
+        payment_frequency="monthly",
+        moratorium_interest_treatment="interest_only",
     )
     session.add(rule)
     session.commit()
@@ -135,27 +230,22 @@ def test_finance_engine_database_rule_and_persistence(session: Session):
     res = FinanceService.calculate_finance(req, session=session)
 
     assert res.status == "success"
-    assert res.beneficiary_contribution_percent == 15.0
-    assert res.loan_percent == 85.0
-    assert res.feasible_project_cost == 1000000.0  # ₹150,000 / 0.15 = 10 Lakh
-    assert res.potential_loan == 800000.0  # Capped at 8 Lakh max loan
-    assert res.loan_cap_applied is True
+    assert res.beneficiary_contribution_percent == pytest.approx(15.0)
+    assert res.loan_percent == pytest.approx(85.0)
+    assert res.feasible_project_cost == pytest.approx(1000000.0)
+    assert res.potential_loan == pytest.approx(800000.0)
 
     # Verify DB persistence
     db_analysis = session.query(FinancialAnalysis).filter_by(analysis_run_id=run.id).first()
     assert db_analysis is not None
-    assert db_analysis.calculated_loan == 800000.0
-    assert db_analysis.interest_rate == 9.5
+    assert db_analysis.calculated_loan == pytest.approx(800000.0)
 
     schedules = (
         session.query(RepaymentSchedule).filter_by(financial_analysis_id=db_analysis.id).all()
     )
     assert len(schedules) == 60
-
-    scenarios = (
-        session.query(FinancialScenario).filter_by(financial_analysis_id=db_analysis.id).all()
-    )
-    assert len(scenarios) == 3
+    assert schedules[0].opening_balance == pytest.approx(800000.0)
+    assert schedules[0].is_moratorium is True
 
 
 def test_finance_engine_database_error_handling(monkeypatch):

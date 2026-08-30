@@ -40,11 +40,20 @@ class FinanceService:
                         select(SchemeRule).where(SchemeRule.id == request.scheme_rule_id)
                     ).first()
                 elif request.scheme_id is not None:
+                    # Select latest active rule for scheme ordered by created_at desc
                     rule = session.exec(
-                        select(SchemeRule).where(SchemeRule.scheme_id == request.scheme_id)
+                        select(SchemeRule)
+                        .where(SchemeRule.scheme_id == request.scheme_id)
+                        .order_by(SchemeRule.created_at.desc())
                     ).first()
             except Exception as exc:
-                logger.error("Database lookup failed for scheme rule: %s", exc, exc_info=True)
+                logger.error(
+                    "Database lookup failed for scheme rule (scheme_id=%s, rule_id=%s): %s",
+                    request.scheme_id,
+                    request.scheme_rule_id,
+                    exc,
+                    exc_info=True,
+                )
                 return FinanceCalculateResponse(
                     status="database_error",
                     available_capital=request.available_capital,
@@ -75,6 +84,8 @@ class FinanceService:
                 interest_rate=request.interest_rate if request.interest_rate is not None else 8.5,
                 tenure_months=request.tenure_months if request.tenure_months is not None else 84,
                 moratorium_months=request.moratorium_months or 0,
+                payment_frequency=request.payment_frequency or "monthly",
+                moratorium_interest_treatment=request.moratorium_interest_treatment,
             )
 
         # Execute calculations
@@ -97,7 +108,8 @@ class FinanceService:
         response: FinanceCalculateResponse,
     ) -> None:
         """
-        Extracts persistence logic for financial analysis, repayment schedules, and financial scenarios into a separate transaction unit.
+        Executes an atomic persistence transaction for financial analysis, repayment schedules, and financial scenarios.
+        Uses a single transaction unit with session.flush() and session.commit() so that rollback reverts everything if any stage fails.
         """
         try:
             financial_record = FinancialAnalysis(
@@ -127,23 +139,24 @@ class FinanceService:
                 calculation_version="v2.0_phase5",
             )
             session.add(financial_record)
-            session.commit()
-            session.refresh(financial_record)
+            session.flush()  # Populates financial_record.id atomically without committing transaction
 
-            # Persist repayment schedule items
+            # Add repayment schedule items
             for item in response.repayment_schedule:
                 sched_item = RepaymentSchedule(
                     financial_analysis_id=financial_record.id,
                     period_number=item.period_number,
+                    opening_balance=item.opening_balance,
                     principal_amount=item.principal_amount,
                     interest_amount=item.interest_amount,
                     payment_amount=item.payment_amount,
                     remaining_principal=item.remaining_principal,
                     is_moratorium=item.is_moratorium,
+                    verification_required=item.verification_required,
                 )
                 session.add(sched_item)
 
-            # Persist financial scenarios
+            # Add financial scenarios
             for scen in response.financial_scenarios:
                 scen_item = FinancialScenario(
                     financial_analysis_id=financial_record.id,
@@ -156,9 +169,19 @@ class FinanceService:
                 )
                 session.add(scen_item)
 
+            # Single atomic commit for entire object graph
             session.commit()
+            logger.info(
+                "Successfully persisted financial analysis results (analysis_run_id=%s, scheme_id=%s)",
+                request.analysis_run_id,
+                request.scheme_id,
+            )
         except Exception as exc:
             logger.error(
-                "Failed to persist financial analysis results to DB: %s", exc, exc_info=True
+                "Atomic persistence failed for financial analysis (analysis_run_id=%s, scheme_id=%s): %s",
+                request.analysis_run_id,
+                request.scheme_id,
+                exc,
+                exc_info=True,
             )
             session.rollback()
