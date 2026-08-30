@@ -51,6 +51,16 @@ class SchemeRuleInput(BaseModel):
 
 
 class FinanceCalculateRequest(BaseModel):
+    """
+    Request schema for Finance Engine calculation endpoint.
+
+    API Note (V2 Evolution):
+    - available_capital is required (investor equity).
+    - desired_project_cost is optional. If provided, calculates required contribution and potential shortfall for that target.
+      If omitted, computes maximum feasible project cost and loan supportable by available_capital.
+    - Scheme rules can be loaded from DB via scheme_id / scheme_rule_id or supplied directly via scheme_rule_override.
+    """
+
     available_capital: float = Field(
         ...,
         ge=0,
@@ -90,14 +100,10 @@ class FinanceCalculateRequest(BaseModel):
 
 
 class RepaymentScheduleItemResponse(BaseModel):
-    period: int = Field(..., gt=0, description="Period number (1-based index)")
     period_number: int = Field(..., gt=0, description="Period number (1-based index)")
     opening_balance: float = Field(..., ge=0, description="Opening balance before payment")
-    payment: float = Field(..., ge=0, description="Total payment amount for period")
     payment_amount: float = Field(..., ge=0, description="Total payment amount for period")
-    principal: float = Field(..., ge=0, description="Principal paid in this period")
     principal_amount: float = Field(..., ge=0, description="Principal paid in this period")
-    interest: float = Field(..., ge=0, description="Interest paid in this period")
     interest_amount: float = Field(..., ge=0, description="Interest paid in this period")
     closing_balance: float = Field(..., ge=0, description="Closing balance after payment")
     remaining_principal: float = Field(
@@ -134,11 +140,7 @@ class FinanceCalculateResponse(BaseModel):
     )
     desired_project_cost: float | None = Field(default=None, ge=0)
     feasible_project_cost: float | None = Field(default=None, ge=0)
-    raw_project_cost: float | None = Field(default=None, ge=0)
-    calculated_loan: float | None = Field(default=None, ge=0)
     potential_loan: float | None = Field(default=None, ge=0)
-    raw_loan: float | None = Field(default=None, ge=0)
-    margin_gap: float = Field(default=0.0)
 
     # Caps applied flags & limits
     project_cost_cap_applied: bool = Field(default=False)

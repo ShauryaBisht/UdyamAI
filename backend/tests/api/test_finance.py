@@ -15,8 +15,9 @@ def test_calculate_finance_valid(client):
     assert data["status"] == "success"
     assert data["desired_project_cost"] == 100000.0
     assert data["available_capital"] == 25000.0
-    assert data["calculated_loan"] == 75000.0
+    assert data["potential_loan"] == 75000.0
     assert data["monthly_emi"] > 0
+
     assert len(data["repayment_schedule"]) == 12
 
 

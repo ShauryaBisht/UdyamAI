@@ -1,5 +1,4 @@
 """
-Core Finance Engine calculator for UdyamAI.
 Orchestrates scheme-rule driven financial calculations, caps, shortfall detection, schedule generation, and scenarios.
 """
 
@@ -55,91 +54,61 @@ def calculate_finance_engine(
     if tenure_months is None or tenure_months <= 0:
         tenure_months = DEFAULT_TENURE_MONTHS
 
-    moratorium_months = getattr(scheme_rule, "moratorium_months", None) or 0
+    moratorium_months = getattr(scheme_rule, "moratorium_months", 0) or 0
     moratorium_months = validate_moratorium(moratorium_months, tenure_months)
 
-    payment_frequency = (
-        getattr(scheme_rule, "payment_frequency", None)
-        or getattr(request, "payment_frequency", None)
-        or DEFAULT_PAYMENT_FREQUENCY
-    )
-
-    moratorium_interest_treatment = getattr(
-        scheme_rule, "moratorium_interest_treatment", None
-    ) or getattr(request, "moratorium_interest_treatment", None)
-
+    payment_frequency = getattr(scheme_rule, "payment_frequency", None) or DEFAULT_PAYMENT_FREQUENCY
+    moratorium_interest_treatment = getattr(scheme_rule, "moratorium_interest_treatment", None)
     working_cap_percent = getattr(scheme_rule, "working_capital_percent", None)
 
-    # 1. Check if user specified a desired project cost and has insufficient margin
+    # 1. Shortfall Check on Desired Project Cost
     if desired_project_cost is not None and desired_project_cost > 0:
         req_contrib_for_desired = calculate_required_contribution(desired_project_cost, b_percent)
         if available_capital < req_contrib_for_desired:
             shortfall = req_contrib_for_desired - available_capital
             return FinanceCalculateResponse(
                 status="insufficient_margin",
-                available_capital=round(available_capital, 2),
+                available_capital=available_capital,
                 required_contribution=round(req_contrib_for_desired, 2),
                 shortfall=round(shortfall, 2),
                 desired_project_cost=round(desired_project_cost, 2),
-                beneficiary_contribution_percent=b_percent,
-                loan_percent=l_percent,
-                interest_rate=interest_rate,
-                tenure_months=tenure_months,
-                moratorium_months=moratorium_months,
-                payment_frequency=payment_frequency,
-                moratorium_interest_treatment=moratorium_interest_treatment,
-                message=(
-                    f"Available capital (₹{available_capital:,.2f}) is insufficient for the "
-                    f"required contribution (₹{req_contrib_for_desired:,.2f}) for project cost ₹{desired_project_cost:,.2f}."
-                ),
+                message=f"Insufficient available capital (₹{available_capital:,.2f}) for desired project cost ₹{desired_project_cost:,.2f}. Shortfall is ₹{shortfall:,.2f}.",
             )
 
-    # 2. Raw project cost calculation based on available capital
+    # 2. Project Cost Calculations
     raw_project_cost = calculate_raw_project_cost(available_capital, b_percent)
-
     if desired_project_cost is not None and desired_project_cost > 0:
-        target_project_cost = min(desired_project_cost, raw_project_cost)
+        target_cost = min(raw_project_cost, desired_project_cost)
     else:
-        target_project_cost = raw_project_cost
+        target_cost = raw_project_cost
 
-    # 3. Apply scheme project cost caps
     feasible_project_cost, project_cap_applied = apply_project_cost_caps(
-        target_project_cost, min_pc, max_pc
+        target_cost, min_pc, max_pc
     )
 
-    # Check min project cost threshold
-    if min_pc is not None and min_pc > 0 and feasible_project_cost < min_pc:
-        req_contrib_min = calculate_required_contribution(min_pc, b_percent)
-        if available_capital < req_contrib_min:
-            shortfall = req_contrib_min - available_capital
-            return FinanceCalculateResponse(
-                status="below_minimum_cost",
-                available_capital=round(available_capital, 2),
-                required_contribution=round(req_contrib_min, 2),
-                shortfall=round(shortfall, 2),
-                min_project_cost_limit=min_pc,
-                beneficiary_contribution_percent=b_percent,
-                loan_percent=l_percent,
-                interest_rate=interest_rate,
-                tenure_months=tenure_months,
-                moratorium_months=moratorium_months,
-                payment_frequency=payment_frequency,
-                moratorium_interest_treatment=moratorium_interest_treatment,
-                message=(
-                    f"Available capital (₹{available_capital:,.2f}) is below the required contribution "
-                    f"(₹{req_contrib_min:,.2f}) for the minimum project cost of ₹{min_pc:,.2f}."
-                ),
-            )
+    # 3. Minimum Project Cost Check
+    if min_pc is not None and target_cost < min_pc:
+        req_contrib_for_min = calculate_required_contribution(min_pc, b_percent)
+        shortfall = max(0.0, req_contrib_for_min - available_capital)
+        return FinanceCalculateResponse(
+            status="below_minimum_cost",
+            available_capital=available_capital,
+            required_contribution=round(req_contrib_for_min, 2),
+            shortfall=round(shortfall, 2),
+            feasible_project_cost=round(feasible_project_cost, 2),
+            max_project_cost_limit=max_pc,
+            message=f"Feasible project cost ₹{feasible_project_cost:,.2f} is below minimum allowed scheme cost ₹{min_pc:,.2f}.",
+        )
 
-    # 4. Calculate potential loan and apply loan caps
+    # 4. Required Contribution & Shortfall
+    required_contribution = calculate_required_contribution(feasible_project_cost, b_percent)
+    margin_shortfall = max(0.0, required_contribution - available_capital)
+
+    # 5. Potential Loan Calculations
     raw_loan = calculate_raw_loan(feasible_project_cost, l_percent)
     potential_loan, loan_cap_applied = apply_loan_cap(raw_loan, max_loan)
 
-    # 5. Required contribution & margin shortfall
-    required_contribution = feasible_project_cost - potential_loan
-    margin_shortfall = max(0.0, required_contribution - available_capital)
-
-    # 6. EMI, Moratorium & Amortization Schedule
+    # 6. Amortization & Repayment Schedule
     (
         monthly_emi,
         total_interest,
@@ -170,11 +139,7 @@ def calculate_finance_engine(
         shortfall=round(margin_shortfall, 2),
         desired_project_cost=round(desired_project_cost, 2) if desired_project_cost else None,
         feasible_project_cost=round(feasible_project_cost, 2),
-        raw_project_cost=round(raw_project_cost, 2),
-        calculated_loan=round(potential_loan, 2),
         potential_loan=round(potential_loan, 2),
-        raw_loan=round(raw_loan, 2),
-        margin_gap=round(margin_shortfall, 2),
         project_cost_cap_applied=project_cap_applied,
         loan_cap_applied=loan_cap_applied,
         max_project_cost_limit=max_pc,

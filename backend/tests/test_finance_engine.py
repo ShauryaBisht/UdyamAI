@@ -68,7 +68,7 @@ def test_finance_engine_prompt_example():
     # First 6 months are moratorium
     for item in res.repayment_schedule[:6]:
         assert item.is_moratorium is True
-        assert item.principal == pytest.approx(0.0)
+        assert item.principal_amount == pytest.approx(0.0)
         assert item.opening_balance == pytest.approx(900000.0)
         assert item.closing_balance == pytest.approx(900000.0)
 
@@ -100,26 +100,26 @@ def test_finance_engine_quarterly_frequency_and_capitalized_moratorium():
 
     # Quarter 1: opening 900,000, interest 3% = 27,000, capitalized closing = 927,000
     q1 = res.repayment_schedule[0]
-    assert q1.period == 1
+    assert q1.period_number == 1
     assert q1.is_moratorium is True
     assert q1.opening_balance == pytest.approx(900000.0)
-    assert q1.interest == pytest.approx(27000.0)
-    assert q1.payment == pytest.approx(0.0)
+    assert q1.interest_amount == pytest.approx(27000.0)
+    assert q1.payment_amount == pytest.approx(0.0)
     assert q1.closing_balance == pytest.approx(927000.0)
 
     # Quarter 2: opening 927,000, interest 3% = 27,810, capitalized closing = 954,810
     q2 = res.repayment_schedule[1]
-    assert q2.period == 2
+    assert q2.period_number == 2
     assert q2.is_moratorium is True
     assert q2.opening_balance == pytest.approx(927000.0)
     assert q2.closing_balance == pytest.approx(954810.0)
 
     # Quarter 3: repayment begins on capitalized principal of 954,810
     q3 = res.repayment_schedule[2]
-    assert q3.period == 3
+    assert q3.period_number == 3
     assert q3.is_moratorium is False
     assert q3.opening_balance == pytest.approx(954810.0)
-    assert q3.payment > 0
+    assert q3.payment_amount > 0
 
 
 def test_finance_engine_tenure_not_divisible_by_period_and_short_moratorium():
@@ -164,8 +164,8 @@ def test_finance_engine_zero_interest_loan_quarterly():
     assert len(res.repayment_schedule) == 4
     # Potential loan 900,000 / 4 quarters = 225,000 per quarter
     for item in res.repayment_schedule:
-        assert item.interest == pytest.approx(0.0)
-        assert item.payment == pytest.approx(225000.0)
+        assert item.interest_amount == pytest.approx(0.0)
+        assert item.payment_amount == pytest.approx(225000.0)
 
 
 def test_finance_engine_unspecified_moratorium_requires_verification():

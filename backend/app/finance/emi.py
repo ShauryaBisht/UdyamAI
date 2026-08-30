@@ -134,14 +134,10 @@ def generate_amortization_schedule(
 
         schedule.append(
             RepaymentScheduleItemResponse(
-                period=period_idx,
                 period_number=period_idx,
                 opening_balance=round(opening_bal, 2),
-                payment=round(payment_amount, 2),
                 payment_amount=round(payment_amount, 2),
-                principal=round(principal_paid, 2),
                 principal_amount=round(principal_paid, 2),
-                interest=round(interest_paid, 2),
                 interest_amount=round(interest_paid, 2),
                 closing_balance=round(max(0.0, closing_bal), 2),
                 remaining_principal=round(max(0.0, closing_bal), 2),
@@ -184,14 +180,10 @@ def generate_amortization_schedule(
 
         schedule.append(
             RepaymentScheduleItemResponse(
-                period=period_idx,
                 period_number=period_idx,
                 opening_balance=round(opening_bal, 2),
-                payment=round(payment_amount, 2),
                 payment_amount=round(payment_amount, 2),
-                principal=round(principal_paid, 2),
                 principal_amount=round(principal_paid, 2),
-                interest=round(interest_paid, 2),
                 interest_amount=round(interest_paid, 2),
                 closing_balance=round(max(0.0, closing_bal), 2),
                 remaining_principal=round(max(0.0, closing_bal), 2),

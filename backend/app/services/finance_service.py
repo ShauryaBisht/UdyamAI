@@ -122,7 +122,7 @@ class FinanceService:
                 required_contribution=response.required_contribution,
                 desired_project_cost=response.desired_project_cost,
                 feasible_project_cost=response.feasible_project_cost,
-                margin_gap=response.margin_gap,
+                margin_gap=response.shortfall,
                 calculated_loan=response.potential_loan,
                 interest_rate=response.interest_rate,
                 tenure_months=response.tenure_months,
