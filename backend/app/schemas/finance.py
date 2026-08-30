@@ -1,24 +1,28 @@
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-class FinanceCalculateRequest(BaseModel):
-    desired_project_cost: float = Field(
+class SchemeRuleInput(BaseModel):
+    beneficiary_contribution_percent: float = Field(
         ...,
-        gt=0,
-        le=100_000_000.0,
-        description="Desired total project/setup cost in INR (gt 0, max 10 Cr)",
-    )
-    available_capital: float = Field(
-        ...,
-        ge=0,
-        le=100_000_000.0,
-        description="Available capital/own equity investment in INR (ge 0, max 10 Cr)",
+        gt=0.0,
+        le=100.0,
+        description="Beneficiary contribution percentage required by scheme (e.g. 10.0 for 10%)",
     )
     loan_percent: float | None = Field(
         default=None,
         ge=0.0,
         le=100.0,
-        description="Percentage of project cost funded by loan (0-100%)",
+        description="Percentage of project cost funded by loan. If None, derived as (100 - beneficiary_contribution_percent)",
+    )
+    min_project_cost: float | None = Field(
+        default=None, ge=0.0, description="Minimum project cost allowed under the scheme in INR"
+    )
+    max_project_cost: float | None = Field(
+        default=None, ge=0.0, description="Maximum project cost allowed under the scheme in INR"
+    )
+    max_loan_amount: float | None = Field(
+        default=None, ge=0.0, description="Maximum loan cap under the scheme in INR"
     )
     interest_rate: float = Field(
         ..., ge=0.0, le=100.0, description="Annual interest rate percentage (0-100%)"
@@ -29,6 +33,44 @@ class FinanceCalculateRequest(BaseModel):
     moratorium_months: int | None = Field(
         default=0, ge=0, le=60, description="Moratorium period in months (0 to 60 months)"
     )
+    working_capital_percent: float | None = Field(
+        default=None, ge=0.0, le=100.0, description="Percentage of project cost supported as working capital"
+    )
+
+
+class FinanceCalculateRequest(BaseModel):
+    available_capital: float = Field(
+        ...,
+        ge=0,
+        le=100_000_000.0,
+        description="Available capital / equity investment in INR (required)",
+    )
+    desired_project_cost: float | None = Field(
+        default=None,
+        gt=0,
+        le=100_000_000.0,
+        description="Optional desired total project cost in INR",
+    )
+    scheme_id: UUID | None = Field(
+        default=None, description="Optional DB Scheme ID to fetch applicable scheme rules"
+    )
+    scheme_rule_id: UUID | None = Field(
+        default=None, description="Optional DB SchemeRule ID to fetch specific rule version"
+    )
+    scheme_rule_override: SchemeRuleInput | None = Field(
+        default=None, description="Direct scheme rule specification when scheme_id is not provided"
+    )
+    # Direct fallback fields for backward compatibility when scheme_rule_override is omitted
+    interest_rate: float | None = Field(default=None, ge=0.0, le=100.0)
+    tenure_months: int | None = Field(default=None, gt=0, le=360)
+    moratorium_months: int | None = Field(default=0, ge=0, le=60)
+    loan_percent: float | None = Field(default=None, ge=0.0, le=100.0)
+    beneficiary_contribution_percent: float | None = Field(default=None, ge=0.0, le=100.0)
+
+    # Financial performance inputs for scenario generation
+    monthly_revenue: float | None = Field(default=None, ge=0.0)
+    monthly_operating_cost: float | None = Field(default=None, ge=0.0)
+    analysis_run_id: UUID | None = Field(default=None, description="Optional AnalysisRun ID for DB persistence")
 
 
 class RepaymentScheduleItemResponse(BaseModel):
@@ -42,13 +84,58 @@ class RepaymentScheduleItemResponse(BaseModel):
     is_moratorium: bool = Field(..., description="Whether this period falls in moratorium")
 
 
+class FinancialScenarioResponse(BaseModel):
+    scenario_type: str = Field(..., description="worst_case, expected_case, or best_case")
+    monthly_revenue: float = Field(..., ge=0)
+    monthly_expenses: float = Field(..., ge=0)
+    monthly_profit: float = Field(...)
+    repayment_coverage: float | None = Field(
+        default=None, description="Debt Service Coverage Ratio (Net Monthly Profit / EMI)"
+    )
+    cash_flow: dict[str, float] | None = None
+
+
 class FinanceCalculateResponse(BaseModel):
-    desired_project_cost: float = Field(..., gt=0)
+    status: str = Field(
+        default="success",
+        description="Calculation status: 'success', 'insufficient_margin', or 'below_minimum_cost'",
+    )
     available_capital: float = Field(..., ge=0)
     required_contribution: float = Field(..., ge=0)
-    margin_gap: float = Field(...)
-    calculated_loan: float = Field(..., ge=0)
-    monthly_emi: float = Field(..., ge=0)
-    total_interest: float = Field(..., ge=0)
-    total_repayment: float = Field(..., ge=0)
-    repayment_schedule: list[RepaymentScheduleItemResponse]
+    shortfall: float = Field(
+        default=0.0,
+        ge=0.0,
+        description="Margin shortfall if available_capital < required_contribution",
+    )
+    desired_project_cost: float | None = Field(default=None, ge=0)
+    feasible_project_cost: float | None = Field(default=None, ge=0)
+    raw_project_cost: float | None = Field(default=None, ge=0)
+    calculated_loan: float | None = Field(default=None, ge=0)
+    potential_loan: float | None = Field(default=None, ge=0)
+    raw_loan: float | None = Field(default=None, ge=0)
+    margin_gap: float = Field(default=0.0)
+
+    # Caps applied flags & limits
+    project_cost_cap_applied: bool = Field(default=False)
+    loan_cap_applied: bool = Field(default=False)
+    max_project_cost_limit: float | None = Field(default=None)
+    max_loan_amount_limit: float | None = Field(default=None)
+
+    # Scheme parameters applied
+    beneficiary_contribution_percent: float | None = Field(default=None)
+    loan_percent: float | None = Field(default=None)
+    interest_rate: float | None = Field(default=None)
+    tenure_months: int | None = Field(default=None)
+    moratorium_months: int | None = Field(default=None)
+
+    # Repayment outputs
+    monthly_emi: float | None = Field(default=None, ge=0)
+    total_interest: float | None = Field(default=None, ge=0)
+    total_repayment: float | None = Field(default=None, ge=0)
+    working_capital: float | None = Field(default=None, ge=0)
+
+    # Schedule & Scenarios
+    repayment_schedule: list[RepaymentScheduleItemResponse] = Field(default_factory=list)
+    financial_scenarios: list[FinancialScenarioResponse] = Field(default_factory=list)
+    message: str | None = Field(default=None)
+
