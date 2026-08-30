@@ -3,6 +3,7 @@ Moratorium module for UdyamAI Finance Engine.
 Provides functions for validating and evaluating moratorium terms under scheme rules.
 """
 
+
 def validate_moratorium(moratorium_months: int, tenure_months: int) -> int:
     """
     Validates moratorium months against total loan tenure.

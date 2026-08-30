@@ -90,7 +90,8 @@ class FinanceService:
                 monthly_operating_cost=request.monthly_operating_cost,
                 monthly_profit=(
                     request.monthly_revenue - request.monthly_operating_cost
-                    if request.monthly_revenue is not None and request.monthly_operating_cost is not None
+                    if request.monthly_revenue is not None
+                    and request.monthly_operating_cost is not None
                     else None
                 ),
                 calculation_version="v2.0_phase5",

@@ -9,8 +9,5 @@ router = APIRouter()
 
 
 @router.post("/calculate", response_model=FinanceCalculateResponse)
-def calculate_finance(
-    request: FinanceCalculateRequest, session: Session = Depends(get_session)
-):
+def calculate_finance(request: FinanceCalculateRequest, session: Session = Depends(get_session)):
     return FinanceService.calculate_finance(request, session=session)
-

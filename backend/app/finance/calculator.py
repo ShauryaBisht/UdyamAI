@@ -2,6 +2,7 @@
 Core Finance Engine calculator for UdyamAI.
 Orchestrates scheme-rule driven financial calculations, caps, shortfall detection, schedule generation, and scenarios.
 """
+
 from typing import Any
 
 from app.finance.emi import generate_amortization_schedule
@@ -54,9 +55,7 @@ def calculate_finance_engine(
 
     # 1. Check if user specified a desired project cost and has insufficient margin
     if desired_project_cost is not None and desired_project_cost > 0:
-        req_contrib_for_desired = calculate_required_contribution(
-            desired_project_cost, b_percent
-        )
+        req_contrib_for_desired = calculate_required_contribution(desired_project_cost, b_percent)
         if available_capital < req_contrib_for_desired:
             shortfall = req_contrib_for_desired - available_capital
             return FinanceCalculateResponse(

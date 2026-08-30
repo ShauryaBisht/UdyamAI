@@ -3,6 +3,7 @@ Project Cost calculation module for UdyamAI Finance Engine.
 Handles raw project cost estimation, contribution requirements, and project cost cap evaluation.
 """
 
+
 def calculate_raw_project_cost(
     available_capital: float, beneficiary_contribution_percent: float
 ) -> float:

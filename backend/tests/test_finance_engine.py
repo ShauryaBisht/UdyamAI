@@ -1,6 +1,7 @@
 """
 Unit tests for UdyamAI Phase 5 Finance Engine logic & services.
 """
+
 from uuid import uuid4
 
 import pytest
@@ -32,7 +33,6 @@ def session_fixture():
     SQLModel.metadata.create_all(engine, tables=tables)
     with Session(engine) as session:
         yield session
-
 
 
 def test_finance_engine_prompt_example():
@@ -138,7 +138,7 @@ def test_finance_engine_database_rule_and_persistence(session: Session):
     assert res.beneficiary_contribution_percent == 15.0
     assert res.loan_percent == 85.0
     assert res.feasible_project_cost == 1000000.0  # ₹150,000 / 0.15 = 10 Lakh
-    assert res.potential_loan == 800000.0         # Capped at 8 Lakh max loan
+    assert res.potential_loan == 800000.0  # Capped at 8 Lakh max loan
     assert res.loan_cap_applied is True
 
     # Verify DB persistence
@@ -147,8 +147,12 @@ def test_finance_engine_database_rule_and_persistence(session: Session):
     assert db_analysis.calculated_loan == 800000.0
     assert db_analysis.interest_rate == 9.5
 
-    schedules = session.query(RepaymentSchedule).filter_by(financial_analysis_id=db_analysis.id).all()
+    schedules = (
+        session.query(RepaymentSchedule).filter_by(financial_analysis_id=db_analysis.id).all()
+    )
     assert len(schedules) == 60
 
-    scenarios = session.query(FinancialScenario).filter_by(financial_analysis_id=db_analysis.id).all()
+    scenarios = (
+        session.query(FinancialScenario).filter_by(financial_analysis_id=db_analysis.id).all()
+    )
     assert len(scenarios) == 3

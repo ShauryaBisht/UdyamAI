@@ -3,6 +3,7 @@ Loan calculation module for UdyamAI Finance Engine.
 Handles raw potential loan estimation and loan caps application.
 """
 
+
 def calculate_raw_loan(feasible_project_cost: float, loan_percent: float) -> float:
     """
     Calculates raw potential loan based on feasible project cost and scheme loan percentage.
@@ -11,9 +12,7 @@ def calculate_raw_loan(feasible_project_cost: float, loan_percent: float) -> flo
     return feasible_project_cost * (loan_percent / 100.0)
 
 
-def apply_loan_cap(
-    raw_loan: float, max_loan_amount: float | None = None
-) -> tuple[float, bool]:
+def apply_loan_cap(raw_loan: float, max_loan_amount: float | None = None) -> tuple[float, bool]:
     """
     Applies scheme max loan cap to raw loan.
     Returns (potential_loan, cap_applied).

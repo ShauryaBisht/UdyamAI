@@ -35,7 +35,10 @@ class SchemeRuleInput(BaseModel):
         default=0, ge=0, le=60, description="Moratorium period in months (0 to 60 months)"
     )
     working_capital_percent: float | None = Field(
-        default=None, ge=0.0, le=100.0, description="Percentage of project cost supported as working capital"
+        default=None,
+        ge=0.0,
+        le=100.0,
+        description="Percentage of project cost supported as working capital",
     )
 
 
@@ -71,7 +74,9 @@ class FinanceCalculateRequest(BaseModel):
     # Financial performance inputs for scenario generation
     monthly_revenue: float | None = Field(default=None, ge=0.0)
     monthly_operating_cost: float | None = Field(default=None, ge=0.0)
-    analysis_run_id: UUID | None = Field(default=None, description="Optional AnalysisRun ID for DB persistence")
+    analysis_run_id: UUID | None = Field(
+        default=None, description="Optional AnalysisRun ID for DB persistence"
+    )
 
 
 class RepaymentScheduleItemResponse(BaseModel):
@@ -139,4 +144,3 @@ class FinanceCalculateResponse(BaseModel):
     repayment_schedule: list[RepaymentScheduleItemResponse] = Field(default_factory=list)
     financial_scenarios: list[FinancialScenarioResponse] = Field(default_factory=list)
     message: str | None = Field(default=None)
-

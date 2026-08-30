@@ -104,7 +104,7 @@ def test_calculate_finance_project_caps(client):
             "beneficiary_contribution_percent": 10.0,
             "loan_percent": 90.0,
             "max_project_cost": 1000000.0,  # Capped at 10 Lakh
-            "max_loan_amount": 800000.0,   # Capped loan at 8 Lakh
+            "max_loan_amount": 800000.0,  # Capped loan at 8 Lakh
             "interest_rate": 9.0,
             "tenure_months": 60,
         },
