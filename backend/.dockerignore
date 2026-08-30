@@ -14,6 +14,5 @@ venv/
 .venv/
 *.md
 LICENSE
-tests/
 htmlcov/
 .coverage
