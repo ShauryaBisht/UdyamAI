@@ -1,14 +1,33 @@
 import logging
+import os
 from uuid import UUID
 
 from sqlmodel import Session
 
 from app.models.rag import Document
+from app.rag.document_parser import (
+    CorruptedPDFError,
+    EmptyPDFError,
+    EncryptedPDFError,
+    PDFParserError,
+    ScannedPDFError,
+)
 from app.rag.knowledge_base import ingest_document
 from app.rag.retriever import retrieve_evidence
 from app.schemas.rag import RAGQueryRequest, RAGQueryResponse
 
 logger = logging.getLogger(__name__)
+
+# Re-export exceptions for convenience
+__all__ = [
+    "load_document",
+    "query_rag_pipeline",
+    "PDFParserError",
+    "CorruptedPDFError",
+    "EncryptedPDFError",
+    "EmptyPDFError",
+    "ScannedPDFError",
+]
 
 
 def load_document(
@@ -23,8 +42,8 @@ def load_document(
     document_version: str | None = None,
 ) -> Document | None:
     """
-    Convenience loader function that ingests a PDF document into the RAG knowledge base.
-    Parses PDF, chunks text, generates vector embeddings, and persists to pgvector database.
+    Validates PDF file existence & readability, then ingests document into RAG knowledge base.
+    Remote OpenAI embedding calls execute outside DB transactions to prevent lock contention.
 
     Args:
         db: Active SQLModel database session.
@@ -38,12 +57,40 @@ def load_document(
         document_version: Version identifier string.
 
     Returns:
-        Ingested Document model, or None if skipped (e.g., duplicate hash).
+        Ingested Document model, or None if skipped (e.g., duplicate content hash).
+
+    Raises:
+        FileNotFoundError: If file path does not exist.
+        PermissionError: If file path is not readable.
+        ValueError: If parameters or file are invalid.
+        CorruptedPDFError: If PDF structure is corrupted.
+        EncryptedPDFError: If PDF is password protected.
+        EmptyPDFError: If PDF is empty or 0 bytes.
+        ScannedPDFError: If PDF contains no extractable text.
     """
-    logger.info(f"Loading document via document_loader: '{title}' from {file_path}")
+    logger.info(f"Initiating document_loader pipeline for '{title}' from path: {file_path}")
+
+    if not file_path or not str(file_path).strip():
+        raise ValueError("File path cannot be empty.")
+
+    file_path_str = str(file_path).strip()
+
+    if not os.path.exists(file_path_str):
+        logger.error(f"Document load failed. File not found: {file_path_str}")
+        raise FileNotFoundError(f"File not found: {file_path_str}")
+
+    if not os.path.isfile(file_path_str):
+        logger.error(f"Document load failed. Path is not a regular file: {file_path_str}")
+        raise ValueError(f"Path is not a regular file: {file_path_str}")
+
+    if not os.access(file_path_str, os.R_OK):
+        logger.error(f"Document load failed. File is not readable: {file_path_str}")
+        raise PermissionError(f"File is not readable: {file_path_str}")
+
+    # Calls existing ingestion pipeline (executes remote API call outside DB transaction)
     return ingest_document(
         db=db,
-        file_path=file_path,
+        file_path=file_path_str,
         title=title,
         scheme_id=scheme_id,
         source_name=source_name,

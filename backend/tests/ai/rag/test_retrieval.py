@@ -368,9 +368,14 @@ def test_retrieve_evidence_request_schema(
 # --- 11. Document Loader Integration ---
 
 
+@patch("os.access", return_value=True)
+@patch("os.path.isfile", return_value=True)
+@patch("os.path.exists", return_value=True)
 @patch("app.rag.document_loader.retrieve_evidence")
 @patch("app.rag.document_loader.ingest_document")
-def test_document_loader_integration(mock_ingest, mock_retrieve, db_session: Session):
+def test_document_loader_integration(
+    mock_ingest, mock_retrieve, mock_exists, mock_isfile, mock_access, db_session: Session
+):
     mock_doc = Document(
         title="Test Doc",
         source_name="Source A",
