@@ -7,11 +7,12 @@ master Market Analysis orchestrator.
 
 import logging
 from datetime import date
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import or_
-from sqlmodel import Session, col, select
+from sqlalchemy import or_, select
+from sqlmodel import Session, col
 
 from app.geo.nearby_businesses import find_nearby_businesses
 from app.geo.nearby_facilities import find_nearby_facilities
@@ -36,12 +37,23 @@ from app.schemas.market import (
     CompetitionAnalysisDetailResponse,
     LocationMarketAnalysisResponse,
     MarketProvenanceInfo,
+    MarketRiskAssessmentResponse,
     NearbyInfrastructureSummary,
     NearbyMarketSummary,
     RadiusMarketAnalysisResult,
+    RiskIndicatorItem,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _get_entity_by_id(db: Session, model_cls: type, entity_id: UUID) -> Any:
+    """Safely retrieves an entity by ID supporting SQLModel Session, SQLAlchemy 2.0, and legacy Session APIs."""
+    try:
+        return db.get(model_cls, entity_id)
+    except AttributeError:
+        res = db.execute(select(model_cls).where(model_cls.id == entity_id))
+        return res.scalars().first()
 
 
 class MarketService:
@@ -224,7 +236,7 @@ class MarketService:
         if not radii_km:
             radii_km = [5.0, 10.0]
 
-        village = db.get(Village, village_id)
+        village = _get_entity_by_id(db, Village, village_id)
         if not village:
             raise HTTPException(status_code=404, detail=f"Village with id {village_id} not found")
 
@@ -420,6 +432,12 @@ class MarketService:
 
             # 3. Infrastructure
             infra_res = analyze_relevant_infrastructure(nearby_facs)
+            if not isinstance(infra_res, dict):
+                logger.warning(
+                    "analyze_relevant_infrastructure returned unexpected type: %r", infra_res
+                )
+                infra_res = {"facility_summaries": [], "facility_counts_by_type": {}}
+
             infra_summaries = [
                 NearbyInfrastructureSummary(
                     id=item.get("id"),
@@ -428,13 +446,13 @@ class MarketService:
                     distance_km=item.get("distance_km", 0.0),
                     capacity=item.get("capacity"),
                 )
-                for item in infra_res["facility_summaries"]
+                for item in infra_res.get("facility_summaries", [])
             ]
 
             # 4. Competition
             target_cat_name = None
             if business_category_id:
-                b_cat = db.get(BusinessCategory, business_category_id)
+                b_cat = _get_entity_by_id(db, BusinessCategory, business_category_id)
                 if b_cat:
                     target_cat_name = b_cat.name
 
@@ -458,11 +476,22 @@ class MarketService:
             pp_res = estimate_purchasing_power(
                 pop_reach, hh_reach, pop_res["estimated_working_population"], econ_recs
             )
+            nearest_mkt_dist = (
+                min([m.get("distance_meters", 100000) / 1000.0 for m in nearby_mkts])
+                if nearby_mkts
+                else None
+            )
+            single_mkt_name = nearby_mkts[0].get("name") if len(nearby_mkts) == 1 else None
+
             risk_res = assess_market_risks(
-                comp_res["competition_density_per_km2"],
-                infra_res["facility_counts_by_type"],
-                pricing_res["price_volatility"],
-                pop_reach,
+                competition_density=comp_res["competition_density_per_km2"],
+                facility_counts=infra_res["facility_counts_by_type"],
+                price_volatility=pricing_res["price_volatility"],
+                population_reach=pop_reach,
+                nearby_markets_count=len(nearby_mkts),
+                nearest_market_distance_km=nearest_mkt_dist,
+                single_market_name=single_mkt_name,
+                radius_km=r,
             )
 
             indicators_dict = {
@@ -598,7 +627,7 @@ class MarketService:
         target_lng = lng
 
         if (target_lat is None or target_lng is None) and village_id is not None:
-            village = db.get(Village, village_id)
+            village = _get_entity_by_id(db, Village, village_id)
             if not village:
                 raise HTTPException(
                     status_code=404, detail=f"Village with id {village_id} not found"
@@ -620,7 +649,7 @@ class MarketService:
         # Resolve category name if ID provided
         resolved_category_name = category_name
         if business_category_id and not resolved_category_name:
-            b_cat = db.get(BusinessCategory, business_category_id)
+            b_cat = _get_entity_by_id(db, BusinessCategory, business_category_id)
             if b_cat:
                 resolved_category_name = b_cat.name
 
@@ -668,6 +697,128 @@ class MarketService:
             identified_market_gaps=comp_res["identified_market_gaps"],
             quality_indicator=comp_res["quality_indicator"],
             data_confidence=comp_res["data_completeness"],
+            provenance=provenance_objs,
+        )
+
+    @staticmethod
+    def assess_risks_for_location(
+        db: Session,
+        village_id: UUID | None = None,
+        lat: float | None = None,
+        lng: float | None = None,
+        radius_km: float = 10.0,
+        competition_density: float | None = None,
+        price_volatility: str | None = None,
+        is_seasonal: bool = False,
+    ) -> MarketRiskAssessmentResponse:
+        """Perform standalone Phase 8 Risk Indicators assessment for a location."""
+        target_lat = lat
+        target_lng = lng
+
+        if (target_lat is None or target_lng is None) and village_id is not None:
+            village = _get_entity_by_id(db, Village, village_id)
+            if not village:
+                raise HTTPException(
+                    status_code=404, detail=f"Village with id {village_id} not found"
+                )
+            if village.latitude is None or village.longitude is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Village '{village.name}' (id {village_id}) is missing latitude/longitude coordinates.",
+                )
+            target_lat = village.latitude
+            target_lng = village.longitude
+
+        if target_lat is None or target_lng is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Location coordinates (lat, lng) or a valid village_id are required for risk assessment.",
+            )
+
+        # Retrieve empirical data around coordinates
+        nearby_biz = find_nearby_businesses(
+            db, lat=target_lat, lng=target_lng, radius_km=radius_km, limit=500
+        )
+        nearby_facs = find_nearby_facilities(
+            db, lat=target_lat, lng=target_lng, radius_km=radius_km, limit=500
+        )
+        nearby_mkts = find_nearby_markets(
+            db, lat=target_lat, lng=target_lng, radius_km=radius_km, limit=50
+        )
+        nearby_vils = find_nearby_villages(
+            db, lat=target_lat, lng=target_lng, radius_km=radius_km, limit=500
+        )
+
+        calc_comp_density = competition_density
+        if calc_comp_density is None:
+            comp_analysis = analyze_competition(nearby_biz, radius_km=radius_km)
+            if not isinstance(comp_analysis, dict):
+                logger.warning("analyze_competition returned non-dict value: %r", comp_analysis)
+                comp_analysis = {}
+            calc_comp_density = float(comp_analysis.get("competition_density_per_km2", 0.0) or 0.0)
+
+        infra_analysis = analyze_relevant_infrastructure(nearby_facs)
+        if not isinstance(infra_analysis, dict):
+            logger.warning(
+                "analyze_relevant_infrastructure returned non-dict value: %r", infra_analysis
+            )
+            infra_analysis = {}
+        facility_counts = infra_analysis.get("facility_counts_by_type", {}) or {}
+
+        pop_reach = sum(v.get("population", 0) or 0 for v in nearby_vils)
+
+        nearest_dist = (
+            min([m.get("distance_meters", 100000) / 1000.0 for m in nearby_mkts])
+            if nearby_mkts
+            else None
+        )
+        single_mkt_name = nearby_mkts[0].get("name") if len(nearby_mkts) == 1 else None
+        logger.debug(
+            f"Risk assessment empirical inputs: comp_density={calc_comp_density}, "
+            f"facility_counts={facility_counts}, pop_reach={pop_reach}, "
+            f"nearby_mkts={len(nearby_mkts)}, nearest_dist={nearest_dist}"
+        )
+
+        risk_res = assess_market_risks(
+            competition_density=calc_comp_density,
+            facility_counts=facility_counts,
+            price_volatility=price_volatility or "low",
+            population_reach=pop_reach,
+            nearby_markets_count=len(nearby_mkts),
+            nearest_market_distance_km=nearest_dist,
+            single_market_name=single_mkt_name,
+            is_seasonal=is_seasonal,
+            radius_km=radius_km,
+        )
+
+        risk_items = [
+            RiskIndicatorItem(
+                risk_type=r["risk_type"],
+                severity=r["severity"],
+                evidence=r["evidence"],
+                source=r["source"],
+                value=r.get("value"),
+            )
+            for r in risk_res.get("risks", [])
+        ]
+
+        provenance_objs = [
+            MarketProvenanceInfo(
+                dataset_name=p.get("dataset_name", "Risk Indicators Engine"),
+                source=p.get("source"),
+                source_url=p.get("source_url"),
+                data_year=p.get("data_year"),
+                record_count=p.get("record_count", 0),
+                confidence_score=p.get("confidence_score", "high"),
+            )
+            for p in risk_res.get("provenance", [])
+        ]
+
+        return MarketRiskAssessmentResponse(
+            overall_market_risk_level=risk_res["overall_market_risk_level"],
+            risk_score=risk_res["risk_score"],
+            risks=risk_items,
+            identified_risk_flags=risk_res["identified_risk_flags"],
             provenance=provenance_objs,
         )
 
