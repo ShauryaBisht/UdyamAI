@@ -129,7 +129,12 @@ def calculate_finance_engine(
 
     # 8. Financial Scenarios
     scenarios = generate_financial_scenarios(
-        request.monthly_revenue, request.monthly_operating_cost, monthly_emi
+        monthly_revenue=request.monthly_revenue,
+        monthly_operating_cost=request.monthly_operating_cost,
+        monthly_emi=monthly_emi,
+        verified_revenue=request.verified_revenue,
+        verified_operating_cost=request.verified_operating_cost,
+        scenario_config=request.scenario_config,
     )
 
     return FinanceCalculateResponse(

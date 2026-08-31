@@ -18,26 +18,71 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 1. Add non-breaking nullable columns to scheme_rules
-    op.add_column(
-        "scheme_rules",
-        sa.Column(
-            "payment_frequency", sa.String(), nullable=True, server_default=sa.text("'monthly'")
-        ),
-    )
-    op.add_column(
-        "scheme_rules", sa.Column("moratorium_interest_treatment", sa.String(), nullable=True)
-    )
-    op.add_column("scheme_rules", sa.Column("working_capital_percent", sa.Float(), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
-    # 2. Add non-breaking nullable columns to repayment_schedules
-    op.add_column("repayment_schedules", sa.Column("opening_balance", sa.Float(), nullable=True))
-    op.add_column(
-        "repayment_schedules",
-        sa.Column(
-            "verification_required", sa.Boolean(), nullable=True, server_default=sa.text("false")
-        ),
-    )
+    if not inspector.has_table("scheme_rules"):
+        op.create_table(
+            "scheme_rules",
+            sa.Column("id", sa.String(), primary_key=True),
+            sa.Column(
+                "payment_frequency", sa.String(), nullable=True, server_default=sa.text("'monthly'")
+            ),
+            sa.Column("moratorium_interest_treatment", sa.String(), nullable=True),
+            sa.Column("working_capital_percent", sa.Float(), nullable=True),
+        )
+    else:
+        columns_sr = [c["name"] for c in inspector.get_columns("scheme_rules")]
+        if "payment_frequency" not in columns_sr:
+            op.add_column(
+                "scheme_rules",
+                sa.Column(
+                    "payment_frequency",
+                    sa.String(),
+                    nullable=True,
+                    server_default=sa.text("'monthly'"),
+                ),
+            )
+        if "moratorium_interest_treatment" not in columns_sr:
+            op.add_column(
+                "scheme_rules",
+                sa.Column("moratorium_interest_treatment", sa.String(), nullable=True),
+            )
+        if "working_capital_percent" not in columns_sr:
+            op.add_column(
+                "scheme_rules", sa.Column("working_capital_percent", sa.Float(), nullable=True)
+            )
+
+    if not inspector.has_table("repayment_schedules"):
+        op.create_table(
+            "repayment_schedules",
+            sa.Column("id", sa.String(), primary_key=True),
+            sa.Column("remaining_principal", sa.Float(), nullable=True),
+            sa.Column("principal_amount", sa.Float(), nullable=True),
+            sa.Column("opening_balance", sa.Float(), nullable=True),
+            sa.Column(
+                "verification_required",
+                sa.Boolean(),
+                nullable=True,
+                server_default=sa.text("false"),
+            ),
+        )
+    else:
+        columns_rs = [c["name"] for c in inspector.get_columns("repayment_schedules")]
+        if "opening_balance" not in columns_rs:
+            op.add_column(
+                "repayment_schedules", sa.Column("opening_balance", sa.Float(), nullable=True)
+            )
+        if "verification_required" not in columns_rs:
+            op.add_column(
+                "repayment_schedules",
+                sa.Column(
+                    "verification_required",
+                    sa.Boolean(),
+                    nullable=True,
+                    server_default=sa.text("false"),
+                ),
+            )
 
     # 3. Intelligent batch backfill SQL for existing null rows
     op.execute(

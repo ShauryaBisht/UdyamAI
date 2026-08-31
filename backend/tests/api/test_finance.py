@@ -94,7 +94,40 @@ def test_calculate_finance_dynamic_rule_no_hardcoding(client):
     assert data["shortfall"] == 0.0
     assert data["working_capital"] == 200000.0
     assert len(data["financial_scenarios"]) == 3
-    assert data["financial_scenarios"][1]["scenario_type"] == "expected_case"
+    exp_case = data["financial_scenarios"][1]
+    assert exp_case["scenario_type"] == "expected_case"
+    assert exp_case["revenue"] == 100000.0
+    assert exp_case["operating_costs"] == 60000.0
+    assert exp_case["surplus"] == 40000.0
+    assert exp_case["loan_repayment"] == data["monthly_emi"]
+    assert exp_case["cash_surplus"] == 40000.0 - data["monthly_emi"]
+    assert exp_case["marked_assumptions"]["local_revenue_invented"] is False
+
+
+def test_calculate_finance_scenarios_no_revenue_invention(client):
+    """Test API endpoint response when no revenue is provided (sufficient_assumptions_exist=False, no local revenue invented)."""
+    payload = {
+        "available_capital": 100000.0,
+        "scheme_rule_override": {
+            "beneficiary_contribution_percent": 10.0,
+            "loan_percent": 90.0,
+            "interest_rate": 8.5,
+            "tenure_months": 84,
+        },
+    }
+    response = client.post("/finance/calculate", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "success"
+    scenarios = data["financial_scenarios"]
+    assert len(scenarios) == 3
+    for s in scenarios:
+        assert s["sufficient_assumptions_exist"] is False
+        assert s["revenue"] is None
+        assert s["operating_costs"] is None
+        assert s["surplus"] is None
+        assert s["cash_surplus"] is None
+        assert s["marked_assumptions"]["local_revenue_invented"] is False
 
 
 def test_calculate_finance_project_caps(client):
