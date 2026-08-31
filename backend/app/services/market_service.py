@@ -1,15 +1,42 @@
 """Market Service for UdyamAI.
 
 Provides reusable data-access functions for Market, MarketPrice,
-MarketAnalysis, and CompetitorAnalysis domain data.
+MarketAnalysis, and CompetitorAnalysis domain data, as well as the
+master Market Analysis orchestrator.
 """
 
 from datetime import date
 from uuid import UUID
 
+from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlmodel import Session, col, select
 
+from app.geo.nearby_businesses import find_nearby_businesses
+from app.geo.nearby_facilities import find_nearby_facilities
+from app.geo.nearby_markets import find_nearby_markets
+from app.geo.nearby_villages import find_nearby_villages
+from app.market.competition import analyze_competition
+from app.market.demand import calculate_demand_indicators
+from app.market.infrastructure import analyze_relevant_infrastructure
+from app.market.market_size import (
+    calculate_population_and_household_reach,
+    estimate_target_customers,
+)
+from app.market.pricing import analyze_market_pricing
+from app.market.purchasing_power import estimate_purchasing_power
+from app.market.risks import assess_market_risks
+from app.models.agriculture import Agriculture
+from app.models.economic import EconomicIndicator
+from app.models.location import Population, Village
 from app.models.market import CompetitorAnalysis, Market, MarketAnalysis, MarketPrice
+from app.schemas.market import (
+    LocationMarketAnalysisResponse,
+    MarketProvenanceInfo,
+    NearbyInfrastructureSummary,
+    NearbyMarketSummary,
+    RadiusMarketAnalysisResult,
+)
 
 
 class MarketService:
@@ -96,19 +123,7 @@ class MarketService:
         end_date: date | None = None,
         limit: int = 365,
     ) -> list[MarketPrice]:
-        """Get price history for a commodity over time.
-
-        Useful for trend analysis and price charts.
-
-        Args:
-            db: Database session.
-            commodity: Commodity name to get history for (required).
-            market_id: Optional filter by market.
-            location_id: Optional filter by location.
-            start_date: Optional start of date range.
-            end_date: Optional end of date range.
-            limit: Maximum results (default 365, max 1000).
-        """
+        """Get price history for a commodity over time."""
         limit = min(limit, 1000)
         statement = (
             select(MarketPrice)
@@ -135,13 +150,8 @@ class MarketService:
         location_id: UUID | None = None,
         limit: int = 50,
     ) -> list[MarketPrice]:
-        """Get the most recent price entry for each commodity at a market/location.
-
-        Returns one row per commodity, ordered by recorded_date descending.
-        """
+        """Get the most recent price entry for each commodity at a market/location."""
         limit = min(limit, 200)
-
-        # Subquery: max recorded_date per commodity
         from sqlalchemy import func
 
         subq = select(
@@ -156,7 +166,6 @@ class MarketService:
 
         subq = subq.subquery()
 
-        # Join back to get full rows
         statement = (
             select(MarketPrice)
             .join(
@@ -171,7 +180,7 @@ class MarketService:
         return db.exec(statement).all()
 
     # ------------------------------------------------------------------ #
-    # Market Analyses
+    # Market Analyses Data Access
     # ------------------------------------------------------------------ #
 
     @staticmethod
@@ -199,6 +208,250 @@ class MarketService:
             .order_by(CompetitorAnalysis.created_at)
         )
         return db.exec(statement).all()
+
+    # ------------------------------------------------------------------ #
+    # Market Analysis Orchestration (Phase 6)
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def analyze_village_market(
+        db: Session,
+        village_id: UUID,
+        radii_km: list[float] | None = None,
+        business_category_id: UUID | None = None,
+        analysis_run_id: UUID | None = None,
+    ) -> LocationMarketAnalysisResponse:
+        """Perform comprehensive market analysis for a target village location across configurable radii.
+
+        Calculates estimated population reach, estimated household reach, addressable target customers,
+        nearby markets, relevant infrastructure, market indicators, and preserves data provenance.
+        """
+        if radii_km is None or len(radii_km) == 0:
+            radii_km = [5.0, 10.0]
+
+        village = db.get(Village, village_id)
+        if not village:
+            raise HTTPException(status_code=404, detail=f"Village with id {village_id} not found")
+
+        lat = village.latitude if village.latitude is not None else 19.75
+        lng = village.longitude if village.longitude is not None else 75.71
+
+        district_name = village.district.name if hasattr(village, "district") and village.district else None
+        taluka_name = village.taluka.name if hasattr(village, "taluka") and village.taluka else None
+
+        radius_results: list[RadiusMarketAnalysisResult] = []
+        global_provenance: dict[str, MarketProvenanceInfo] = {}
+
+        for r in radii_km:
+            # 1. Nearby villages
+            nearby_villages = find_nearby_villages(db, lat=lat, lng=lng, radius_km=r, limit=200)
+            village_ids = [UUID(str(v["id"])) for v in nearby_villages if "id" in v and v["id"]]
+            if village_id not in village_ids:
+                village_ids.append(village_id)
+                nearby_villages.append({
+                    "id": village.id,
+                    "name": village.name,
+                    "latitude": village.latitude,
+                    "longitude": village.longitude,
+                    "distance_meters": 0.0,
+                })
+
+            # Fetch population records for these villages
+            pop_records = []
+            if village_ids:
+                pop_stmt = select(Population).where(Population.location_id.in_(village_ids))
+                pop_records = db.exec(pop_stmt).all()
+
+            pop_map = {}
+            for pr in pop_records:
+                pop_map[str(pr.location_id)] = {
+                    "population_total": pr.population_total,
+                    "households": pr.households,
+                    "working_population": pr.working_population,
+                    "source": pr.source,
+                    "source_url": pr.source_url,
+                    "data_year": pr.data_year,
+                }
+
+            pop_res = calculate_population_and_household_reach(nearby_villages, pop_map)
+            pop_reach = pop_res["estimated_population_reach"]
+            hh_reach = pop_res["estimated_household_reach"]
+            target_cust = estimate_target_customers(pop_reach, hh_reach, conversion_rate=0.05)
+
+            # 2. Nearby markets & prices
+            nearby_mkts = find_nearby_markets(db, lat=lat, lng=lng, radius_km=r, limit=100)
+            market_ids = [UUID(str(m["id"])) for m in nearby_mkts if "id" in m and m["id"]]
+
+            conds = []
+            if market_ids:
+                conds.append(MarketPrice.market_id.in_(market_ids))
+            if village_ids:
+                conds.append(MarketPrice.location_id.in_(village_ids))
+
+            mkt_prices_raw = []
+            if conds:
+                price_stmt = select(MarketPrice).where(or_(*conds)).limit(200)
+                mkt_prices_raw = db.exec(price_stmt).all()
+
+            mkt_prices = [
+                {k: v for k, v in p.__dict__.items() if not k.startswith("_")}
+                for p in mkt_prices_raw
+            ]
+
+            market_summaries = []
+            for m in nearby_mkts:
+                dist_km = round((m.get("distance_meters") or 0.0) / 1000.0, 2)
+                m_id = m.get("id")
+                sample_p = next((p for p in mkt_prices if p.get("market_id") == m_id), None)
+                market_summaries.append(
+                    NearbyMarketSummary(
+                        id=m_id,
+                        name=m.get("name"),
+                        market_type=m.get("market_type"),
+                        distance_km=dist_km,
+                        modal_price_sample=sample_p.get("modal_price") if sample_p else None,
+                        commodity_sample=sample_p.get("commodity") if sample_p else None,
+                    )
+                )
+
+            # 3. Relevant Infrastructure
+            nearby_facs = find_nearby_facilities(db, lat=lat, lng=lng, radius_km=r, limit=100)
+            infra_res = analyze_relevant_infrastructure(nearby_facs)
+            infra_summaries = [
+                NearbyInfrastructureSummary(
+                    id=item.get("id"),
+                    name=item.get("name"),
+                    facility_type=item.get("facility_type"),
+                    distance_km=item.get("distance_km", 0.0),
+                    capacity=item.get("capacity"),
+                )
+                for item in infra_res["facility_summaries"]
+            ]
+
+            # 4. Competition & Businesses
+            nearby_biz = find_nearby_businesses(
+                db, lat=lat, lng=lng, radius_km=r, category_id=business_category_id, limit=200
+            )
+            comp_res = analyze_competition(
+                nearby_biz,
+                radius_km=r,
+                target_category_id=str(business_category_id) if business_category_id else None,
+            )
+
+            # 5. Indicators & Pricing
+            pricing_res = analyze_market_pricing(nearby_mkts, mkt_prices)
+
+            econ_recs = []
+            if village_ids:
+                econ_stmt = select(EconomicIndicator).where(EconomicIndicator.location_id.in_(village_ids))
+                econ_recs = [
+                    {k: v for k, v in e.__dict__.items() if not k.startswith("_")}
+                    for e in db.exec(econ_stmt).all()
+                ]
+
+            agri_recs = []
+            if village_ids:
+                agri_stmt = select(Agriculture).where(Agriculture.location_id.in_(village_ids))
+                agri_recs = [
+                    {k: v for k, v in a.__dict__.items() if not k.startswith("_")}
+                    for a in db.exec(agri_stmt).all()
+                ]
+
+            demand_res = calculate_demand_indicators(
+                pop_reach,
+                hh_reach,
+                pop_res["estimated_working_population"],
+                econ_recs,
+                agri_recs,
+                radius_km=r,
+            )
+            pp_res = estimate_purchasing_power(
+                pop_reach, hh_reach, pop_res["estimated_working_population"], econ_recs
+            )
+            risk_res = assess_market_risks(
+                comp_res["competition_density_per_km2"],
+                infra_res["facility_counts_by_type"],
+                pricing_res["price_volatility"],
+                pop_reach,
+            )
+
+            indicators_dict = {
+                "demand": demand_res,
+                "pricing": pricing_res,
+                "competition": comp_res,
+                "purchasing_power": pp_res,
+                "risks": risk_res,
+            }
+
+            # Gather provenance
+            radius_provenance_list = []
+            for prov_group in (
+                pop_res.get("provenance", []),
+                infra_res.get("provenance", []),
+                comp_res.get("provenance", []),
+                pricing_res.get("provenance", []),
+            ):
+                for p in prov_group:
+                    prov_obj = MarketProvenanceInfo(
+                        dataset_name=p.get("dataset_name", "Unknown Dataset"),
+                        source=p.get("source"),
+                        source_url=p.get("source_url"),
+                        data_year=p.get("data_year"),
+                        record_count=p.get("record_count", 0),
+                        confidence_score=p.get("confidence_score", "medium"),
+                    )
+                    radius_provenance_list.append(prov_obj)
+                    global_provenance[prov_obj.dataset_name] = prov_obj
+
+            radius_result = RadiusMarketAnalysisResult(
+                radius_km=r,
+                estimated_population_reach=pop_reach,
+                estimated_household_reach=hh_reach,
+                estimated_target_customers=target_cust,
+                nearby_villages_count=len(nearby_villages),
+                nearby_markets_count=len(nearby_mkts),
+                nearby_markets=market_summaries,
+                relevant_infrastructure_count=len(nearby_facs),
+                relevant_infrastructure=infra_summaries,
+                market_indicators=indicators_dict,
+                provenance=radius_provenance_list,
+            )
+            radius_results.append(radius_result)
+
+            # Save DB record if analysis_run_id is provided
+            if analysis_run_id is not None:
+                db_analysis = MarketAnalysis(
+                    analysis_run_id=analysis_run_id,
+                    radius_km=r,
+                    population_estimate=pop_reach,
+                    household_estimate=hh_reach,
+                    market_reach_estimate=target_cust,
+                    competitor_count=comp_res["total_businesses_in_radius"],
+                    demand_indicators=demand_res,
+                    distribution_channels={
+                        "markets_count": len(nearby_mkts),
+                        "infrastructure_count": len(nearby_facs),
+                    },
+                    pricing_indicators=pricing_res,
+                    market_gaps={"identified_gaps": comp_res["identified_market_gaps"]},
+                    data_confidence="high" if pop_reach > 0 else "medium",
+                )
+                db.add(db_analysis)
+
+        if analysis_run_id is not None:
+            db.commit()
+
+        return LocationMarketAnalysisResponse(
+            village_id=village.id,
+            village_name=village.name,
+            district_name=district_name,
+            taluka_name=taluka_name,
+            latitude=village.latitude,
+            longitude=village.longitude,
+            radii_km=radii_km,
+            radius_analyses=radius_results,
+            provenance_summary=list(global_provenance.values()),
+        )
 
     # ------------------------------------------------------------------ #
     # Aggregation helpers
