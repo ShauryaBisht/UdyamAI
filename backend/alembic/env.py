@@ -45,6 +45,9 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # Create all registered SQLModel tables if they do not exist
+        SQLModel.metadata.create_all(connection)
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

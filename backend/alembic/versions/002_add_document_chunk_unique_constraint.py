@@ -6,6 +6,8 @@ Create Date: 2026-08-31 15:13:00.000000
 
 """
 
+import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -22,11 +24,20 @@ def upgrade() -> None:
         op.execute("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64)")
 
     # Add unique constraint to document_chunks table using batch mode for SQLite compatibility
-    with op.batch_alter_table("document_chunks", schema=None) as batch_op:
-        batch_op.create_unique_constraint("uq_document_chunk_index", ["document_id", "chunk_index"])
+    inspector = sa.inspect(bind)
+    existing_constraints = [c["name"] for c in inspector.get_unique_constraints("document_chunks")]
+    if "uq_document_chunk_index" not in existing_constraints:
+        with op.batch_alter_table("document_chunks", schema=None) as batch_op:
+            batch_op.create_unique_constraint(
+                "uq_document_chunk_index", ["document_id", "chunk_index"]
+            )
 
 
 def downgrade() -> None:
     # Drop unique constraint from document_chunks table using batch mode for SQLite compatibility
-    with op.batch_alter_table("document_chunks", schema=None) as batch_op:
-        batch_op.drop_constraint("uq_document_chunk_index", type_="unique")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_constraints = [c["name"] for c in inspector.get_unique_constraints("document_chunks")]
+    if "uq_document_chunk_index" in existing_constraints:
+        with op.batch_alter_table("document_chunks", schema=None) as batch_op:
+            batch_op.drop_constraint("uq_document_chunk_index", type_="unique")
