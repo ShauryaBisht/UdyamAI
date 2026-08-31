@@ -2,15 +2,21 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import (
+    agriculture,
     analysis,
     businesses,
+    economic,
     finance,
     health,
+    infrastructure,
+    livestock,
     locations,
     markets,
+    population,
     reports,
     schemes,
     users,
+    weather,
 )
 from app.config import settings
 from app.utils.errors import setup_exception_handlers
@@ -127,6 +133,84 @@ app.include_router(
     markets.router,
     prefix="/api/v1/markets",
     tags=["Markets"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    infrastructure.router,
+    prefix="/infrastructure",
+    tags=["Infrastructure"],
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    infrastructure.router,
+    prefix="/api/v1/infrastructure",
+    tags=["Infrastructure"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    agriculture.router,
+    prefix="/agriculture",
+    tags=["Agriculture"],
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    agriculture.router,
+    prefix="/api/v1/agriculture",
+    tags=["Agriculture"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    livestock.router,
+    prefix="/livestock",
+    tags=["Livestock"],
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    livestock.router,
+    prefix="/api/v1/livestock",
+    tags=["Livestock"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    population.router,
+    prefix="/population",
+    tags=["Population"],
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    population.router,
+    prefix="/api/v1/population",
+    tags=["Population"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    weather.router,
+    prefix="/weather",
+    tags=["Weather"],
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    weather.router,
+    prefix="/api/v1/weather",
+    tags=["Weather"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    economic.router,
+    prefix="/economic",
+    tags=["Economic"],
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    economic.router,
+    prefix="/api/v1/economic",
+    tags=["Economic"],
     include_in_schema=False,
     dependencies=[Depends(default_limiter)],
 )
