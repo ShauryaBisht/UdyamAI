@@ -51,14 +51,9 @@ def _get_entity_by_id(db: Session, model_cls: type, entity_id: UUID) -> Any:
     """Safely retrieves an entity by ID supporting SQLModel Session, SQLAlchemy 2.0, and legacy Session APIs."""
     try:
         return db.get(model_cls, entity_id)
-    except (AttributeError, Exception):
-        try:
-            statement = select(model_cls).where(model_cls.id == entity_id)
-            result = db.execute(statement)
-            return result.scalars().first()
-        except Exception as e:
-            logger.debug(f"Failed to resolve {model_cls.__name__} for id {entity_id}: {e}")
-            return None
+    except AttributeError:
+        res = db.execute(select(model_cls).where(model_cls.id == entity_id))
+        return res.scalars().first()
 
 
 class MarketService:

@@ -187,6 +187,18 @@ class TestPhase8RiskIndicatorsEngine:
         assert len(res["risks"]) == 0
         assert len(res["identified_risk_flags"]) == 0
 
+    def test_deterministic_risk_sorting(self):
+        """Risks list is deterministically sorted alphabetically by risk_type key."""
+        res = assess_market_risks(
+            competition_density=6.0,
+            facility_counts={},  # limited_infrastructure
+            price_volatility="high",  # price_volatility
+            population_reach=500,  # low_demographic_demand
+        )
+        risk_types = [r["risk_type"] for r in res["risks"]]
+        assert len(risk_types) >= 3
+        assert risk_types == sorted(risk_types)
+
 
 class TestMarketServiceRiskOrchestration:
     """Test MarketService.assess_risks_for_location."""
