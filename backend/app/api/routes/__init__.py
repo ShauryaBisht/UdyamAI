@@ -1,0 +1,39 @@
+"""API Routes package for UdyamAI."""
+
+from app.api.routes import (
+    agriculture,
+    analysis,
+    businesses,
+    economic,
+    feasibility,
+    finance,
+    health,
+    infrastructure,
+    livestock,
+    locations,
+    markets,
+    population,
+    reports,
+    schemes,
+    users,
+    weather,
+)
+
+__all__ = [
+    "agriculture",
+    "analysis",
+    "businesses",
+    "economic",
+    "feasibility",
+    "finance",
+    "health",
+    "infrastructure",
+    "livestock",
+    "locations",
+    "markets",
+    "population",
+    "reports",
+    "schemes",
+    "users",
+    "weather",
+]

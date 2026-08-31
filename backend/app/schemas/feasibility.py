@@ -2,9 +2,83 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+try:
+    from pydantic import BaseModel, Field, model_validator
+
+    HAS_PYDANTIC_V2 = True
+except ImportError:
+    from pydantic import BaseModel, Field, root_validator
+
+    HAS_PYDANTIC_V2 = False
 
 from app.schemas.common import AnalysisStatus, SchemeMatchStatus, SupportedLanguage
+
+
+class SWOTIndicators(BaseModel):
+    strength_indicators: list[str] = Field(default_factory=list)
+    weakness_indicators: list[str] = Field(default_factory=list)
+    opportunity_indicators: list[str] = Field(default_factory=list)
+    threat_indicators: list[str] = Field(default_factory=list)
+
+
+class FeasibilityScoreResult(BaseModel):
+    market_score: float = Field(
+        ..., ge=0.0, le=100.0, description="Market reach & access sub-score"
+    )
+    financial_score: float = Field(
+        ..., ge=0.0, le=100.0, description="Capital equity & subsidy sub-score"
+    )
+    competition_score: float = Field(
+        ..., ge=0.0, le=100.0, description="Competitor density inverse sub-score"
+    )
+    infrastructure_score: float = Field(
+        ..., ge=0.0, le=100.0, description="Facility & logistics availability sub-score"
+    )
+    risk_score: float = Field(..., ge=0.0, le=100.0, description="Inverted risk safety sub-score")
+    overall_score: float = Field(
+        ..., ge=0.0, le=100.0, description="Weighted overall feasibility score"
+    )
+    swot: SWOTIndicators = Field(default_factory=SWOTIndicators)
+
+
+def _add_location_validator(cls: type) -> type:
+    """Adds location validation supporting both Pydantic v1 and v2 without class-body conditional attribute fragility."""
+    if HAS_PYDANTIC_V2:
+
+        @model_validator(mode="after")
+        def validate_location(self: Any) -> Any:
+            if not self.village_id and (self.latitude is None or self.longitude is None):
+                raise ValueError(
+                    "Either village_id or both latitude and longitude coordinates must be provided."
+                )
+            return self
+
+        cls.validate_location = validate_location
+    else:
+
+        @root_validator
+        def validate_location_v1(cls_ref: Any, values: dict[str, Any]) -> dict[str, Any]:
+            if not values.get("village_id") and (
+                values.get("latitude") is None or values.get("longitude") is None
+            ):
+                raise ValueError(
+                    "Either village_id or both latitude and longitude coordinates must be provided."
+                )
+            return values
+
+        cls.validate_location = validate_location_v1
+    return cls
+
+
+@_add_location_validator
+class FeasibilityCalculationRequest(BaseModel):
+    village_id: UUID | None = Field(default=None, description="Optional target village UUID")
+    latitude: float | None = Field(default=None, ge=-90.0, le=90.0)
+    longitude: float | None = Field(default=None, ge=-180.0, le=180.0)
+    radius_km: float = Field(default=10.0, ge=0.1, le=50.0)
+    business_category_id: UUID | None = Field(default=None)
+    available_capital: float = Field(default=0.0, ge=0.0)
+    desired_project_cost: float = Field(default=0.0, ge=0.0)
 
 
 class AnalysisRunCreate(BaseModel):

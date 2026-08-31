@@ -6,6 +6,7 @@ from app.api.routes import (
     analysis,
     businesses,
     economic,
+    feasibility,
     finance,
     health,
     infrastructure,
@@ -133,6 +134,19 @@ app.include_router(
     markets.router,
     prefix="/api/v1/markets",
     tags=["Markets"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    feasibility.router,
+    prefix="/feasibility",
+    tags=["Feasibility Engine"],
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    feasibility.router,
+    prefix="/api/v1/feasibility",
+    tags=["Feasibility Engine"],
     include_in_schema=False,
     dependencies=[Depends(default_limiter)],
 )
