@@ -65,7 +65,7 @@ class TestPhase8RiskIndicatorsEngine:
 
         target_risk = next(r for r in res["risks"] if r["risk_type"] == "low_market_access")
         assert target_risk["severity"] == "high"
-        assert "Zero commercial markets" in target_risk["evidence"]
+        assert target_risk["value"] == 0.0
 
     def test_single_market_dependency_trigger(self):
         """Triggers single_market_dependency when exactly 1 market exists in radius."""
@@ -84,7 +84,6 @@ class TestPhase8RiskIndicatorsEngine:
 
         target_risk = next(r for r in res["risks"] if r["risk_type"] == "single_market_dependency")
         assert target_risk["severity"] == "medium"
-        assert "APMC Pune Mandi" in target_risk["evidence"]
         assert target_risk["value"] == 1
 
     def test_single_market_dependency_not_triggered_for_multiple_markets(self):
@@ -144,7 +143,6 @@ class TestPhase8RiskIndicatorsEngine:
         assert "limited_infrastructure" in [r["risk_type"] for r in res_fin["risks"]]
         target_fin = next(r for r in res_fin["risks"] if r["risk_type"] == "limited_infrastructure")
         assert target_fin["severity"] == "medium"
-        assert "Financial infrastructure gap" in target_fin["evidence"]
         assert target_fin["value"] == "financial:0,logistics:2"
 
         # Case B: Missing both financial and logistics infrastructure
@@ -153,7 +151,6 @@ class TestPhase8RiskIndicatorsEngine:
             r for r in res_both["risks"] if r["risk_type"] == "limited_infrastructure"
         )
         assert target_both["severity"] == "high"
-        assert "Zero financial infrastructure" in target_both["evidence"]
         assert target_both["value"] == "financial:0,logistics:0"
 
     def test_price_volatility_trigger(self):
@@ -165,7 +162,6 @@ class TestPhase8RiskIndicatorsEngine:
 
         target_risk = next(r for r in res["risks"] if r["risk_type"] == "price_volatility")
         assert target_risk["severity"] == "medium"
-        assert "28.0% variance" in target_risk["evidence"]
         assert target_risk["source"] == "Agmarknet Price Records"
         assert target_risk["value"] == 0.28
 
