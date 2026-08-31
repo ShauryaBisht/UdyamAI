@@ -48,7 +48,9 @@ def analyze_competition(
     norm_target_name = target_category_name.strip().lower() if target_category_name else None
 
     for b in businesses:
-        cat_id = str(b.get("business_category_id")) if b.get("business_category_id") else "uncategorized"
+        cat_id = (
+            str(b.get("business_category_id")) if b.get("business_category_id") else "uncategorized"
+        )
         cat_name = str(b.get("category")).strip().lower() if b.get("category") else ""
 
         category_key = b.get("category") or cat_id
@@ -147,8 +149,11 @@ def analyze_competition(
         "verified_records_count": verified_count,
         "total_records_count": total_businesses,
         "has_category_filter": has_filter,
-        "target_category": target_category_name or (str(target_category_id) if target_category_id else None),
-        "sources_covered": sorted(list(source_names)) if source_names else ["Normalized Business Registry"],
+        "target_category": target_category_name
+        or (str(target_category_id) if target_category_id else None),
+        "sources_covered": sorted(list(source_names))
+        if source_names
+        else ["Normalized Business Registry"],
         "notes": quality_notes,
     }
 
@@ -191,4 +196,3 @@ def analyze_competition(
         "data_completeness": confidence_level,
         "provenance": provenance_entries,
     }
-

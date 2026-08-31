@@ -87,12 +87,24 @@ class MarketProvenanceInfo(BaseModel):
 
 
 class CompetitionAnalysisRequest(BaseModel):
-    village_id: UUID | None = Field(default=None, description="Optional target village location UUID")
-    latitude: float | None = Field(default=None, ge=-90.0, le=90.0, description="Optional latitude center point")
-    longitude: float | None = Field(default=None, ge=-180.0, le=180.0, description="Optional longitude center point")
-    radius_km: float = Field(default=10.0, ge=0.1, le=50.0, description="Primary analysis radius in km")
-    business_category_id: UUID | None = Field(default=None, description="Optional target BusinessCategory UUID")
-    category_name: str | None = Field(default=None, description="Optional target category name (e.g. Dairy)")
+    village_id: UUID | None = Field(
+        default=None, description="Optional target village location UUID"
+    )
+    latitude: float | None = Field(
+        default=None, ge=-90.0, le=90.0, description="Optional latitude center point"
+    )
+    longitude: float | None = Field(
+        default=None, ge=-180.0, le=180.0, description="Optional longitude center point"
+    )
+    radius_km: float = Field(
+        default=10.0, ge=0.1, le=50.0, description="Primary analysis radius in km"
+    )
+    business_category_id: UUID | None = Field(
+        default=None, description="Optional target BusinessCategory UUID"
+    )
+    category_name: str | None = Field(
+        default=None, description="Optional target category name (e.g. Dairy)"
+    )
 
 
 class CompetitionAnalysisDetailResponse(BaseModel):
@@ -100,7 +112,9 @@ class CompetitionAnalysisDetailResponse(BaseModel):
     competitor_density: float = Field(..., description="Competitors per square km")
     businesses_within_5km: int = Field(..., description="Competitor count within 5km distance")
     businesses_within_10km: int = Field(..., description="Competitor count within 10km distance")
-    total_businesses_in_radius: int = Field(..., description="Total commercial establishments in radius")
+    total_businesses_in_radius: int = Field(
+        ..., description="Total commercial establishments in radius"
+    )
     target_category: str | None = None
     category_distribution: dict[str, int] = Field(default_factory=dict)
     identified_market_gaps: list[str] = Field(default_factory=list)
@@ -193,4 +207,3 @@ class LocationMarketAnalysisResponse(BaseModel):
     notes: str = Field(
         default="Population reach indicates total demographic count in radius; target customers are calculated based on economic activity and conversion rates."
     )
-

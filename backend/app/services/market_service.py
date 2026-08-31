@@ -641,7 +641,8 @@ class MarketService:
             businesses_within_5km=comp_res["businesses_within_5km"],
             businesses_within_10km=comp_res["businesses_within_10km"],
             total_businesses_in_radius=comp_res["total_businesses_in_radius"],
-            target_category=resolved_category_name or (str(business_category_id) if business_category_id else None),
+            target_category=resolved_category_name
+            or (str(business_category_id) if business_category_id else None),
             category_distribution=comp_res["category_distribution"],
             identified_market_gaps=comp_res["identified_market_gaps"],
             quality_indicator=comp_res["quality_indicator"],

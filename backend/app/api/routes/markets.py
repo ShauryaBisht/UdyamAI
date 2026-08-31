@@ -176,8 +176,12 @@ def analyze_competition_post(
 def analyze_competition_get(
     village_id: UUID,
     radius_km: float = Query(default=10.0, ge=0.1, le=50.0, description="Analysis radius in km"),
-    business_category_id: UUID | None = Query(default=None, description="Optional business category ID"),
-    category_name: str | None = Query(default=None, description="Optional category name (e.g. Dairy)"),
+    business_category_id: UUID | None = Query(
+        default=None, description="Optional business category ID"
+    ),
+    category_name: str | None = Query(
+        default=None, description="Optional category name (e.g. Dairy)"
+    ),
     db: Session = Depends(get_session),
 ):
     """Run Phase 7 competition analysis for a village specified by path parameter."""

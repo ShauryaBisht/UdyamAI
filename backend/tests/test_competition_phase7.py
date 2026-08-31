@@ -99,8 +99,18 @@ class TestPhase7CompetitionAnalysis:
     def test_data_completeness_and_quality_indicator(self):
         """Completeness score and verified ratio reporting."""
         businesses = [
-            {"id": uuid4(), "category": "Dairy", "verified_at": datetime.utcnow(), "source": "Official Registry"},
-            {"id": uuid4(), "category": "Dairy", "verified_at": datetime.utcnow(), "source": "Official Registry"},
+            {
+                "id": uuid4(),
+                "category": "Dairy",
+                "verified_at": datetime.utcnow(),
+                "source": "Official Registry",
+            },
+            {
+                "id": uuid4(),
+                "category": "Dairy",
+                "verified_at": datetime.utcnow(),
+                "source": "Official Registry",
+            },
             {"id": uuid4(), "category": "Dairy", "verified_at": None, "source": "Unverified Feed"},
         ]
 
@@ -180,7 +190,9 @@ class TestCompetitionAPIEndpoints:
         v_id = uuid4()
         cat_id = uuid4()
 
-        with patch("app.api.routes.markets.MarketService.analyze_competition_for_location") as mock_fn:
+        with patch(
+            "app.api.routes.markets.MarketService.analyze_competition_for_location"
+        ) as mock_fn:
             mock_fn.return_value = CompetitionAnalysisDetailResponse(
                 competitor_count=2,
                 competitor_density=0.01,
@@ -224,7 +236,9 @@ class TestCompetitionAPIEndpoints:
     def test_get_competition_endpoint(self, client):
         v_id = uuid4()
 
-        with patch("app.api.routes.markets.MarketService.analyze_competition_for_location") as mock_fn:
+        with patch(
+            "app.api.routes.markets.MarketService.analyze_competition_for_location"
+        ) as mock_fn:
             mock_fn.return_value = CompetitionAnalysisDetailResponse(
                 competitor_count=0,
                 competitor_density=0.0,
