@@ -59,7 +59,7 @@ def list_market_prices(
     )
 
 
-@router.get("/prices/history", response_model=MarketPriceResponse)
+@router.get("/prices/history", response_model=list[MarketPriceResponse])
 def get_price_history(
     commodity: str = Query(..., description="Commodity name"),
     market_id: UUID | None = Query(default=None, description="Filter by market"),
