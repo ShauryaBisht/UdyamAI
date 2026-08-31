@@ -111,7 +111,7 @@ def find_within_radius(
     Returns:
         List of dicts, each containing model fields + ``distance_meters``.
     """
-    limit = min(limit, 200)
+    limit = min(limit, 500)
     radius_meters = km_to_meters(radius_km)
     geo_col = _get_geo_column(model, explicit=geo_column)
 

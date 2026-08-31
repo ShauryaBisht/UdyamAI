@@ -220,8 +220,8 @@ class TestFindWithinRadius:
         assert results[0]["name"] == "Test Village"
         assert results[0]["distance_meters"] == 1500.5
 
-    def test_limit_capped_at_200(self):
-        """Test that limit is capped at 200."""
+    def test_limit_capped_at_500(self):
+        """Test that limit is capped at 500."""
         mock_db = _mock_exec([])
         mock_stmt = MagicMock()
         mock_stmt.where.return_value = mock_stmt
@@ -235,11 +235,11 @@ class TestFindWithinRadius:
                 lat=18.52,
                 lng=73.85,
                 radius_km=10.0,
-                limit=500,  # Should be capped to 200
+                limit=1000,  # Should be capped to 500
             )
 
-        # Verify limit was called with 200
-        mock_stmt.limit.assert_called_once_with(200)
+        # Verify limit was called with 500
+        mock_stmt.limit.assert_called_once_with(500)
         assert results == []
 
     def test_empty_results(self):

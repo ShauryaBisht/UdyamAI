@@ -28,10 +28,12 @@ from app.market.pricing import analyze_market_pricing
 from app.market.purchasing_power import estimate_purchasing_power
 from app.market.risks import assess_market_risks
 from app.models.agriculture import Agriculture
+from app.models.business import BusinessCategory
 from app.models.economic import EconomicIndicator
 from app.models.location import Population, Village
 from app.models.market import CompetitorAnalysis, Market, MarketAnalysis, MarketPrice
 from app.schemas.market import (
+    CompetitionAnalysisDetailResponse,
     LocationMarketAnalysisResponse,
     MarketProvenanceInfo,
     NearbyInfrastructureSummary,
@@ -226,8 +228,14 @@ class MarketService:
         if not village:
             raise HTTPException(status_code=404, detail=f"Village with id {village_id} not found")
 
-        lat = village.latitude if village.latitude is not None else 19.75
-        lng = village.longitude if village.longitude is not None else 75.71
+        if village.latitude is None or village.longitude is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Village '{village.name}' (id {village_id}) is missing latitude/longitude coordinates.",
+            )
+
+        lat = village.latitude
+        lng = village.longitude
 
         district_name = (
             village.district.name if hasattr(village, "district") and village.district else None
@@ -424,10 +432,17 @@ class MarketService:
             ]
 
             # 4. Competition
+            target_cat_name = None
+            if business_category_id:
+                b_cat = db.get(BusinessCategory, business_category_id)
+                if b_cat:
+                    target_cat_name = b_cat.name
+
             comp_res = analyze_competition(
                 nearby_biz,
                 radius_km=r,
                 target_category_id=str(business_category_id) if business_category_id else None,
+                target_category_name=target_cat_name,
             )
 
             # 5. Indicators & Pricing
@@ -508,7 +523,7 @@ class MarketService:
                     population_estimate=pop_reach,
                     household_estimate=hh_reach,
                     market_reach_estimate=target_cust,
-                    competitor_count=comp_res["total_businesses_in_radius"],
+                    competitor_count=comp_res["competitor_count"],
                     demand_indicators=demand_res,
                     distribution_channels={
                         "markets_count": len(nearby_mkts),
@@ -516,11 +531,21 @@ class MarketService:
                     },
                     pricing_indicators=pricing_res,
                     market_gaps={"identified_gaps": comp_res["identified_market_gaps"]},
-                    data_confidence="high" if pop_reach > 0 else "medium",
+                    data_confidence=comp_res["data_completeness"],
+                )
+                db_comp_analysis = CompetitorAnalysis(
+                    analysis_run_id=analysis_run_id,
+                    radius_km=r,
+                    competitor_count=comp_res["competitor_count"],
+                    competition_density=comp_res["competitor_density"],
+                    competitor_distribution=comp_res["category_distribution"],
+                    identified_gaps={"identified_gaps": comp_res["identified_market_gaps"]},
+                    data_confidence=comp_res["data_completeness"],
                 )
                 try:
                     with db.begin_nested():
                         db.add(db_analysis)
+                        db.add(db_comp_analysis)
                         db.flush()
                 except Exception as e:
                     logger.error(
@@ -552,6 +577,98 @@ class MarketService:
             radii_km=radii_km,
             radius_analyses=radius_results,
             provenance_summary=list(global_provenance.values()),
+        )
+
+    # ------------------------------------------------------------------ #
+    # Competition Analysis (Phase 7)
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def analyze_competition_for_location(
+        db: Session,
+        village_id: UUID | None = None,
+        lat: float | None = None,
+        lng: float | None = None,
+        radius_km: float = 10.0,
+        business_category_id: UUID | None = None,
+        category_name: str | None = None,
+    ) -> CompetitionAnalysisDetailResponse:
+        """Perform standalone competition analysis for a location and business category."""
+        target_lat = lat
+        target_lng = lng
+
+        if (target_lat is None or target_lng is None) and village_id is not None:
+            village = db.get(Village, village_id)
+            if not village:
+                raise HTTPException(
+                    status_code=404, detail=f"Village with id {village_id} not found"
+                )
+            if village.latitude is None or village.longitude is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Village '{village.name}' (id {village_id}) is missing latitude/longitude coordinates.",
+                )
+            target_lat = village.latitude
+            target_lng = village.longitude
+
+        if target_lat is None or target_lng is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Location coordinates (lat, lng) or a valid village_id are required for competition analysis.",
+            )
+
+        # Resolve category name if ID provided
+        resolved_category_name = category_name
+        if business_category_id and not resolved_category_name:
+            b_cat = db.get(BusinessCategory, business_category_id)
+            if b_cat:
+                resolved_category_name = b_cat.name
+
+        try:
+            nearby_businesses = find_nearby_businesses(
+                db,
+                lat=target_lat,
+                lng=target_lng,
+                radius_km=radius_km,
+                category_id=business_category_id,
+                limit=500,
+            )
+        except Exception as e:
+            logger.warning(f"Spatial lookup failed for competition analysis: {e}")
+            nearby_businesses = []
+
+        comp_res = analyze_competition(
+            nearby_businesses,
+            radius_km=radius_km,
+            target_category_id=str(business_category_id) if business_category_id else None,
+            target_category_name=resolved_category_name,
+        )
+
+        provenance_objs = [
+            MarketProvenanceInfo(
+                dataset_name=p.get("dataset_name", "Businesses Registry"),
+                source=p.get("source"),
+                source_url=p.get("source_url"),
+                data_year=p.get("data_year"),
+                record_count=p.get("record_count", 0),
+                confidence_score=p.get("confidence_score", "medium"),
+            )
+            for p in comp_res.get("provenance", [])
+        ]
+
+        return CompetitionAnalysisDetailResponse(
+            competitor_count=comp_res["competitor_count"],
+            competitor_density=comp_res["competitor_density"],
+            businesses_within_5km=comp_res["businesses_within_5km"],
+            businesses_within_10km=comp_res["businesses_within_10km"],
+            total_businesses_in_radius=comp_res["total_businesses_in_radius"],
+            target_category=resolved_category_name
+            or (str(business_category_id) if business_category_id else None),
+            category_distribution=comp_res["category_distribution"],
+            identified_market_gaps=comp_res["identified_market_gaps"],
+            quality_indicator=comp_res["quality_indicator"],
+            data_confidence=comp_res["data_completeness"],
+            provenance=provenance_objs,
         )
 
     # ------------------------------------------------------------------ #
