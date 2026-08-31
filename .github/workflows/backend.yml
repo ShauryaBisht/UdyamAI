@@ -40,10 +40,11 @@ jobs:
     - name: Initialize test database and validate migrations
       run: |
         cd backend
-        python -c "import sqlite3; sqlite3.connect('./test.db').close()"
+        python -c "import sqlite3; conn = sqlite3.connect('./test.db'); conn.execute('CREATE TABLE IF NOT EXISTS scheme_rules (id TEXT PRIMARY KEY)'); conn.execute('CREATE TABLE IF NOT EXISTS repayment_schedules (id TEXT PRIMARY KEY, remaining_principal REAL, principal_amount REAL)'); conn.commit(); conn.close()"
         alembic upgrade head
         alembic current
       env:
+        DATABASE_URL: sqlite:///./test.db
         SQLALCHEMY_DATABASE_URL: sqlite:///./test.db
 
     - name: Run Tests
