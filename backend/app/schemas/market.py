@@ -91,6 +91,12 @@ class MarketAnalysisRequest(BaseModel):
         default=[5.0, 10.0],
         description="List of radii in kilometers to analyze (e.g. [5.0, 10.0])",
     )
+    target_conversion_rate: float = Field(
+        default=0.05,
+        ge=0.0,
+        le=1.0,
+        description="Target customer conversion rate ratio (0.0 to 1.0, default 0.05)",
+    )
     business_category_id: UUID | None = Field(
         default=None,
         description="Optional business category UUID to refine customer conversion & competition analysis",

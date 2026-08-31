@@ -13,9 +13,39 @@ from app.market.market_size import (
     estimate_target_customers,
 )
 from app.market.pricing import analyze_market_pricing
-from app.models.location import Village
+from app.models.location import District, GramPanchayat, Population, Taluka, Village
+from app.models.market import Market, MarketPrice
 from app.schemas.market import LocationMarketAnalysisResponse
 from app.services.market_service import MarketService
+
+# ------------------------------------------------------------------ #
+# Test Fixtures (Model Factories)
+# ------------------------------------------------------------------ #
+
+
+@pytest.fixture(name="sample_village")
+def sample_village_fixture():
+    district = District(id=uuid4(), name="Pune District", state="Maharashtra")
+    taluka = Taluka(id=uuid4(), name="Haveli", district_id=district.id, district=district)
+    gp = GramPanchayat(id=uuid4(), name="Wagholi GP", taluka_id=taluka.id, district_id=district.id)
+
+    village = Village(
+        id=uuid4(),
+        name="Wagholi",
+        district_id=district.id,
+        taluka_id=taluka.id,
+        gram_panchayat_id=gp.id,
+        district=district,
+        taluka=taluka,
+        latitude=18.5793,
+        longitude=73.9822,
+    )
+    return village
+
+
+# ------------------------------------------------------------------ #
+# Unit Tests: Calculation Engine
+# ------------------------------------------------------------------ #
 
 
 class TestMarketSizeAndTargeting:
@@ -50,7 +80,7 @@ class TestMarketSizeAndTargeting:
         res = calculate_population_and_household_reach(villages, pop_data)
 
         assert res["estimated_population_reach"] == 4000
-        assert res["estimated_household_reach"] == 8000 if False else 800
+        assert res["estimated_household_reach"] == 800
         assert res["estimated_working_population"] == 1900
         assert len(res["provenance"]) >= 1
         assert res["provenance"][0]["dataset_name"] == "Census Population & Households"
@@ -61,9 +91,15 @@ class TestMarketSizeAndTargeting:
 
         target_customers = estimate_target_customers(pop_reach, hh_reach, conversion_rate=0.05)
 
-        # Target customer count must be strictly less than total population
         assert target_customers == 500
         assert target_customers < pop_reach
+
+    def test_custom_conversion_rate(self):
+        pop_reach = 10000
+        hh_reach = 2000
+
+        target_customers = estimate_target_customers(pop_reach, hh_reach, conversion_rate=0.15)
+        assert target_customers == 1500
 
     def test_household_targeting_customers(self):
         pop_reach = 10000
@@ -72,7 +108,6 @@ class TestMarketSizeAndTargeting:
         target_customers = estimate_target_customers(
             pop_reach, hh_reach, conversion_rate=0.10, household_targeting=True
         )
-
         assert target_customers == 200
 
 
@@ -160,22 +195,55 @@ class TestPricingAndDemand:
         assert "demand_score" in res
 
 
+# ------------------------------------------------------------------ #
+# Integration Tests: DB & Service Orchestrator
+# ------------------------------------------------------------------ #
+
+
 class TestMarketServiceOrchestrator:
-    def test_analyze_village_market_success(self):
-        village_id = uuid4()
-        mock_village = Village(
-            id=village_id,
-            name="Sample Village",
-            latitude=19.75,
-            longitude=75.71,
-            district_id=uuid4(),
-            taluka_id=uuid4(),
-            gram_panchayat_id=uuid4(),
+    def test_analyze_village_market_with_mocked_db_and_models(self, sample_village: Village):
+        mock_db = MagicMock()
+        mock_db.get.return_value = sample_village
+
+        pop_rec = Population(
+            location_id=sample_village.id,
+            year=2021,
+            population_total=5000,
+            households=1000,
+            working_population=2500,
+            source="Census 2021",
+        )
+        mkt_rec = Market(
+            id=uuid4(),
+            name="Wagholi Mandi",
+            market_type="mandi",
+            location_id=sample_village.id,
+            latitude=18.58,
+            longitude=73.98,
+            source="Agmarknet",
+        )
+        price_rec = MarketPrice(
+            id=uuid4(),
+            market_id=mkt_rec.id,
+            location_id=sample_village.id,
+            commodity="Wheat",
+            modal_price=2400.0,
+            source="Agmarknet",
         )
 
-        mock_db = MagicMock()
-        mock_db.get.return_value = mock_village
-        mock_db.exec.return_value.all.return_value = []
+        # Mock db.exec results for batch queries
+        def exec_side_effect(stmt):
+            mock_result = MagicMock()
+            stmt_str = str(stmt)
+            if "population" in stmt_str.lower():
+                mock_result.all.return_value = [pop_rec]
+            elif "market_prices" in stmt_str.lower():
+                mock_result.all.return_value = [price_rec]
+            else:
+                mock_result.all.return_value = []
+            return mock_result
+
+        mock_db.exec.side_effect = exec_side_effect
 
         with (
             patch("app.services.market_service.find_nearby_villages") as mock_vils,
@@ -184,21 +252,50 @@ class TestMarketServiceOrchestrator:
             patch("app.services.market_service.find_nearby_businesses") as mock_biz,
         ):
             mock_vils.return_value = [
-                {"id": village_id, "name": "Sample Village", "distance_meters": 0}
+                {"id": sample_village.id, "name": sample_village.name, "distance_meters": 0.0}
             ]
-            mock_mkts.return_value = []
+            mock_mkts.return_value = [
+                {
+                    "id": mkt_rec.id,
+                    "name": mkt_rec.name,
+                    "market_type": mkt_rec.market_type,
+                    "distance_meters": 500.0,
+                }
+            ]
             mock_facs.return_value = []
             mock_biz.return_value = []
 
             res = MarketService.analyze_village_market(
-                mock_db, village_id=village_id, radii_km=[5.0, 10.0]
+                mock_db,
+                village_id=sample_village.id,
+                radii_km=[5.0, 10.0],
+                target_conversion_rate=0.08,
             )
 
             assert isinstance(res, LocationMarketAnalysisResponse)
-            assert res.village_id == village_id
+            assert res.village_id == sample_village.id
+            assert res.village_name == "Wagholi"
             assert len(res.radius_analyses) == 2
-            assert res.radius_analyses[0].radius_km == 5.0
-            assert res.radius_analyses[1].radius_km == 10.0
+            assert res.radius_analyses[0].estimated_population_reach == 5000
+            assert res.radius_analyses[0].estimated_target_customers == 400
+
+            # Verify provenance deduplication
+            dataset_names = [p.dataset_name for p in res.provenance_summary]
+            assert len(dataset_names) == len(set(dataset_names))
+
+    def test_analyze_village_market_geo_lookup_resilience(self, sample_village: Village):
+        mock_db = MagicMock()
+        mock_db.get.return_value = sample_village
+        mock_db.exec.return_value.all.return_value = []
+
+        with patch(
+            "app.services.market_service.find_nearby_villages",
+            side_effect=Exception("Spatial PostGIS Error"),
+        ):
+            # Should not crash; gracefully catches spatial errors and returns analysis
+            res = MarketService.analyze_village_market(mock_db, village_id=sample_village.id)
+            assert res is not None
+            assert res.village_id == sample_village.id
 
     def test_analyze_village_market_not_found(self):
         mock_db = MagicMock()
@@ -208,6 +305,11 @@ class TestMarketServiceOrchestrator:
             MarketService.analyze_village_market(mock_db, village_id=uuid4())
 
         assert "not found" in str(exc_info.value)
+
+
+# ------------------------------------------------------------------ #
+# API Endpoint Tests
+# ------------------------------------------------------------------ #
 
 
 class TestMarketAnalysisAPI:
@@ -224,7 +326,11 @@ class TestMarketAnalysisAPI:
 
             response = client.post(
                 "/markets/analyze",
-                json={"village_id": str(village_id), "radii_km": [5.0, 10.0]},
+                json={
+                    "village_id": str(village_id),
+                    "radii_km": [5.0, 10.0],
+                    "target_conversion_rate": 0.08,
+                },
             )
 
             assert response.status_code == 200
@@ -243,7 +349,9 @@ class TestMarketAnalysisAPI:
                 provenance_summary=[],
             )
 
-            response = client.get(f"/markets/analyze/{village_id}?radii=5.0&radii=10.0")
+            response = client.get(
+                f"/markets/analyze/{village_id}?radii=5.0&radii=10.0&target_conversion_rate=0.08"
+            )
 
             assert response.status_code == 200
             data = response.json()

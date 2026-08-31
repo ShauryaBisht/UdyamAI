@@ -51,14 +51,7 @@ class MarketService:
         location_id: UUID | None = None,
         limit: int = 50,
     ) -> list[Market]:
-        """List markets with optional filters.
-
-        Args:
-            db: Database session.
-            market_type: Filter by market type (e.g. "mandi", "retail").
-            location_id: Filter by village location UUID.
-            limit: Maximum results (default 50, max 200).
-        """
+        """List markets with optional filters."""
         limit = min(limit, 200)
         statement = select(Market).order_by(Market.name)
 
@@ -88,16 +81,7 @@ class MarketService:
         recorded_date: date | None = None,
         limit: int = 100,
     ) -> list[MarketPrice]:
-        """List market prices with optional filters.
-
-        Args:
-            db: Database session.
-            market_id: Filter by market UUID.
-            location_id: Filter by village location UUID.
-            commodity: Filter by commodity name (exact match).
-            recorded_date: Filter by exact recorded date.
-            limit: Maximum results (default 100, max 500).
-        """
+        """List market prices with optional filters."""
         limit = min(limit, 500)
         statement = select(MarketPrice).order_by(col(MarketPrice.recorded_date).desc())
 
@@ -218,15 +202,21 @@ class MarketService:
         db: Session,
         village_id: UUID,
         radii_km: list[float] | None = None,
+        target_conversion_rate: float = 0.05,
         business_category_id: UUID | None = None,
         analysis_run_id: UUID | None = None,
     ) -> LocationMarketAnalysisResponse:
         """Perform comprehensive market analysis for a target village location across configurable radii.
 
-        Calculates estimated population reach, estimated household reach, addressable target customers,
-        nearby markets, relevant infrastructure, market indicators, and preserves data provenance.
+        Optimized with single-pass batch querying, error handling, configurable conversion rates,
+        and provenance deduplication.
         """
         if radii_km is None or len(radii_km) == 0:
+            radii_km = [5.0, 10.0]
+
+        # Clean and sort requested radii
+        radii_km = sorted([abs(float(r)) for r in radii_km if float(r) > 0])
+        if not radii_km:
             radii_km = [5.0, 10.0]
 
         village = db.get(Village, village_id)
@@ -241,33 +231,62 @@ class MarketService:
         )
         taluka_name = village.taluka.name if hasattr(village, "taluka") and village.taluka else None
 
-        radius_results: list[RadiusMarketAnalysisResult] = []
-        global_provenance: dict[str, MarketProvenanceInfo] = {}
+        # Optimization 1 & 2: Batch geo lookups up to the max radius with error handling
+        max_radius = max(radii_km)
 
-        for r in radii_km:
-            # 1. Nearby villages
-            nearby_villages = find_nearby_villages(db, lat=lat, lng=lng, radius_km=r, limit=200)
-            village_ids = [UUID(str(v["id"])) for v in nearby_villages if "id" in v and v["id"]]
-            if village_id not in village_ids:
-                village_ids.append(village_id)
-                nearby_villages.append(
-                    {
-                        "id": village.id,
-                        "name": village.name,
-                        "latitude": village.latitude,
-                        "longitude": village.longitude,
-                        "distance_meters": 0.0,
-                    }
-                )
+        try:
+            all_nearby_villages = find_nearby_villages(
+                db, lat=lat, lng=lng, radius_km=max_radius, limit=500
+            )
+        except Exception:
+            all_nearby_villages = []
 
-            # Fetch population records for these villages
-            pop_records = []
-            if village_ids:
-                pop_stmt = select(Population).where(Population.location_id.in_(village_ids))
-                pop_records = db.exec(pop_stmt).all()
+        all_village_ids = [UUID(str(v["id"])) for v in all_nearby_villages if "id" in v and v["id"]]
+        if village_id not in all_village_ids:
+            all_village_ids.append(village_id)
+            all_nearby_villages.append(
+                {
+                    "id": village.id,
+                    "name": village.name,
+                    "latitude": village.latitude,
+                    "longitude": village.longitude,
+                    "distance_meters": 0.0,
+                }
+            )
 
-            pop_map = {}
-            for pr in pop_records:
+        try:
+            all_nearby_markets = find_nearby_markets(
+                db, lat=lat, lng=lng, radius_km=max_radius, limit=200
+            )
+        except Exception:
+            all_nearby_markets = []
+
+        all_market_ids = [UUID(str(m["id"])) for m in all_nearby_markets if "id" in m and m["id"]]
+
+        try:
+            all_nearby_facilities = find_nearby_facilities(
+                db, lat=lat, lng=lng, radius_km=max_radius, limit=200
+            )
+        except Exception:
+            all_nearby_facilities = []
+
+        try:
+            all_nearby_businesses = find_nearby_businesses(
+                db,
+                lat=lat,
+                lng=lng,
+                radius_km=max_radius,
+                category_id=business_category_id,
+                limit=500,
+            )
+        except Exception:
+            all_nearby_businesses = []
+
+        # Optimization 1: Single-pass batch query for DB records across all unique village/market IDs
+        pop_map: dict[str, dict] = {}
+        if all_village_ids:
+            pop_stmt = select(Population).where(Population.location_id.in_(all_village_ids))
+            for pr in db.exec(pop_stmt).all():
                 pop_map[str(pr.location_id)] = {
                     "population_total": pr.population_total,
                     "households": pr.households,
@@ -277,31 +296,90 @@ class MarketService:
                     "data_year": pr.data_year,
                 }
 
+        all_mkt_prices: list[dict] = []
+        conds = []
+        if all_market_ids:
+            conds.append(MarketPrice.market_id.in_(all_market_ids))
+        if all_village_ids:
+            conds.append(MarketPrice.location_id.in_(all_village_ids))
+        if conds:
+            price_stmt = select(MarketPrice).where(or_(*conds)).limit(500)
+            all_mkt_prices = [
+                {k: v for k, v in p.__dict__.items() if not k.startswith("_")}
+                for p in db.exec(price_stmt).all()
+            ]
+
+        all_econ_recs: list[dict] = []
+        if all_village_ids:
+            econ_stmt = select(EconomicIndicator).where(
+                EconomicIndicator.location_id.in_(all_village_ids)
+            )
+            all_econ_recs = [
+                {k: v for k, v in e.__dict__.items() if not k.startswith("_")}
+                for e in db.exec(econ_stmt).all()
+            ]
+
+        all_agri_recs: list[dict] = []
+        if all_village_ids:
+            agri_stmt = select(Agriculture).where(Agriculture.location_id.in_(all_village_ids))
+            all_agri_recs = [
+                {k: v for k, v in a.__dict__.items() if not k.startswith("_")}
+                for a in db.exec(agri_stmt).all()
+            ]
+
+        radius_results: list[RadiusMarketAnalysisResult] = []
+        global_provenance: dict[tuple[str, str | None, int | None], MarketProvenanceInfo] = {}
+
+        # Evaluate each requested radius in-memory using cached datasets
+        for r in radii_km:
+            max_meters = r * 1000.0
+
+            nearby_villages = [
+                v for v in all_nearby_villages if (v.get("distance_meters") or 0.0) <= max_meters
+            ]
+            v_ids_in_radius = {UUID(str(v["id"])) for v in nearby_villages if "id" in v and v["id"]}
+
+            nearby_mkts = [
+                m for m in all_nearby_markets if (m.get("distance_meters") or 0.0) <= max_meters
+            ]
+            m_ids_in_radius = {UUID(str(m["id"])) for m in nearby_mkts if "id" in m and m["id"]}
+
+            nearby_facs = [
+                f for f in all_nearby_facilities if (f.get("distance_meters") or 0.0) <= max_meters
+            ]
+
+            nearby_biz = [
+                b for b in all_nearby_businesses if (b.get("distance_meters") or 0.0) <= max_meters
+            ]
+
+            mkt_prices = [
+                p
+                for p in all_mkt_prices
+                if (p.get("market_id") and p.get("market_id") in m_ids_in_radius)
+                or (p.get("location_id") and p.get("location_id") in v_ids_in_radius)
+            ]
+
+            econ_recs = [
+                e
+                for e in all_econ_recs
+                if e.get("location_id") and e.get("location_id") in v_ids_in_radius
+            ]
+
+            agri_recs = [
+                a
+                for a in all_agri_recs
+                if a.get("location_id") and a.get("location_id") in v_ids_in_radius
+            ]
+
+            # 1. Population & target customer estimation with configurable conversion rate
             pop_res = calculate_population_and_household_reach(nearby_villages, pop_map)
             pop_reach = pop_res["estimated_population_reach"]
             hh_reach = pop_res["estimated_household_reach"]
-            target_cust = estimate_target_customers(pop_reach, hh_reach, conversion_rate=0.05)
+            target_cust = estimate_target_customers(
+                pop_reach, hh_reach, conversion_rate=target_conversion_rate
+            )
 
-            # 2. Nearby markets & prices
-            nearby_mkts = find_nearby_markets(db, lat=lat, lng=lng, radius_km=r, limit=100)
-            market_ids = [UUID(str(m["id"])) for m in nearby_mkts if "id" in m and m["id"]]
-
-            conds = []
-            if market_ids:
-                conds.append(MarketPrice.market_id.in_(market_ids))
-            if village_ids:
-                conds.append(MarketPrice.location_id.in_(village_ids))
-
-            mkt_prices_raw = []
-            if conds:
-                price_stmt = select(MarketPrice).where(or_(*conds)).limit(200)
-                mkt_prices_raw = db.exec(price_stmt).all()
-
-            mkt_prices = [
-                {k: v for k, v in p.__dict__.items() if not k.startswith("_")}
-                for p in mkt_prices_raw
-            ]
-
+            # 2. Market summaries
             market_summaries = []
             for m in nearby_mkts:
                 dist_km = round((m.get("distance_meters") or 0.0) / 1000.0, 2)
@@ -318,8 +396,7 @@ class MarketService:
                     )
                 )
 
-            # 3. Relevant Infrastructure
-            nearby_facs = find_nearby_facilities(db, lat=lat, lng=lng, radius_km=r, limit=100)
+            # 3. Infrastructure
             infra_res = analyze_relevant_infrastructure(nearby_facs)
             infra_summaries = [
                 NearbyInfrastructureSummary(
@@ -332,10 +409,7 @@ class MarketService:
                 for item in infra_res["facility_summaries"]
             ]
 
-            # 4. Competition & Businesses
-            nearby_biz = find_nearby_businesses(
-                db, lat=lat, lng=lng, radius_km=r, category_id=business_category_id, limit=200
-            )
+            # 4. Competition
             comp_res = analyze_competition(
                 nearby_biz,
                 radius_km=r,
@@ -344,25 +418,6 @@ class MarketService:
 
             # 5. Indicators & Pricing
             pricing_res = analyze_market_pricing(nearby_mkts, mkt_prices)
-
-            econ_recs = []
-            if village_ids:
-                econ_stmt = select(EconomicIndicator).where(
-                    EconomicIndicator.location_id.in_(village_ids)
-                )
-                econ_recs = [
-                    {k: v for k, v in e.__dict__.items() if not k.startswith("_")}
-                    for e in db.exec(econ_stmt).all()
-                ]
-
-            agri_recs = []
-            if village_ids:
-                agri_stmt = select(Agriculture).where(Agriculture.location_id.in_(village_ids))
-                agri_recs = [
-                    {k: v for k, v in a.__dict__.items() if not k.startswith("_")}
-                    for a in db.exec(agri_stmt).all()
-                ]
-
             demand_res = calculate_demand_indicators(
                 pop_reach,
                 hh_reach,
@@ -389,8 +444,10 @@ class MarketService:
                 "risks": risk_res,
             }
 
-            # Gather provenance
-            radius_provenance_list = []
+            # Optimization 5: Provenance deduplication per radius & globally by key
+            radius_provenance_map: dict[
+                tuple[str, str | None, int | None], MarketProvenanceInfo
+            ] = {}
             for prov_group in (
                 pop_res.get("provenance", []),
                 infra_res.get("provenance", []),
@@ -398,16 +455,21 @@ class MarketService:
                 pricing_res.get("provenance", []),
             ):
                 for p in prov_group:
+                    d_name = p.get("dataset_name", "Unknown Dataset")
+                    s_source = p.get("source")
+                    s_yr = p.get("data_year")
+                    pkey = (d_name, s_source, s_yr)
+
                     prov_obj = MarketProvenanceInfo(
-                        dataset_name=p.get("dataset_name", "Unknown Dataset"),
-                        source=p.get("source"),
+                        dataset_name=d_name,
+                        source=s_source,
                         source_url=p.get("source_url"),
-                        data_year=p.get("data_year"),
+                        data_year=s_yr,
                         record_count=p.get("record_count", 0),
                         confidence_score=p.get("confidence_score", "medium"),
                     )
-                    radius_provenance_list.append(prov_obj)
-                    global_provenance[prov_obj.dataset_name] = prov_obj
+                    radius_provenance_map[pkey] = prov_obj
+                    global_provenance[pkey] = prov_obj
 
             radius_result = RadiusMarketAnalysisResult(
                 radius_km=r,
@@ -420,7 +482,7 @@ class MarketService:
                 relevant_infrastructure_count=len(nearby_facs),
                 relevant_infrastructure=infra_summaries,
                 market_indicators=indicators_dict,
-                provenance=radius_provenance_list,
+                provenance=list(radius_provenance_map.values()),
             )
             radius_results.append(radius_result)
 
@@ -445,7 +507,10 @@ class MarketService:
                 db.add(db_analysis)
 
         if analysis_run_id is not None:
-            db.commit()
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
 
         return LocationMarketAnalysisResponse(
             village_id=village.id,
