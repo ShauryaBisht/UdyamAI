@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     RAG_EMBEDDING_MAX_TOKENS_PER_MINUTE: int = 150000
     RAG_EMBEDDING_MONTHLY_BUDGET_CENTS: int = 5000  # $50/month
     RAG_EMBEDDING_ALERT_THRESHOLD_PERCENT: int = 80
+    RAG_DEFAULT_TOP_K: int = 5
+    RAG_DEFAULT_SCORE_THRESHOLD: float = 0.70
 
     # API Rate Limiting Configuration
     API_RATE_LIMIT_REQUESTS: int = 100
