@@ -68,8 +68,47 @@ All non-`2xx` HTTP response bodies follow the standard error structure:
 | `/api/v1/business-categories` | `GET` | List available business categories and sectors |
 | `/api/v1/finance/calculate` | `POST` | Calculate project funding, loan EMI, and repayment schedule |
 | `/api/v1/schemes` | `GET` | List government schemes filtered by state/agency |
+| `/api/v1/schemes/states` | `GET` | Get distinct states with schemes |
+| `/api/v1/schemes/agencies` | `GET` | Get distinct agency names |
+| `/api/v1/schemes/{scheme_id}` | `GET` | Get scheme by ID |
+| `/api/v1/schemes/{scheme_id}/rules` | `GET` | Get scheme rules |
+| `/api/v1/schemes/{scheme_id}/rules/latest` | `GET` | Get latest active rule |
+| `/api/v1/schemes/{scheme_id}/eligibility-rules` | `GET` | Get eligibility rules |
+| `/api/v1/schemes/{scheme_id}/eligibility-rules/types` | `GET` | Get eligibility rule types |
+| `/api/v1/schemes/matches/{run_id}` | `GET` | Get scheme matches for analysis run |
 | `/api/v1/schemes/match` | `POST` | Evaluate beneficiary profile against eligible government schemes |
 | `/api/v1/reports/{report_id}` | `GET` | Fetch details and PDF download link for a generated report |
+| `/api/v1/locations/nearby/villages` | `GET` | Find villages within radius of coordinates |
+| `/api/v1/locations/nearby/businesses` | `GET` | Find businesses within radius of coordinates |
+| `/api/v1/locations/nearby/markets` | `GET` | Find markets within radius of coordinates |
+| `/api/v1/locations/nearby/facilities` | `GET` | Find infrastructure facilities within radius |
+| `/api/v1/markets` | `GET` | List markets with optional filters |
+| `/api/v1/markets/types` | `GET` | Get distinct market types |
+| `/api/v1/markets/commodities` | `GET` | Get distinct commodity names |
+| `/api/v1/markets/{market_id}` | `GET` | Get market by ID |
+| `/api/v1/markets/prices` | `GET` | List market prices with filters |
+| `/api/v1/markets/prices/history` | `GET` | Price history for a commodity over time |
+| `/api/v1/markets/prices/latest` | `GET` | Latest price per commodity |
+| `/api/v1/markets/analyses/{run_id}` | `GET` | Market analyses for an analysis run |
+| `/api/v1/markets/competitors/{run_id}` | `GET` | Competitor analyses for an analysis run |
+| `/api/v1/infrastructure` | `GET` | List infrastructure records |
+| `/api/v1/infrastructure/types` | `GET` | Get distinct facility types |
+| `/api/v1/infrastructure/{id}` | `GET` | Get infrastructure record by ID |
+| `/api/v1/agriculture` | `GET` | List agriculture records |
+| `/api/v1/agriculture/crops` | `GET` | Get distinct crop names |
+| `/api/v1/agriculture/seasons` | `GET` | Get distinct seasons |
+| `/api/v1/agriculture/{id}` | `GET` | Get agriculture record by ID |
+| `/api/v1/livestock` | `GET` | List livestock records |
+| `/api/v1/livestock/types` | `GET` | Get distinct animal types |
+| `/api/v1/livestock/{id}` | `GET` | Get livestock record by ID |
+| `/api/v1/population` | `GET` | List population records |
+| `/api/v1/population/years` | `GET` | Get distinct years with data |
+| `/api/v1/population/{id}` | `GET` | Get population record by ID |
+| `/api/v1/weather` | `GET` | List weather records |
+| `/api/v1/weather/{id}` | `GET` | Get weather record by ID |
+| `/api/v1/economic` | `GET` | List economic indicator records |
+| `/api/v1/economic/indicators` | `GET` | Get distinct indicator names |
+| `/api/v1/economic/{id}` | `GET` | Get economic indicator record by ID |
 
 ---
 
@@ -552,6 +591,591 @@ Fetch metadata and PDF download link for a generated feasibility report.
 ```
 
 - **`404 Not Found`** - Report ID not found.
+
+---
+
+---
+
+### 12. `GET /api/v1/locations/nearby/villages`
+
+Find villages within a radius of given coordinates using PostGIS.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/locations/nearby/villages`
+- **Query Parameters**:
+  - `lat` (`float`, required): Center latitude (-90 to 90).
+  - `lng` (`float`, required): Center longitude (-180 to 180).
+  - `radius_km` (`float`, optional, default `10.0`): Search radius in km (max 100).
+  - `district_id` (`UUID`, optional): Filter by district.
+  - `limit` (`int`, optional, default `50`): Max results (max 200).
+
+#### Response
+```json
+[
+  {
+    "id": "c7a85f64-5717-4562-b3fc-2c963f66afa6",
+    "name": "Khed Shivapur",
+    "district_id": "d1a85f64-5717-4562-b3fc-2c963f66afa1",
+    "taluka_id": "t1a85f64-5717-4562-b3fc-2c963f66afa1",
+    "gram_panchayat_id": "g1a85f64-5717-4562-b3fc-2c963f66afa1",
+    "pin_code": "412205",
+    "latitude": 18.3492,
+    "longitude": 73.8504,
+    "distance_meters": 1250.5
+  }
+]
+```
+
+---
+
+### 13. `GET /api/v1/locations/nearby/businesses`
+
+Find businesses within a radius using PostGIS.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/locations/nearby/businesses`
+- **Query Parameters**:
+  - `lat` (`float`, required): Center latitude.
+  - `lng` (`float`, required): Center longitude.
+  - `radius_km` (`float`, optional, default `10.0`): Search radius (max 50).
+  - `category_id` (`UUID`, optional): Filter by business category.
+  - `limit` (`int`, optional, default `50`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "b1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
+    "name": "Shivapur Dairy Center",
+    "category": "Dairy Farming",
+    "business_category_id": "e2a85f64-5717-4562-b3fc-2c963f66afa7",
+    "address": "Khed Shivapur, Pune",
+    "latitude": 18.35,
+    "longitude": 73.85,
+    "distance_meters": 1500.0
+  }
+]
+```
+
+---
+
+### 14. `GET /api/v1/locations/nearby/markets`
+
+Find markets within a radius using PostGIS.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/locations/nearby/markets`
+- **Query Parameters**:
+  - `lat` (`float`, required): Center latitude.
+  - `lng` (`float`, required): Center longitude.
+  - `radius_km` (`float`, optional, default `25.0`): Search radius (max 100).
+  - `market_type` (`string`, optional): Filter by type (e.g., `mandi`, `retail`).
+  - `limit` (`int`, optional, default `50`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "m1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
+    "name": "Pune Agricultural Mandi",
+    "market_type": "mandi",
+    "latitude": 18.52,
+    "longitude": 73.86,
+    "distance_meters": 5000.0
+  }
+]
+```
+
+---
+
+### 15. `GET /api/v1/locations/nearby/facilities`
+
+Find infrastructure facilities within a radius using PostGIS.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/locations/nearby/facilities`
+- **Query Parameters**:
+  - `lat` (`float`, required): Center latitude.
+  - `lng` (`float`, required): Center longitude.
+  - `radius_km` (`float`, optional, default `10.0`): Search radius (max 50).
+  - `facility_type` (`string`, optional): Filter by type (e.g., `hospital`, `bank`).
+  - `limit` (`int`, optional, default `50`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "f1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
+    "name": "Rural Health Center",
+    "facility_type": "hospital",
+    "latitude": 18.36,
+    "longitude": 73.84,
+    "capacity": 50.0,
+    "distance_meters": 2500.0
+  }
+]
+```
+
+---
+
+### 16. `GET /api/v1/markets`
+
+List markets with optional filters.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/markets`
+- **Query Parameters**:
+  - `market_type` (`string`, optional): Filter by market type.
+  - `location_id` (`UUID`, optional): Filter by village location.
+  - `limit` (`int`, optional, default `50`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "m1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
+    "name": "Pune Mandi",
+    "market_type": "mandi",
+    "location_id": "c7a85f64-5717-4562-b3fc-2c963f66afa6",
+    "latitude": 18.52,
+    "longitude": 73.86,
+    "source": "government_data",
+    "created_at": "2026-01-10T12:00:00Z"
+  }
+]
+```
+
+---
+
+### 17. `GET /api/v1/markets/{market_id}`
+
+Get a single market by ID.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/markets/{market_id}`
+- **Path Parameters**:
+  - `market_id` (`UUID`, required): Market identifier.
+
+#### Response
+- **`200 OK`** — Market record.
+- **`404 Not Found`** — Market not found.
+
+---
+
+### 18. `GET /api/v1/markets/prices`
+
+List market prices with optional filters.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/markets/prices`
+- **Query Parameters**:
+  - `market_id` (`UUID`, optional): Filter by market.
+  - `location_id` (`UUID`, optional): Filter by location.
+  - `commodity` (`string`, optional): Filter by commodity name.
+  - `recorded_date` (`date`, optional): Filter by exact date.
+  - `limit` (`int`, optional, default `100`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "p1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
+    "market_id": "m1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
+    "commodity": "Wheat",
+    "commodity_variety": "Sharbati",
+    "unit": "quintal",
+    "min_price": 2200.0,
+    "max_price": 2500.0,
+    "modal_price": 2350.0,
+    "arrival_quantity": 150.0,
+    "recorded_date": "2026-03-15",
+    "source": "mandi_portal"
+  }
+]
+```
+
+---
+
+### 19. `GET /api/v1/markets/prices/history`
+
+Get price history for a commodity over time (for trend analysis).
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/markets/prices/history`
+- **Query Parameters**:
+  - `commodity` (`string`, required): Commodity name.
+  - `market_id` (`UUID`, optional): Filter by market.
+  - `location_id` (`UUID`, optional): Filter by location.
+  - `start_date` (`date`, optional): Start of date range.
+  - `end_date` (`date`, optional): End of date range.
+  - `limit` (`int`, optional, default `365`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "p1a2b3c4-...",
+    "commodity": "Wheat",
+    "modal_price": 2200.0,
+    "recorded_date": "2026-01-15"
+  },
+  {
+    "id": "p2a2b3c4-...",
+    "commodity": "Wheat",
+    "modal_price": 2350.0,
+    "recorded_date": "2026-03-15"
+  }
+]
+```
+
+---
+
+### 20. `GET /api/v1/markets/prices/latest`
+
+Get the most recent price for each commodity.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/markets/prices/latest`
+- **Query Parameters**:
+  - `market_id` (`UUID`, optional): Filter by market.
+  - `location_id` (`UUID`, optional): Filter by location.
+  - `limit` (`int`, optional, default `50`): Max results.
+
+#### Response
+- Returns one `MarketPrice` per commodity, ordered by `recorded_date` descending.
+
+---
+
+### 21. `GET /api/v1/markets/commodities`
+
+Get distinct commodity names available.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/markets/commodities`
+- **Query Parameters**:
+  - `market_id` (`UUID`, optional): Filter by market.
+  - `location_id` (`UUID`, optional): Filter by location.
+
+#### Response
+```json
+["Rice", "Wheat", "Maize", "Soybean"]
+```
+
+---
+
+### 22. `GET /api/v1/markets/types`
+
+Get distinct market types.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/markets/types`
+
+#### Response
+```json
+["mandi", "retail", "wholesale"]
+```
+
+---
+
+### 23. `GET /api/v1/infrastructure`
+
+List infrastructure records (hospitals, schools, banks, etc.).
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/infrastructure`
+- **Query Parameters**:
+  - `location_id` (`UUID`, optional): Filter by village location.
+  - `facility_type` (`string`, optional): Filter by type (e.g., `hospital`, `school`).
+  - `limit` (`int`, optional, default `50`): Max results (max 200).
+
+#### Response
+```json
+[
+  {
+    "id": "f1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
+    "location_id": "c7a85f64-5717-4562-b3fc-2c963f66afa6",
+    "facility_type": "hospital",
+    "name": "Rural Health Center",
+    "latitude": 18.36,
+    "longitude": 73.84,
+    "distance_from_village": 2.5,
+    "capacity": 50.0,
+    "source": "government_data",
+    "data_year": 2025,
+    "created_at": "2026-01-10T12:00:00Z"
+  }
+]
+```
+
+---
+
+### 24. `GET /api/v1/infrastructure/types`
+
+Get distinct facility types.
+
+#### Response
+```json
+["hospital", "school", "bank", "pharmacy"]
+```
+
+---
+
+### 25. `GET /api/v1/infrastructure/{id}`
+
+Get a single infrastructure record by ID.
+
+- **`200 OK`** — Infrastructure record.
+- **`404 Not Found`** — Record not found.
+
+---
+
+### 26. `GET /api/v1/agriculture`
+
+List agriculture records with optional filters.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/agriculture`
+- **Query Parameters**:
+  - `location_id` (`UUID`, optional): Filter by village location.
+  - `crop_name` (`string`, optional): Filter by crop name.
+  - `crop_category` (`string`, optional): Filter by category (e.g., `cereals`, `pulses`).
+  - `season` (`string`, optional): Filter by season (`kharif`, `rabi`).
+  - `year` (`int`, optional): Filter by year.
+  - `limit` (`int`, optional, default `50`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "a1b2c3d4-...",
+    "location_id": "c7a85f64-...",
+    "crop_name": "Soybean",
+    "crop_category": "oilseeds",
+    "cultivated_area": 250.0,
+    "production": 450.0,
+    "production_unit": "quintal",
+    "irrigated_area": 100.0,
+    "year": 2025,
+    "season": "kharif",
+    "source": "census_data",
+    "created_at": "2026-01-10T12:00:00Z"
+  }
+]
+```
+
+---
+
+### 27. `GET /api/v1/agriculture/crops`
+
+Get distinct crop names, optionally filtered by location.
+
+- **Query Parameters**: `location_id` (UUID, optional)
+- **Response**: `array[string]` — e.g., `["Rice", "Wheat", "Soybean"]`
+
+---
+
+### 28. `GET /api/v1/agriculture/seasons`
+
+Get distinct seasons.
+
+- **Response**: `array[string]` — e.g., `["kharif", "rabi", "zaid"]`
+
+---
+
+### 29. `GET /api/v1/agriculture/{id}`
+
+Get a single agriculture record by ID.
+
+- **`200 OK`** — Agriculture record.
+- **`404 Not Found`** — Record not found.
+
+---
+
+### 30. `GET /api/v1/livestock`
+
+List livestock records with optional filters.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/livestock`
+- **Query Parameters**:
+  - `location_id` (`UUID`, optional): Filter by village location.
+  - `animal_type` (`string`, optional): Filter by type (e.g., `cattle`, `buffalo`).
+  - `year` (`int`, optional): Filter by year.
+  - `limit` (`int`, optional, default `50`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "l1a2b3c4-...",
+    "location_id": "c7a85f64-...",
+    "animal_type": "cattle",
+    "animal_count": 1200,
+    "milk_production": 3500.0,
+    "milk_production_unit": "liters/day",
+    "year": 2025,
+    "source": "census_data",
+    "created_at": "2026-01-10T12:00:00Z"
+  }
+]
+```
+
+---
+
+### 31. `GET /api/v1/livestock/types`
+
+Get distinct animal types, optionally filtered by location.
+
+- **Query Parameters**: `location_id` (UUID, optional)
+- **Response**: `array[string]` — e.g., `["cattle", "buffalo", "goat"]`
+
+---
+
+### 32. `GET /api/v1/livestock/{id}`
+
+Get a single livestock record by ID.
+
+- **`200 OK`** — Livestock record.
+- **`404 Not Found`** — Record not found.
+
+---
+
+### 33. `GET /api/v1/population`
+
+List population records with optional filters.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/population`
+- **Query Parameters**:
+  - `location_id` (`UUID`, optional): Filter by village location.
+  - `year` (`int`, optional): Filter by census/survey year.
+  - `limit` (`int`, optional, default `50`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "p1a2b3c4-...",
+    "location_id": "c7a85f64-...",
+    "year": 2021,
+    "population_total": 5420,
+    "male_population": 2780,
+    "female_population": 2640,
+    "households": 1150,
+    "working_population": 3200,
+    "literacy_rate": 82.5,
+    "source": "census_2021",
+    "created_at": "2026-01-10T12:00:00Z"
+  }
+]
+```
+
+---
+
+### 34. `GET /api/v1/population/years`
+
+Get distinct years with population data, optionally filtered by location.
+
+- **Query Parameters**: `location_id` (UUID, optional)
+- **Response**: `array[int]` — e.g., `[2021, 2011, 2001]`
+
+---
+
+### 35. `GET /api/v1/population/{id}`
+
+Get a single population record by ID.
+
+- **`200 OK`** — Population record.
+- **`404 Not Found`** — Record not found.
+
+---
+
+### 36. `GET /api/v1/weather`
+
+List weather records with optional filters.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/weather`
+- **Query Parameters**:
+  - `location_id` (`UUID`, optional): Filter by village location.
+  - `start_date` (`date`, optional): Start of date range.
+  - `end_date` (`date`, optional): End of date range.
+  - `drought_only` (`boolean`, optional, default `false`): Only drought-flagged records.
+  - `limit` (`int`, optional, default `50`): Max results (max 500).
+
+#### Response
+```json
+[
+  {
+    "id": "w1a2b3c4-...",
+    "location_id": "c7a85f64-...",
+    "date": "2026-03-15",
+    "rainfall_mm": 12.5,
+    "temperature_min": 18.2,
+    "temperature_max": 34.5,
+    "drought_indicator": false,
+    "source": "imd_data",
+    "created_at": "2026-03-16T06:00:00Z"
+  }
+]
+```
+
+---
+
+### 37. `GET /api/v1/weather/{id}`
+
+Get a single weather record by ID.
+
+- **`200 OK`** — Weather record.
+- **`404 Not Found`** — Record not found.
+
+---
+
+### 38. `GET /api/v1/economic`
+
+List economic indicator records with optional filters.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/economic`
+- **Query Parameters**:
+  - `location_id` (`UUID`, optional): Filter by village location.
+  - `indicator_name` (`string`, optional): Filter by indicator (e.g., `GDP_per_capita`).
+  - `year` (`int`, optional): Filter by year.
+  - `limit` (`int`, optional, default `50`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "e1a2b3c4-...",
+    "location_id": "c7a85f64-...",
+    "indicator_name": "GDP_per_capita",
+    "indicator_value": 125000.0,
+    "unit": "INR",
+    "year": 2025,
+    "source": "economic_survey",
+    "created_at": "2026-01-10T12:00:00Z"
+  }
+]
+```
+
+---
+
+### 39. `GET /api/v1/economic/indicators`
+
+Get distinct indicator names, optionally filtered by location.
+
+- **Query Parameters**: `location_id` (UUID, optional)
+- **Response**: `array[string]` — e.g., `["GDP_per_capita", "literacy_rate", "poverty_rate"]`
+
+---
+
+### 40. `GET /api/v1/economic/{id}`
+
+Get a single economic indicator record by ID.
+
+- **`200 OK`** — Economic indicator record.
+- **`404 Not Found`** — Record not found.
 
 ---
 
