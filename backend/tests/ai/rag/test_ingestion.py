@@ -18,7 +18,7 @@ from app.rag.document_parser import (
     ScannedPDFError,
     parse_pdf,
 )
-from app.rag.embeddings import EmbeddingRateLimiter, generate_embeddings
+from app.rag.embeddings import EmbeddingRateLimiter, generate_embedding, generate_embeddings
 from app.rag.knowledge_base import calculate_sha256, ingest_document
 from app.rag.token_counter import count_tokens, count_tokens_batch, estimate_embedding_cost
 
@@ -599,3 +599,67 @@ def test_ingest_document_mismatch_exception(mock_embed, mock_parse, db_session, 
     with pytest.raises(ValueError) as excinfo:
         ingest_document(db=db_session, file_path=temp_file, title="Mismatch Test Doc")
     assert "Embedding count mismatch" in str(excinfo.value)
+
+
+# --- 6. Refined Phase 3 Integration & Validation Tests ---
+
+
+def test_generate_embedding_invalid_dimension(db_session):
+    # Mock embeddings to return invalid dimension (e.g. 100 instead of 1536)
+    with patch("app.rag.embeddings.get_openai_client") as mock_get_client:
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        # Return a vector of 100 dimensions instead of 1536
+        mock_response.data = [MagicMock(embedding=[0.1] * 100)]
+        mock_client.embeddings.create.return_value = mock_response
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(ValueError) as excinfo:
+            generate_embedding("Test text")
+        assert "Generated embedding dimension is 100, expected 1536" in str(excinfo.value)
+
+
+def test_secrets_production_validation():
+    from app.config import Settings
+
+    # Verify that ENV="production" raises ValueError when SECRET_KEY is missing
+    with pytest.raises(ValueError) as excinfo:
+        Settings(ENV="production", SECRET_KEY=None)
+    assert "SECRET_KEY must be provided" in str(excinfo.value)
+
+
+def test_secrets_development_fallback():
+    from app.config import Settings
+
+    # Verify fallback is applied in development
+    s = Settings(ENV="development", SECRET_KEY=None)
+    assert s.SECRET_KEY == "dev_secret_key_fallback"
+
+
+def test_rate_limiter_forwarded_ip_helper():
+    from fastapi import Request
+
+    from app.utils.rate_limiter import get_client_ip
+
+    # 1. Single IP
+    req1 = MagicMock(spec=Request)
+    req1.headers = {"x-forwarded-for": "1.1.1.1"}
+    assert get_client_ip(req1) == "1.1.1.1"
+
+    # 2. Leftmost IP from list
+    req2 = MagicMock(spec=Request)
+    req2.headers = {"x-forwarded-for": "2.2.2.2, 3.3.3.3, 4.4.4.4"}
+    assert get_client_ip(req2) == "2.2.2.2"
+
+    # 3. Fallback to client host
+    req3 = MagicMock(spec=Request)
+    req3.headers = {}
+    req3.client = MagicMock()
+    req3.client.host = "5.5.5.5"
+    assert get_client_ip(req3) == "5.5.5.5"
+
+    # 4. Safe fallback for missing client
+    req4 = MagicMock(spec=Request)
+    req4.headers = {}
+    req4.client = None
+    assert get_client_ip(req4) == "unknown"

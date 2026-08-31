@@ -127,7 +127,10 @@ def generate_embedding(text: str) -> list[float]:
     logger.debug(f"Generating single embedding ({tokens} tokens) for text: {cleaned_text[:30]}...")
 
     response = client.embeddings.create(input=[cleaned_text], model=settings.RAG_EMBEDDING_MODEL)
-    return response.data[0].embedding
+    embedding = response.data[0].embedding
+    if len(embedding) != 1536:
+        raise ValueError(f"Generated embedding dimension is {len(embedding)}, expected 1536.")
+    return embedding
 
 
 def generate_embeddings(texts: list[str]) -> list[list[float]]:
@@ -169,6 +172,12 @@ def generate_embeddings(texts: list[str]) -> list[list[float]]:
             raise ValueError(
                 f"OpenAI returned {len(batch_embeddings)} embeddings for a batch of size {len(batch)}"
             )
+
+        for embedding in batch_embeddings:
+            if len(embedding) != 1536:
+                raise ValueError(
+                    f"Generated embedding dimension is {len(embedding)}, expected 1536."
+                )
 
         all_embeddings.extend(batch_embeddings)
 

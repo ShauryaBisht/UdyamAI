@@ -10,6 +10,25 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+def get_client_ip(request: Request) -> str:
+    """
+    Extract the client IP address from the request.
+    If the X-Forwarded-For header is present, it uses the leftmost IP address.
+    Otherwise, it falls back to request.client.host.
+    Handles missing request.client safely.
+    """
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    if x_forwarded_for:
+        # Extract the leftmost IP address in the comma-separated list
+        parts = [ip.strip() for ip in x_forwarded_for.split(",")]
+        if parts and parts[0]:
+            return parts[0]
+
+    if request.client:
+        return request.client.host
+    return "unknown"
+
+
 class RateLimiter:
     """
     Thread-safe, in-memory sliding window rate limiter dependency for FastAPI.
@@ -22,7 +41,7 @@ class RateLimiter:
         self.lock = threading.Lock()
 
     def __call__(self, request: Request):
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = get_client_ip(request)
         now = time.time()
 
         with self.lock:

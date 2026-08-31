@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,7 +36,7 @@ class Settings(BaseSettings):
     API_RATE_LIMIT_WINDOW: int = 60
 
     # Security Configuration
-    SECRET_KEY: str = "supersecretjwtkey"
+    SECRET_KEY: str | None = None
 
     # Default Finance Fallback Settings
     DEFAULT_BENEFICIARY_CONTRIBUTION_PERCENT: float = 10.0
@@ -44,6 +45,14 @@ class Settings(BaseSettings):
     DEFAULT_PAYMENT_FREQUENCY: str = "monthly"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_secrets(self) -> "Settings":
+        if self.ENV == "production" and not self.SECRET_KEY:
+            raise ValueError("SECRET_KEY must be provided in production environment")
+        if not self.SECRET_KEY:
+            self.SECRET_KEY = "dev_secret_key_fallback"
+        return self
 
 
 settings = Settings()

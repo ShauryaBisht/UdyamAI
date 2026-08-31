@@ -2,6 +2,7 @@ import hashlib
 import logging
 from uuid import UUID
 
+from sqlalchemy import delete
 from sqlmodel import Session, select
 
 from app.config import settings
@@ -92,9 +93,10 @@ def ingest_document(
             )
             db_doc = existing_doc
 
-            # Clean up all existing chunks associated with this document ID
+            # Explicitly delete all existing DocumentChunks for this document
+            db.execute(delete(DocumentChunk).where(DocumentChunk.document_id == existing_doc.id))
+            # Clear the relationship in session memory to maintain consistency
             db_doc.chunks = []
-            db.add(db_doc)
             # Flush changes so the deletion executes in the transaction
             db.flush()
         else:

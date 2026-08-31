@@ -51,6 +51,7 @@ def test_rate_limiter_per_ip():
 
         def __init__(self, host):
             self.client = self.MockClient(host)
+            self.headers = {}
 
     req1 = MockRequest("1.1.1.1")
     req2 = MockRequest("2.2.2.2")
