@@ -585,7 +585,7 @@ def test_config_defaults():
     assert settings.RAG_CHUNK_SIZE == 800
     assert settings.RAG_CHUNK_OVERLAP == 150
     assert settings.RAG_EMBEDDING_MODEL == "text-embedding-3-small"
-    assert settings.RAG_EMBEDDING_BATCH_SIZE == 50
+    assert settings.RAG_EMBEDDING_BATCH_SIZE == 100
     assert settings.RAG_EMBEDDING_MAX_TOKENS_PER_MINUTE == 150000
     assert settings.RAG_EMBEDDING_MONTHLY_BUDGET_CENTS == 5000
 
