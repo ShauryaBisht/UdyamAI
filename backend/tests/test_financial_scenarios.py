@@ -104,7 +104,9 @@ def test_scenarios_configurable_assumptions():
     """Test custom scenario multiplier configuration."""
     custom_config = ScenarioConfigInput(
         worst_case=ScenarioMultiplierInput(revenue_multiplier=0.70, operating_cost_multiplier=1.20),
-        expected_case=ScenarioMultiplierInput(revenue_multiplier=1.00, operating_cost_multiplier=1.00),
+        expected_case=ScenarioMultiplierInput(
+            revenue_multiplier=1.00, operating_cost_multiplier=1.00
+        ),
         best_case=ScenarioMultiplierInput(revenue_multiplier=1.30, operating_cost_multiplier=0.85),
     )
 

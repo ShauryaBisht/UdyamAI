@@ -130,7 +130,6 @@ def test_calculate_finance_scenarios_no_revenue_invention(client):
         assert s["marked_assumptions"]["local_revenue_invented"] is False
 
 
-
 def test_calculate_finance_project_caps(client):
     """Test application of max_project_cost and max_loan_amount limits."""
     payload = {
