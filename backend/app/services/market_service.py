@@ -745,10 +745,18 @@ class MarketService:
 
         calc_comp_density = competition_density
         if calc_comp_density is None:
-            comp_analysis = analyze_competition(nearby_biz, radius_km=radius_km) or {}
+            comp_analysis = analyze_competition(nearby_biz, radius_km=radius_km)
+            if not isinstance(comp_analysis, dict):
+                logger.warning("analyze_competition returned non-dict value: %r", comp_analysis)
+                comp_analysis = {}
             calc_comp_density = float(comp_analysis.get("competition_density_per_km2", 0.0) or 0.0)
 
-        infra_analysis = analyze_relevant_infrastructure(nearby_facs) or {}
+        infra_analysis = analyze_relevant_infrastructure(nearby_facs)
+        if not isinstance(infra_analysis, dict):
+            logger.warning(
+                "analyze_relevant_infrastructure returned non-dict value: %r", infra_analysis
+            )
+            infra_analysis = {}
         facility_counts = infra_analysis.get("facility_counts_by_type", {}) or {}
 
         pop_reach = sum(v.get("population", 0) or 0 for v in nearby_vils)
