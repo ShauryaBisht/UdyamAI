@@ -251,17 +251,48 @@ class RiskIndicatorItem(BaseModel):
     )
 
 
+def _add_market_risk_location_validator(cls: type) -> type:
+    if HAS_PYDANTIC_V2:
+
+        @model_validator(mode="after")
+        def validate_location(self: Any) -> Any:
+            if not self.village_id and (self.latitude is None or self.longitude is None):
+                raise ValueError(
+                    "Either village_id or both latitude and longitude coordinates must be provided."
+                )
+            return self
+
+        cls.validate_location = validate_location
+    else:
+
+        @root_validator
+        def validate_location_v1(cls_ref: Any, values: dict[str, Any]) -> dict[str, Any]:
+            if not values.get("village_id") and (
+                values.get("latitude") is None or values.get("longitude") is None
+            ):
+                raise ValueError(
+                    "Either village_id or both latitude and longitude coordinates must be provided."
+                )
+            return values
+
+        cls.validate_location = validate_location_v1
+    return cls
+
+
+@_add_market_risk_location_validator
 class MarketRiskAssessmentRequest(BaseModel):
     village_id: UUID | None = Field(
-        default=None, description="Optional target village location UUID"
+        default=None, description="Village UUID to resolve location coordinates"
     )
     latitude: float | None = Field(
-        default=None, ge=-90.0, le=90.0, description="Optional latitude center point"
+        default=None, ge=-90.0, le=90.0, description="Explicit latitude coordinate"
     )
     longitude: float | None = Field(
-        default=None, ge=-180.0, le=180.0, description="Optional longitude center point"
+        default=None, ge=-180.0, le=180.0, description="Explicit longitude coordinate"
     )
-    radius_km: float = Field(default=10.0, ge=0.1, le=50.0, description="Analysis radius in km")
+    radius_km: float = Field(
+        default=10.0, ge=0.1, le=50.0, description="Analysis radius in kilometers"
+    )
     competition_density: float | None = Field(
         default=None, description="Optional competitor density override (per km²)"
     )
@@ -272,28 +303,6 @@ class MarketRiskAssessmentRequest(BaseModel):
     is_seasonal: bool = Field(
         default=False, description="Flag indicating seasonal crop/trade market"
     )
-
-    if HAS_PYDANTIC_V2:
-
-        @model_validator(mode="after")
-        def validate_location(self) -> "MarketRiskAssessmentRequest":
-            if not self.village_id and (self.latitude is None or self.longitude is None):
-                raise ValueError(
-                    "Either village_id or both latitude and longitude coordinates must be provided."
-                )
-            return self
-
-    else:
-
-        @root_validator
-        def validate_location_v1(cls, values):
-            if not values.get("village_id") and (
-                values.get("latitude") is None or values.get("longitude") is None
-            ):
-                raise ValueError(
-                    "Either village_id or both latitude and longitude coordinates must be provided."
-                )
-            return values
 
 
 class MarketRiskAssessmentResponse(BaseModel):
