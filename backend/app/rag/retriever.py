@@ -119,7 +119,9 @@ def retrieve_evidence(
 
     query_str = query_str.strip()
     top_k = limit if limit is not None else settings.RAG_DEFAULT_TOP_K
-    threshold = score_threshold if score_threshold is not None else settings.RAG_DEFAULT_SCORE_THRESHOLD
+    threshold = (
+        score_threshold if score_threshold is not None else settings.RAG_DEFAULT_SCORE_THRESHOLD
+    )
 
     logger.info(
         f"Executing RAG retrieval for query='{query_str[:40]}...', scheme_id={scheme_id}, "
@@ -148,9 +150,7 @@ def retrieve_evidence(
     if effective_date is not None:
         stmt = stmt.where(
             (Document.effective_from.is_(None)) | (Document.effective_from <= effective_date)
-        ).where(
-            (Document.effective_until.is_(None)) | (Document.effective_until >= effective_date)
-        )
+        ).where((Document.effective_until.is_(None)) | (Document.effective_until >= effective_date))
 
     results = db.exec(stmt).all()
 
@@ -186,5 +186,7 @@ def retrieve_evidence(
         format_evidence_item(chunk, doc, score) for chunk, doc, score in top_candidates
     ]
 
-    logger.info(f"RAG retrieval finished. Status='{status}', retrieved {len(evidence_items)} items.")
+    logger.info(
+        f"RAG retrieval finished. Status='{status}', retrieved {len(evidence_items)} items."
+    )
     return RAGQueryResponse(status=status, evidence=evidence_items)

@@ -31,9 +31,7 @@ def build_source_metadata(document: Document, chunk: DocumentChunk) -> SourceMet
     )
 
 
-def format_evidence_item(
-    chunk: DocumentChunk, document: Document, score: float
-) -> EvidenceItem:
+def format_evidence_item(chunk: DocumentChunk, document: Document, score: float) -> EvidenceItem:
     """
     Formats a chunk, parent document, and similarity score into a structured EvidenceItem.
 

@@ -352,9 +352,7 @@ def test_document_loader_integration(mock_ingest, mock_retrieve, db_session: Ses
     )
     mock_ingest.return_value = mock_doc
 
-    doc = load_document(
-        db=db_session, file_path="dummy.pdf", title="Test Doc"
-    )
+    doc = load_document(db=db_session, file_path="dummy.pdf", title="Test Doc")
     assert doc == mock_doc
     mock_ingest.assert_called_once()
 

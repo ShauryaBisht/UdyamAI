@@ -74,12 +74,22 @@ class ChunkRead(BaseModel):
 class RAGQueryRequest(BaseModel):
     """Input contract schema for RAG evidence retrieval."""
 
-    query: str = Field(..., min_length=1, description="Search query derived from user business context.")
+    query: str = Field(
+        ..., min_length=1, description="Search query derived from user business context."
+    )
     scheme_id: UUID | None = Field(default=None, description="Optional filter by scheme ID.")
-    language: str | None = Field(default=None, description="Optional language filter (e.g., 'en', 'hi', 'mr').")
-    limit: int = Field(default=5, ge=1, le=50, description="Maximum number of evidence chunks to retrieve.")
-    score_threshold: float = Field(default=0.70, ge=0.0, le=1.0, description="Minimum similarity score threshold.")
-    effective_date: date | None = Field(default=None, description="Optional effective date filter for document versioning.")
+    language: str | None = Field(
+        default=None, description="Optional language filter (e.g., 'en', 'hi', 'mr')."
+    )
+    limit: int = Field(
+        default=5, ge=1, le=50, description="Maximum number of evidence chunks to retrieve."
+    )
+    score_threshold: float = Field(
+        default=0.70, ge=0.0, le=1.0, description="Minimum similarity score threshold."
+    )
+    effective_date: date | None = Field(
+        default=None, description="Optional effective date filter for document versioning."
+    )
 
 
 class SourceMetadata(BaseModel):
@@ -115,5 +125,6 @@ class RAGQueryResponse(BaseModel):
         ...,
         description="Retrieval status: 'success', 'no_relevant_evidence', or 'conflicting_sources'.",
     )
-    evidence: list[EvidenceItem] = Field(default_factory=list, description="List of verified evidence items.")
-
+    evidence: list[EvidenceItem] = Field(
+        default_factory=list, description="List of verified evidence items."
+    )
