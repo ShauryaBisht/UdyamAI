@@ -673,28 +673,105 @@ def test_rate_limiter_forwarded_ip_helper():
 # --- 7. Review Refinements (Lock Release, Retry Backoff, Transaction Decoupling) ---
 
 
-def test_rate_limiter_releases_lock_during_sleep():
-    # Create rate limiter with very low limit to trigger sleep
+def test_rate_limiter_below_limit_proceeds_immediately():
     limiter = EmbeddingRateLimiter(max_tokens_per_minute=100)
+    # Starts at 0, consuming 50 tokens proceeds without sleeping
+    with patch("time.sleep") as mock_sleep:
+        limiter.wait_for_rate_limit(50)
+        assert mock_sleep.call_count == 0
+    assert limiter.tokens_this_minute == 50
 
-    # First thread consumes 80 tokens (succeeds immediately)
+
+def test_rate_limiter_exceeding_limit_sleeps():
+    limiter = EmbeddingRateLimiter(max_tokens_per_minute=100)
     limiter.wait_for_rate_limit(80)
 
-    # Second thread consumes 30 tokens -> exceeds limit (must wait)
-    import threading
-
-    sleep_called = threading.Event()
+    # Consuming another 30 tokens triggers sleep since 80 + 30 > 100
+    # Mock time.sleep to simulate time passage
+    current_time = 100.0
+    sleeps = []
 
     def mock_sleep(seconds):
-        # Verify lock is not held by checking limiter._lock status during sleep
-        lock_released = not limiter._lock.locked()
-        assert lock_released, "Lock must be released during sleep!"
-        sleep_called.set()
+        nonlocal current_time
+        current_time += seconds
+        sleeps.append(seconds)
 
-    with patch("time.sleep", side_effect=mock_sleep):
+    def mock_monotonic():
+        return current_time
+
+    with (
+        patch("time.sleep", side_effect=mock_sleep),
+        patch("time.monotonic", side_effect=mock_monotonic),
+    ):
+        limiter.minute_window_start = current_time
         limiter.wait_for_rate_limit(30)
 
-    assert sleep_called.is_set()
+    assert len(sleeps) == 1
+    # Expect sleep time close to 60 seconds
+    assert 59.0 <= sleeps[0] <= 60.0
+    assert limiter.tokens_this_minute == 30  # Reset happened, now at 30
+
+
+def test_rate_limiter_multithreading_no_sleep_blocking():
+    limiter = EmbeddingRateLimiter(max_tokens_per_minute=100)
+    limiter.wait_for_rate_limit(80)
+
+    import threading
+
+    # Thread 1 tries to consume 30 tokens -> exceeds limit, will wait/sleep
+    # Thread 2 tries to consume 10 tokens -> fits within limit! It should proceed immediately
+    # without being blocked by Thread 1's sleep!
+
+    t1_started = threading.Event()
+    t1_done = threading.Event()
+    t2_done = threading.Event()
+    t2_proceeded_immediately = False
+
+    t2_sleep_event = threading.Event()
+    t1_sleep_event = threading.Event()
+
+    def thread1_run():
+        t1_started.set()
+        limiter.wait_for_rate_limit(30)
+        t1_done.set()
+
+    def thread2_run():
+        nonlocal t2_proceeded_immediately
+        t1_started.wait()
+        # Give thread 1 a tiny fraction of a second to acquire the lock and sleep
+        t2_sleep_event.wait(0.05)
+        # Thread 2 should proceed immediately because Thread 1 released the lock while sleeping
+        limiter.wait_for_rate_limit(10)
+        t2_proceeded_immediately = True
+        t2_done.set()
+
+    # Mock sleep for thread 1 so it doesn't hang the test suite
+    current_time = 100.0
+
+    def mock_sleep(seconds):
+        nonlocal current_time
+        current_time += seconds
+        t1_sleep_event.wait(0.01)  # Small real sleep to let other thread run
+
+    def mock_monotonic():
+        return current_time
+
+    with (
+        patch("time.sleep", side_effect=mock_sleep),
+        patch("time.monotonic", side_effect=mock_monotonic),
+    ):
+        limiter.minute_window_start = current_time
+        th1 = threading.Thread(target=thread1_run)
+        th2 = threading.Thread(target=thread2_run)
+
+        th1.start()
+        th2.start()
+
+        t2_done.wait(timeout=2.0)
+        th2.join()
+        th1.join()
+
+    assert t2_proceeded_immediately, "Thread 2 must proceed immediately while Thread 1 is sleeping!"
 
 
 @patch("app.rag.embeddings.get_openai_client")
@@ -762,7 +839,6 @@ def test_retry_exhaustion_raises_custom_error(mock_sleep, mock_get_client):
     from openai import APITimeoutError
 
     mock_client.embeddings.create.side_effect = APITimeoutError(request=MagicMock())
-
     mock_get_client.return_value = mock_client
 
     with pytest.raises(EmbeddingRetryExhaustedError) as excinfo:
@@ -815,5 +891,5 @@ def test_ingest_document_transaction_decoupling(mock_embed, mock_parse, db_sessi
     # Execute ingestion
     ingest_document(db=db_session, file_path=temp_file, title="Transaction Decoupling Test")
 
-    # Verify call order: commit (first short metadata transaction), then embed, then commit (second final chunk save transaction)
-    assert call_order == ["commit", "embed", "commit"]
+    # Verify call order: embed happens first (outside transaction), then commit happens once at the end.
+    assert call_order == ["embed", "commit"]

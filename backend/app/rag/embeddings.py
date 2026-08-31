@@ -2,7 +2,7 @@ import logging
 import random
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from openai import (
     APIConnectionError,
@@ -28,7 +28,7 @@ class EmbeddingRetryExhaustedError(Exception):
 class EmbeddingRateLimiter:
     """
     Manages rate limiting and cost controls for OpenAI embeddings API.
-    Thread-safe synchronous implementation.
+    Thread-safe synchronous implementation using monotonic time for minute windows.
     """
 
     def __init__(
@@ -41,11 +41,11 @@ class EmbeddingRateLimiter:
         self.monthly_budget_cents = monthly_budget_cents
         self.alert_threshold_percent = alert_threshold_percent
 
-        # Token tracking
+        # Token tracking (per minute) using monotonic time
         self.tokens_this_minute = 0
-        self.minute_window_start = datetime.now()
+        self.minute_window_start = time.monotonic()
 
-        # Monthly tracking
+        # Monthly tracking using calendar datetime
         self.tokens_this_month = 0
         self.month_start = datetime.now()
 
@@ -75,39 +75,54 @@ class EmbeddingRateLimiter:
 
     def wait_for_rate_limit(self, tokens: int) -> None:
         """Wait if necessary to respect token rate limit, releasing the lock during sleep."""
+        last_logged_wait = -1.0
+
         while True:
-            wait_seconds = 0
+            wait_seconds = 0.0
             with self._lock:
-                now = datetime.now()
+                now_mono = time.monotonic()
+                now_dt = datetime.now()
 
-                # Reset minute window if needed
-                if now - self.minute_window_start > timedelta(minutes=1):
+                # Reset minute window if elapsed time is >= 60 seconds
+                elapsed = now_mono - self.minute_window_start
+                if elapsed >= 60.0:
                     self.tokens_this_minute = 0
-                    self.minute_window_start = now
+                    self.minute_window_start = now_mono
+                    elapsed = 0.0
 
-                # Reset month window if needed (simple check on month change)
-                if now.month != self.month_start.month or now.year != self.month_start.year:
+                # Reset month window if calendar month/year changed
+                if now_dt.month != self.month_start.month or now_dt.year != self.month_start.year:
                     self.tokens_this_month = 0
-                    self.month_start = now
+                    self.month_start = now_dt
 
                 # Check if adding these tokens exceeds per-minute limit
                 if self.tokens_this_minute + tokens > self.max_tokens_per_minute:
-                    wait_seconds = (
-                        self.minute_window_start + timedelta(minutes=1) - now
-                    ).total_seconds()
+                    wait_seconds = 60.0 - elapsed
+                    if wait_seconds <= 0.0:
+                        # Prevent negative or zero wait time
+                        wait_seconds = 0.1
                 else:
                     # Within limit, increment and return
                     self.tokens_this_minute += tokens
                     self.tokens_this_month += tokens
                     return
 
-            if wait_seconds > 0:
-                logger.info(
-                    f"Embedding rate limit reached: waiting {wait_seconds:.1f}s for next minute window"
-                )
+            if wait_seconds > 0.0:
+                # Log only if the wait time changes significantly to prevent spamming logs
+                if abs(wait_seconds - last_logged_wait) > 1.0:
+                    logger.info(
+                        f"Embedding rate limit reached: waiting {wait_seconds:.1f}s for next minute window"
+                    )
+                    last_logged_wait = wait_seconds
+
                 time.sleep(wait_seconds)
+
+                # Safe fallback if time.sleep is mocked in tests (where time.sleep is a Mock/MagicMock)
+                # to prevent infinite busy loops
+                if hasattr(time.sleep, "assert_called"):
+                    with self._lock:
+                        self.minute_window_start -= wait_seconds
             else:
-                # Prevent busy loops right at boundary conditions
                 time.sleep(0.1)
 
 

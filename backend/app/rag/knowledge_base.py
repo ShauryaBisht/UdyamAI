@@ -53,86 +53,43 @@ def ingest_document(
     pages = parse_pdf(file_path)
     logger.info(f"PDF parsed. Found {len(pages)} pages.")
 
-    doc_id = None
-    is_incomplete_recovery = False
+    # 2. Estimate expected chunks count
+    temp_id = UUID("00000000-0000-0000-0000-000000000000")
+    expected_chunks = chunk_document(
+        pages=pages,
+        document_id=temp_id,
+        source_title=title,
+        source_url=source_url,
+        document_version=document_version,
+    )
+    expected_count = len(expected_chunks)
 
-    # 2. First short DB transaction: check existence, completeness, and insert/update Document entry
+    # 3. Read check (no write transaction lock) to see if document is already complete
     try:
-        # Query the document by content hash using row-level locking (with_for_update)
-        statement = select(Document).where(Document.content_hash == content_hash).with_for_update()
-        existing_doc = db.exec(statement).first()
-
-        # Temporary UUID for count estimation
-        temp_id = existing_doc.id if existing_doc else UUID("00000000-0000-0000-0000-000000000000")
-        expected_chunks = chunk_document(
-            pages=pages,
-            document_id=temp_id,
-            source_title=title,
-            source_url=source_url,
-            document_version=document_version,
-        )
-        expected_count = len(expected_chunks)
-
+        existing_doc = db.exec(
+            select(Document).where(Document.content_hash == content_hash)
+        ).first()
         if existing_doc:
-            doc_id = existing_doc.id
             chunks_stmt = select(DocumentChunk).where(DocumentChunk.document_id == existing_doc.id)
             existing_chunks = db.exec(chunks_stmt).all()
-            existing_chunks_count = len(existing_chunks)
-
-            # Verify completeness: does chunk count match expected?
-            if expected_count > 0 and existing_chunks_count == expected_count:
+            if expected_count > 0 and len(existing_chunks) == expected_count:
                 logger.info(
-                    f"Document '{title}' ({content_hash}) is already complete with {existing_chunks_count} chunks. Skipping ingestion."
+                    f"Document '{title}' ({content_hash}) is already complete with {len(existing_chunks)} chunks. Skipping ingestion."
                 )
-                db.rollback()  # Release row locks safely
                 return None
-
-            is_incomplete_recovery = True
-            logger.warning(
-                f"Document '{title}' ({content_hash}) is incomplete. "
-                f"Expected: {expected_count} chunks, Found in DB: {existing_chunks_count} chunks. "
-                f"Preparing for rebuild..."
-            )
-            # Update fields in recovery case
-            existing_doc.title = title
-            existing_doc.source_name = source_name
-            existing_doc.source_url = source_url
-            existing_doc.document_type = document_type
-            existing_doc.language = language
-            existing_doc.file_path = file_path
-            db.add(existing_doc)
-        else:
-            logger.info(f"Ingesting completely new document: '{title}' ({content_hash})")
-            new_doc = Document(
-                title=title,
-                source_name=source_name,
-                source_url=source_url,
-                document_type=document_type,
-                language=language,
-                file_path=file_path,
-                content_hash=content_hash,
-                active=True,
-            )
-            db.add(new_doc)
-            db.flush()  # Populate generated ID
-            doc_id = new_doc.id
-
-        db.commit()  # End first short transaction & release locks
     except Exception as e:
-        logger.error(f"Error during first transaction metadata initialization: {str(e)}")
-        db.rollback()
-        raise e
+        logger.warning(f"Error during quick pre-ingestion read check: {str(e)}")
 
-    # 3. Generate chunks data (outside DB transaction)
+    # 4. Generate chunks data (outside DB transaction)
     chunks_data = chunk_document(
         pages=pages,
-        document_id=doc_id,
+        document_id=temp_id,
         source_title=title,
         source_url=source_url,
         document_version=document_version,
     )
 
-    # 4. Generate embeddings via remote OpenAI API (outside DB transaction)
+    # 5. Generate embeddings via remote OpenAI API (outside DB transaction)
     embeddings = []
     if chunks_data:
         texts = [chunk["content"] for chunk in chunks_data]
@@ -147,10 +104,59 @@ def ingest_document(
                 f"but got {len(embeddings)}."
             )
 
-    # 5. Second short DB transaction: delete old chunks (if recovery) and persist new chunks & embeddings
+    # 6. Single short DB write transaction to save everything
     try:
+        # Query the document by content hash using row-level locking (with_for_update)
+        statement = select(Document).where(Document.content_hash == content_hash).with_for_update()
+        existing_doc = db.exec(statement).first()
+
+        doc_id = None
+        is_incomplete_recovery = False
+
+        if existing_doc:
+            doc_id = existing_doc.id
+            chunks_stmt = select(DocumentChunk).where(DocumentChunk.document_id == existing_doc.id)
+            existing_chunks = db.exec(chunks_stmt).all()
+            existing_chunks_count = len(existing_chunks)
+
+            # Re-verify completeness inside the lock to avoid race conditions
+            if expected_count > 0 and existing_chunks_count == expected_count:
+                logger.info(
+                    f"Document '{title}' ({content_hash}) was completed concurrently. Skipping save."
+                )
+                db.rollback()
+                return existing_doc
+
+            is_incomplete_recovery = True
+            logger.warning(
+                f"Document '{title}' ({content_hash}) is incomplete. Wiping old chunks and rebuilding..."
+            )
+            # Update fields in recovery case
+            existing_doc.title = title
+            existing_doc.source_name = source_name
+            existing_doc.source_url = source_url
+            existing_doc.document_type = document_type
+            existing_doc.language = language
+            existing_doc.file_path = file_path
+            db.add(existing_doc)
+            db_doc = existing_doc
+        else:
+            logger.info(f"Ingesting completely new document: '{title}' ({content_hash})")
+            db_doc = Document(
+                title=title,
+                source_name=source_name,
+                source_url=source_url,
+                document_type=document_type,
+                language=language,
+                file_path=file_path,
+                content_hash=content_hash,
+                active=True,
+            )
+            db.add(db_doc)
+            db.flush()  # Populate generated ID
+            doc_id = db_doc.id
+
         if is_incomplete_recovery:
-            logger.info(f"Rebuild mode: explicitly deleting old chunks for document {doc_id}")
             db.execute(delete(DocumentChunk).where(DocumentChunk.document_id == doc_id))
             db.flush()
 
@@ -168,15 +174,12 @@ def ingest_document(
                 )
                 db.add(db_chunk)
 
-        db.commit()  # End second short transaction
+        db.commit()  # Commit all changes at once
         logger.info(f"Successfully ingested and committed document '{title}' (ID: {doc_id})")
+        db.refresh(db_doc)
+        return db_doc
+
     except Exception as e:
-        logger.error(f"Error during second transaction chunk storage: {str(e)}")
+        logger.error(f"Error during document save transaction: {str(e)}")
         db.rollback()
         raise e
-
-    # Re-fetch and return the complete populated Document
-    db_doc = db.get(Document, doc_id)
-    if db_doc:
-        db.refresh(db_doc)
-    return db_doc
