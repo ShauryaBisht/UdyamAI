@@ -2,8 +2,11 @@
 
 import React, { useState } from 'react';
 import DashboardNav, { DashboardSection } from '@/components/dashboard/DashboardNav';
-import ChartCard from '@/components/charts/ChartCard';
+import FinancialSection from '@/components/dashboard/FinancialSection';
 import MapContainer from '@/components/maps/MapContainer';
+import MarketSection from '@/components/dashboard/MarketSection';
+import CompetitionSection from '@/components/dashboard/CompetitionSection';
+import SchemeSection from '@/components/dashboard/SchemeSection';
 
 // ---- Mock data (temporary — will move to mocks/dashboard/ later) ----
 const mockAnalysisResult = {
@@ -102,15 +105,12 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {activeSection === 'financial' && (
-        <div className="flex flex-col gap-4">
-          <ChartCard title="Funding Breakdown" subtitle="Chart skeleton - data coming in Phase 4"/>
-        </div>
-      )}
-      {activeSection === 'market' && <ComingSoon section="Market Dashboard" />}
-      {activeSection === 'competition' && <ComingSoon section="Competition Dashboard" />}
+      {activeSection === 'financial' && <FinancialSection />}
+        
+      {activeSection === 'market' && <MarketSection />}
+      {activeSection === 'competition' && <CompetitionSection />}
       {activeSection === 'map' && <MapContainer title="Location & Nearby Infrastructure" />}
-      {activeSection === 'schemes' && <ComingSoon section="Scheme Cards" />}
+      {activeSection === 'schemes' && <SchemeSection />}
       {activeSection === 'risks' && <ComingSoon section="Risk Dashboard" />}
       {activeSection === 'report' && <ComingSoon section="AI Report" />}
     </div>
