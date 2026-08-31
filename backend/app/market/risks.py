@@ -35,6 +35,21 @@ HIGH_RISK_SCORE_THRESHOLD = float(os.getenv("HIGH_RISK_SCORE_THRESHOLD", "6.0"))
 MEDIUM_RISK_SCORE_THRESHOLD = float(os.getenv("MEDIUM_RISK_SCORE_THRESHOLD", "3.0"))
 
 
+def _safe_value(v: Any) -> float | int | str | bool | None:
+    """Canonicalizes risk metric values to guaranteed JSON-serializable primitives."""
+    if v is None:
+        return None
+    if isinstance(v, (int, float, str, bool)):
+        return v
+    try:
+        return float(v)
+    except Exception:
+        try:
+            return int(v)
+        except Exception:
+            return str(v)
+
+
 def assess_market_risks(
     competition_density: float = 0.0,
     facility_counts: dict[str, int] | None = None,
@@ -85,7 +100,7 @@ def assess_market_risks(
                 "severity": severity,
                 "evidence": f"Competitor density of {competition_density:.2f} competitors/km² exceeds the threshold of {HIGH_COMPETITOR_DENSITY_THRESHOLD:.1f}/km².",
                 "source": "Normalized Business Registry",
-                "value": round(competition_density, 2),
+                "value": _safe_value(round(competition_density, 2)),
             }
         )
 
@@ -118,7 +133,7 @@ def assess_market_risks(
                 "severity": severity,
                 "evidence": ev_str,
                 "source": "Agmarknet & Crop Seasonality Data",
-                "value": val_out,
+                "value": _safe_value(val_out),
             }
         )
 
@@ -151,7 +166,7 @@ def assess_market_risks(
                 "severity": severity,
                 "evidence": ev_str,
                 "source": "Market & Mandi Registry",
-                "value": val_dist,
+                "value": _safe_value(val_dist),
             }
         )
 
@@ -165,7 +180,7 @@ def assess_market_risks(
                 "severity": "medium",
                 "evidence": f"Only 1 commercial market{m_name_str} identified within {radius_km:.1f}km radius, creating single-point market dependency.",
                 "source": "Market & Mandi Registry",
-                "value": 1,
+                "value": _safe_value(1),
             }
         )
 
@@ -194,7 +209,7 @@ def assess_market_risks(
                 "severity": severity,
                 "evidence": ev_str,
                 "source": "Facilities & Infrastructure Registry",
-                "value": f"financial:{financial_count},logistics:{logistics_count}",
+                "value": _safe_value(f"financial:{financial_count},logistics:{logistics_count}"),
             }
         )
 
@@ -226,7 +241,7 @@ def assess_market_risks(
                 "severity": severity,
                 "evidence": ev_str,
                 "source": "Agmarknet Price Records",
-                "value": val_vol,
+                "value": _safe_value(val_vol),
             }
         )
 
@@ -239,7 +254,7 @@ def assess_market_risks(
                 "severity": "medium",
                 "evidence": f"Total population reach within radius is {population_reach} (below {LOW_DEMOGRAPHIC_DEMAND_THRESHOLD:,} threshold for viable local demand).",
                 "source": "Census Population Data",
-                "value": population_reach,
+                "value": _safe_value(population_reach),
             }
         )
 
