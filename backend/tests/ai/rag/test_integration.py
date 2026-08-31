@@ -18,6 +18,7 @@ from app.rag.document_loader import (
 from app.schemas.rag import RAGQueryResponse
 
 settings.OPENAI_API_KEY = "mock-openai-key-for-testing"
+EMBEDDING_DIM = getattr(settings, "EMBEDDING_DIMENSION", 1536)
 
 
 @pytest.fixture(name="db_session")
@@ -42,8 +43,8 @@ def temp_pdf_file():
         os.remove(path)
 
 
-def _create_vector(val: float) -> list[float]:
-    return [val] * 1536
+def _create_vector(val: float, dim: int = EMBEDDING_DIM) -> list[float]:
+    return [val] * dim
 
 
 # --- 1. End-to-End Integration Flow ---
@@ -117,6 +118,14 @@ def test_end_to_end_rag_pipeline_integration(
     assert item.source.source_name == "Ministry of Food Processing"
     assert item.source.language == "en"
     assert "10%" in item.text
+
+
+@patch("app.rag.document_loader.ingest_document", return_value=None)
+def test_load_document_duplicate_returns_none(mock_ingest, db_session: Session, temp_pdf_file: str):
+    """Verifies load_document returns None when ingest_document skips duplicate document hash."""
+    result = load_document(db=db_session, file_path=temp_pdf_file, title="Duplicate Doc")
+    assert result is None
+    mock_ingest.assert_called_once()
 
 
 # --- 2. Error Propagation Integration Tests ---

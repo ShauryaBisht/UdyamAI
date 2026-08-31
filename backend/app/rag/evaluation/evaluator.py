@@ -1,14 +1,23 @@
 import logging
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.models.scheme import Scheme
 from app.rag.retriever import retrieve_evidence
 from app.schemas.rag import RAGQueryResponse
 
 logger = logging.getLogger(__name__)
+
+
+def _is_metric_in_text(metric: str, text: str) -> bool:
+    """Uses regex word boundaries to check if metric string is in text without false substring matches."""
+    if not metric or not text:
+        return False
+    pattern = r"\b" + re.escape(metric.strip()) + r"\b"
+    return bool(re.search(pattern, text, re.IGNORECASE))
 
 
 class QueryEvaluationDetail(BaseModel):
@@ -22,6 +31,7 @@ class QueryEvaluationDetail(BaseModel):
     recall: float
     precision: float
     retrieved_count: int
+    error_message: str | None = None
 
 
 class EvaluationReport(BaseModel):
@@ -52,6 +62,7 @@ def evaluate_retrieval(
 ) -> EvaluationReport:
     """
     Evaluates RAG retrieval performance over a benchmark dataset using Recall@K and Precision@K.
+    Resilient design: catches query exceptions gracefully to report complete evaluation results.
 
     Args:
         db: Active SQLModel database session containing indexed documents and chunks.
@@ -95,24 +106,37 @@ def evaluate_retrieval(
         gt_metrics = item.get("ground_truth_metrics", [])
         is_missing = item.get("is_missing", False)
 
-        # Lookup scheme_id if scheme_name is specified
+        # Precise scheme resolution: exact match on name/code first
         scheme_id = item.get("scheme_id")
         if not scheme_id and item.get("scheme_name") and item["scheme_name"] != "Unknown":
             scheme_name = item["scheme_name"]
-            scheme_obj = db.query(Scheme).filter(Scheme.name.ilike(f"%{scheme_name}%")).first()
+            statement = select(Scheme).where(Scheme.name == scheme_name)
+            scheme_obj = db.exec(statement).first()
+            if not scheme_obj:
+                # Fallback to case-insensitive partial match
+                statement_like = select(Scheme).where(Scheme.name.ilike(f"%{scheme_name}%"))
+                scheme_obj = db.exec(statement_like).first()
             if scheme_obj:
                 scheme_id = scheme_obj.id
 
-        # Execute retrieval via existing retrieve_evidence pipeline
-        response: RAGQueryResponse = retrieve_evidence(
-            db=db,
-            query=query_str,
-            scheme_id=scheme_id,
-            limit=top_k,
-            score_threshold=score_threshold,
-        )
+        # Robust execution loop with error handling
+        try:
+            response: RAGQueryResponse = retrieve_evidence(
+                db=db,
+                query=query_str,
+                scheme_id=scheme_id,
+                limit=top_k,
+                score_threshold=score_threshold,
+            )
+            actual_status = response.status
+            retrieved_items = response.evidence
+            error_msg = None
+        except Exception as err:
+            logger.error(f"Error executing retrieval for query '{q_id}': {str(err)}", exc_info=True)
+            actual_status = "retrieval_failed"
+            retrieved_items = []
+            error_msg = str(err)
 
-        actual_status = response.status
         is_status_correct = actual_status == expected_status
         if is_status_correct:
             status_matches += 1
@@ -123,23 +147,24 @@ def evaluate_retrieval(
             elif expected_status == "conflicting_sources":
                 conflicting_matches += 1
 
-        # Handle metrics calculation for missing evidence case
+        # Calculate Recall@K and Precision@K
         if is_missing or expected_status == "no_relevant_evidence":
-            if actual_status == "no_relevant_evidence" and len(response.evidence) == 0:
+            if actual_status == "no_relevant_evidence" and len(retrieved_items) == 0:
                 q_recall = 1.0
                 q_precision = 1.0
             else:
                 q_recall = 0.0
                 q_precision = 0.0
+        elif actual_status == "retrieval_failed":
+            q_recall = 0.0
+            q_precision = 0.0
         else:
-            retrieved_items = response.evidence
             if not retrieved_items:
                 q_recall = 0.0
                 q_precision = 0.0
             else:
                 relevant_retrieved = 0
                 for ev in retrieved_items:
-                    # Check if document title matches or section matches or ground truth metrics match text
                     doc_title_match = expected_doc and (
                         expected_doc.lower() in ev.source.title.lower()
                     )
@@ -149,7 +174,7 @@ def evaluate_retrieval(
                         and (expected_sec.lower() in ev.source.section_title.lower())
                     )
                     metric_match = (
-                        any(m.lower() in ev.text.lower() for m in gt_metrics)
+                        any(_is_metric_in_text(m, ev.text) for m in gt_metrics)
                         if gt_metrics
                         else False
                     )
@@ -172,7 +197,8 @@ def evaluate_retrieval(
                 status_match=is_status_correct,
                 recall=round(q_recall, 4),
                 precision=round(q_precision, 4),
-                retrieved_count=len(response.evidence),
+                retrieved_count=len(retrieved_items),
+                error_message=error_msg,
             )
         )
 

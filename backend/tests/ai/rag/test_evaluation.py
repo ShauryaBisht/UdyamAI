@@ -11,14 +11,15 @@ from app.rag.evaluation.dataset import EVALUATION_DATASET
 from app.rag.evaluation.evaluator import EvaluationReport, evaluate_retrieval
 
 settings.OPENAI_API_KEY = "mock-openai-key-for-testing"
+EMBEDDING_DIM = getattr(settings, "EMBEDDING_DIMENSION", 1536)
 
 
-def _make_vector(active_idx: int) -> list[float]:
-    """Generates a 1536-dim vector with elevated signal in specific index range for deterministic similarity."""
-    v = [0.05] * 1536
+def _make_vector(active_idx: int, dim: int = EMBEDDING_DIM) -> list[float]:
+    """Generates a vector with elevated signal in specific index range for deterministic similarity."""
+    v = [0.05] * dim
     start = active_idx * 100
     for i in range(start, start + 100):
-        if i < 1536:
+        if i < dim:
             v[i] = 0.95
     return v
 
@@ -47,7 +48,7 @@ def benchmark_database(db_session: Session):
     scheme_map = {}
     for code, name, idx in schemes:
         s_id = uuid4()
-        db_session.add(Scheme(id=s_id, name=name, code=code, active=True))
+        db_session.add(Scheme(id=s_id, name=name, active=True))
         scheme_map[code] = (s_id, idx)
     db_session.flush()
 
@@ -205,11 +206,7 @@ def benchmark_database(db_session: Session):
 
     # Add conflicting document chunks for conflict test cases (vector idx=9)
     s_conflict_pmfme = uuid4()
-    db_session.add(
-        Scheme(
-            id=s_conflict_pmfme, name="PMFME Conflict Scheme", code="PMFME_CONFLICT", active=True
-        )
-    )
+    db_session.add(Scheme(id=s_conflict_pmfme, name="PMFME Conflict Scheme", active=True))
     conflict_doc_a = Document(
         id=uuid4(),
         title="PMFME Guidelines 2024",
@@ -253,11 +250,7 @@ def benchmark_database(db_session: Session):
 
     # Add conflicting PMEGP chunks for conflict_02 test case
     s_conflict_pmegp = uuid4()
-    db_session.add(
-        Scheme(
-            id=s_conflict_pmegp, name="PMEGP Conflict Scheme", code="PMEGP_CONFLICT", active=True
-        )
-    )
+    db_session.add(Scheme(id=s_conflict_pmegp, name="PMEGP Conflict Scheme", active=True))
     conflict_pmegp_a = Document(
         id=uuid4(),
         title="PMEGP Guidelines 2023",
@@ -327,7 +320,7 @@ def _mock_query_embedding(query_str: str) -> list[float]:
     ):
         return _make_vector(5)
     elif "mars space" in low or "quantum crypto" in low or "interstellar" in low:
-        return [0.0] * 1536
+        return [0.0] * EMBEDDING_DIM
     return _make_vector(1)
 
 
@@ -358,3 +351,23 @@ def test_evaluate_retrieval_empty_dataset(db_session: Session):
     assert report.recall_at_k == 0.0
     assert report.precision_at_k == 0.0
     assert report.status_accuracy == 0.0
+
+
+@patch(
+    "app.rag.evaluation.evaluator.retrieve_evidence", side_effect=RuntimeError("Database failure")
+)
+def test_evaluate_retrieval_handles_exceptions_gracefully(mock_retrieve, db_session: Session):
+    """Verifies evaluate_retrieval catches exceptions gracefully without crashing."""
+    sample_dataset = [
+        {
+            "id": "err_test_01",
+            "query": "Sample failing query?",
+            "expected_status": "success",
+        }
+    ]
+    report = evaluate_retrieval(db=db_session, eval_dataset=sample_dataset, top_k=5)
+    assert report.total_queries == 1
+    assert report.recall_at_k == 0.0
+    assert report.precision_at_k == 0.0
+    assert report.query_details[0].actual_status == "retrieval_failed"
+    assert "Database failure" in report.query_details[0].error_message
