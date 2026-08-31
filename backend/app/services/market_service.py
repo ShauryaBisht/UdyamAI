@@ -228,8 +228,14 @@ class MarketService:
         if not village:
             raise HTTPException(status_code=404, detail=f"Village with id {village_id} not found")
 
-        lat = village.latitude if village.latitude is not None else 19.75
-        lng = village.longitude if village.longitude is not None else 75.71
+        if village.latitude is None or village.longitude is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Village '{village.name}' (id {village_id}) is missing latitude/longitude coordinates.",
+            )
+
+        lat = village.latitude
+        lng = village.longitude
 
         district_name = (
             village.district.name if hasattr(village, "district") and village.district else None
@@ -597,8 +603,13 @@ class MarketService:
                 raise HTTPException(
                     status_code=404, detail=f"Village with id {village_id} not found"
                 )
-            target_lat = target_lat if target_lat is not None else village.latitude
-            target_lng = target_lng if target_lng is not None else village.longitude
+            if village.latitude is None or village.longitude is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Village '{village.name}' (id {village_id}) is missing latitude/longitude coordinates.",
+                )
+            target_lat = village.latitude
+            target_lng = village.longitude
 
         if target_lat is None or target_lng is None:
             raise HTTPException(
