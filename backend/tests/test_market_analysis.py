@@ -180,6 +180,32 @@ class TestPricingAndDemand:
         assert res["commodity_coverage_count"] == 2
         assert res["price_volatility"] in ("low", "medium", "high")
 
+    def test_analyze_market_pricing_with_string_dates(self):
+        markets = [{"id": str(uuid4()), "name": "Dist Mandi"}]
+        prices = [
+            {
+                "market_id": markets[0]["id"],
+                "commodity": "Onion",
+                "modal_price": 2200.0,
+                "recorded_date": "2026-08-31T00:00:00",
+                "source": "Agmarknet",
+            },
+            {
+                "market_id": markets[0]["id"],
+                "commodity": "Tomato",
+                "modal_price": 1800.0,
+                "recorded_date": None,
+                "source": "Agmarknet",
+            },
+        ]
+
+        res = analyze_market_pricing(markets, prices)
+
+        assert res["average_modal_price"] == 2000.0
+        assert res["commodity_coverage_count"] == 2
+        prov_years = [p["data_year"] for p in res["provenance"]]
+        assert 2026 in prov_years
+
     def test_calculate_demand_indicators(self):
         res = calculate_demand_indicators(
             population_reach=5000,
@@ -305,6 +331,106 @@ class TestMarketServiceOrchestrator:
             MarketService.analyze_village_market(mock_db, village_id=uuid4())
 
         assert "not found" in str(exc_info.value)
+
+    def test_analyze_village_market_mixed_id_types_and_string_dates(
+        self, sample_village: Village
+    ):
+        mock_db = MagicMock()
+        mock_db.get.return_value = sample_village
+
+        mkt_id = uuid4()
+        pop_rec = Population(
+            location_id=sample_village.id,
+            year=2021,
+            population_total=3000,
+            households=600,
+            working_population=1500,
+            source="Census 2021",
+        )
+        price_rec = MarketPrice(
+            id=uuid4(),
+            market_id=mkt_id,
+            location_id=sample_village.id,
+            commodity="Rice",
+            modal_price=3000.0,
+            recorded_date="2026-08-30",
+            source="Agmarknet",
+        )
+
+        def exec_side_effect(stmt):
+            mock_result = MagicMock()
+            stmt_str = str(stmt)
+            if "population" in stmt_str.lower():
+                mock_result.all.return_value = [pop_rec]
+            elif "market_prices" in stmt_str.lower():
+                mock_result.all.return_value = [price_rec]
+            else:
+                mock_result.all.return_value = []
+            return mock_result
+
+        mock_db.exec.side_effect = exec_side_effect
+
+        with (
+            patch("app.services.market_service.find_nearby_villages") as mock_vils,
+            patch("app.services.market_service.find_nearby_markets") as mock_mkts,
+            patch("app.services.market_service.find_nearby_facilities") as mock_facs,
+            patch("app.services.market_service.find_nearby_businesses") as mock_biz,
+        ):
+            # Return string IDs from geo lookups
+            mock_vils.return_value = [
+                {
+                    "id": str(sample_village.id),
+                    "name": sample_village.name,
+                    "distance_meters": 100.0,
+                }
+            ]
+            mock_mkts.return_value = [
+                {
+                    "id": str(mkt_id),
+                    "name": "Mandi",
+                    "market_type": "mandi",
+                    "distance_meters": 500.0,
+                }
+            ]
+            mock_facs.return_value = []
+            mock_biz.return_value = []
+
+            res = MarketService.analyze_village_market(
+                mock_db,
+                village_id=sample_village.id,
+                radii_km=[5.0],
+            )
+
+            assert res.village_id == sample_village.id
+            assert res.radius_analyses[0].estimated_population_reach == 3000
+            assert len(res.radius_analyses[0].nearby_markets) == 1
+            assert res.radius_analyses[0].nearby_markets[0].modal_price_sample == 3000.0
+
+    def test_analyze_village_market_db_commit_error(self, sample_village: Village):
+        from fastapi import HTTPException
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = sample_village
+        mock_db.exec.return_value.all.return_value = []
+        mock_db.commit.side_effect = Exception("DB Connection Lost")
+
+        with (
+            patch("app.services.market_service.find_nearby_villages", return_value=[]),
+            patch("app.services.market_service.find_nearby_markets", return_value=[]),
+            patch("app.services.market_service.find_nearby_facilities", return_value=[]),
+            patch("app.services.market_service.find_nearby_businesses", return_value=[]),
+        ):
+            run_id = uuid4()
+            with pytest.raises(HTTPException) as exc_info:
+                MarketService.analyze_village_market(
+                    mock_db,
+                    village_id=sample_village.id,
+                    analysis_run_id=run_id,
+                )
+
+            assert exc_info.value.status_code == 500
+            assert "Database commit error" in exc_info.value.detail
+            mock_db.rollback.assert_called_once()
 
 
 # ------------------------------------------------------------------ #

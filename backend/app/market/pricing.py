@@ -1,6 +1,21 @@
 """Pricing Analysis and Price Indicators for UdyamAI."""
 
+from datetime import date, datetime
 from typing import Any
+
+
+def _extract_year(recorded: Any) -> int | None:
+    """Safely extract data year from date, datetime, or ISO date string."""
+    if not recorded:
+        return None
+    if isinstance(recorded, (date, datetime)):
+        return recorded.year
+    if isinstance(recorded, str):
+        try:
+            return date.fromisoformat(recorded.split("T")[0]).year
+        except Exception:
+            return None
+    return None
 
 
 def analyze_market_pricing(
@@ -57,7 +72,7 @@ def analyze_market_pricing(
     for p in market_prices:
         source = p.get("source")
         source_url = p.get("source_url")
-        data_year = p.get("recorded_date").year if p.get("recorded_date") else None
+        data_year = _extract_year(p.get("recorded_date"))
         if source or source_url or data_year:
             sources.add((source, source_url, data_year))
 

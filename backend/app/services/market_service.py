@@ -5,12 +5,15 @@ MarketAnalysis, and CompetitorAnalysis domain data, as well as the
 master Market Analysis orchestrator.
 """
 
+import logging
 from datetime import date
 from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import or_
 from sqlmodel import Session, col, select
+
+logger = logging.getLogger(__name__)
 
 from app.geo.nearby_businesses import find_nearby_businesses
 from app.geo.nearby_facilities import find_nearby_facilities
@@ -231,17 +234,18 @@ class MarketService:
         )
         taluka_name = village.taluka.name if hasattr(village, "taluka") and village.taluka else None
 
-        # Optimization 1 & 2: Batch geo lookups up to the max radius with error handling
+        # Optimization 1 & 2: Batch geo lookups up to the max radius with error handling & logging
         max_radius = max(radii_km)
 
         try:
             all_nearby_villages = find_nearby_villages(
                 db, lat=lat, lng=lng, radius_km=max_radius, limit=500
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Spatial lookup failed for nearby villages: {e}")
             all_nearby_villages = []
 
-        all_village_ids = [UUID(str(v["id"])) for v in all_nearby_villages if "id" in v and v["id"]]
+        all_village_ids = [UUID(str(v["id"])) for v in all_nearby_villages if v.get("id")]
         if village_id not in all_village_ids:
             all_village_ids.append(village_id)
             all_nearby_villages.append(
@@ -258,16 +262,18 @@ class MarketService:
             all_nearby_markets = find_nearby_markets(
                 db, lat=lat, lng=lng, radius_km=max_radius, limit=200
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Spatial lookup failed for nearby markets: {e}")
             all_nearby_markets = []
 
-        all_market_ids = [UUID(str(m["id"])) for m in all_nearby_markets if "id" in m and m["id"]]
+        all_market_ids = [UUID(str(m["id"])) for m in all_nearby_markets if m.get("id")]
 
         try:
             all_nearby_facilities = find_nearby_facilities(
                 db, lat=lat, lng=lng, radius_km=max_radius, limit=200
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Spatial lookup failed for nearby facilities: {e}")
             all_nearby_facilities = []
 
         try:
@@ -279,7 +285,8 @@ class MarketService:
                 category_id=business_category_id,
                 limit=500,
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Spatial lookup failed for nearby businesses: {e}")
             all_nearby_businesses = []
 
         # Optimization 1: Single-pass batch query for DB records across all unique village/market IDs
@@ -337,12 +344,12 @@ class MarketService:
             nearby_villages = [
                 v for v in all_nearby_villages if (v.get("distance_meters") or 0.0) <= max_meters
             ]
-            v_ids_in_radius = {UUID(str(v["id"])) for v in nearby_villages if "id" in v and v["id"]}
+            v_ids_in_radius = {str(v["id"]) for v in nearby_villages if v.get("id")}
 
             nearby_mkts = [
                 m for m in all_nearby_markets if (m.get("distance_meters") or 0.0) <= max_meters
             ]
-            m_ids_in_radius = {UUID(str(m["id"])) for m in nearby_mkts if "id" in m and m["id"]}
+            m_ids_in_radius = {str(m["id"]) for m in nearby_mkts if m.get("id")}
 
             nearby_facs = [
                 f for f in all_nearby_facilities if (f.get("distance_meters") or 0.0) <= max_meters
@@ -355,20 +362,20 @@ class MarketService:
             mkt_prices = [
                 p
                 for p in all_mkt_prices
-                if (p.get("market_id") and p.get("market_id") in m_ids_in_radius)
-                or (p.get("location_id") and p.get("location_id") in v_ids_in_radius)
+                if (p.get("market_id") and str(p.get("market_id")) in m_ids_in_radius)
+                or (p.get("location_id") and str(p.get("location_id")) in v_ids_in_radius)
             ]
 
             econ_recs = [
                 e
                 for e in all_econ_recs
-                if e.get("location_id") and e.get("location_id") in v_ids_in_radius
+                if e.get("location_id") and str(e.get("location_id")) in v_ids_in_radius
             ]
 
             agri_recs = [
                 a
                 for a in all_agri_recs
-                if a.get("location_id") and a.get("location_id") in v_ids_in_radius
+                if a.get("location_id") and str(a.get("location_id")) in v_ids_in_radius
             ]
 
             # 1. Population & target customer estimation with configurable conversion rate
@@ -384,7 +391,15 @@ class MarketService:
             for m in nearby_mkts:
                 dist_km = round((m.get("distance_meters") or 0.0) / 1000.0, 2)
                 m_id = m.get("id")
-                sample_p = next((p for p in mkt_prices if p.get("market_id") == m_id), None)
+                sample_p = next(
+                    (
+                        p
+                        for p in mkt_prices
+                        if p.get("market_id") is not None
+                        and str(p.get("market_id")) == str(m_id)
+                    ),
+                    None,
+                )
                 market_summaries.append(
                     NearbyMarketSummary(
                         id=m_id,
@@ -504,13 +519,29 @@ class MarketService:
                     market_gaps={"identified_gaps": comp_res["identified_market_gaps"]},
                     data_confidence="high" if pop_reach > 0 else "medium",
                 )
-                db.add(db_analysis)
+                try:
+                    with db.begin_nested():
+                        db.add(db_analysis)
+                        db.flush()
+                except Exception as e:
+                    logger.error(
+                        f"Failed to stage MarketAnalysis record for radius {r}km: {e}",
+                        exc_info=True,
+                    )
 
         if analysis_run_id is not None:
             try:
                 db.commit()
-            except Exception:
+            except Exception as e:
                 db.rollback()
+                logger.error(
+                    f"Failed to commit MarketAnalysis batch for run {analysis_run_id}: {e}",
+                    exc_info=True,
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Database commit error while persisting market analysis: {e}",
+                )
 
         return LocationMarketAnalysisResponse(
             village_id=village.id,
