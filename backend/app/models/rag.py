@@ -2,9 +2,21 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Optional
 from uuid import UUID, uuid4
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column
 from sqlmodel import Field, Relationship, SQLModel
+
+try:
+    from pgvector.sqlalchemy import Vector
+except ImportError:
+    from sqlalchemy.types import UserDefinedType
+
+    class Vector(UserDefinedType):
+        def __init__(self, dim=None):
+            self.dim = dim
+
+        def get_col_spec(self, **kw):
+            return f"VECTOR({self.dim})" if self.dim else "VECTOR"
+
 
 if TYPE_CHECKING:
     from app.models.scheme import Scheme, SchemeEligibilityRule, SchemeRule
