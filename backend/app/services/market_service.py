@@ -395,8 +395,7 @@ class MarketService:
                     (
                         p
                         for p in mkt_prices
-                        if p.get("market_id") is not None
-                        and str(p.get("market_id")) == str(m_id)
+                        if p.get("market_id") is not None and str(p.get("market_id")) == str(m_id)
                     ),
                     None,
                 )

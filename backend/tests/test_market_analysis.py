@@ -332,9 +332,7 @@ class TestMarketServiceOrchestrator:
 
         assert "not found" in str(exc_info.value)
 
-    def test_analyze_village_market_mixed_id_types_and_string_dates(
-        self, sample_village: Village
-    ):
+    def test_analyze_village_market_mixed_id_types_and_string_dates(self, sample_village: Village):
         mock_db = MagicMock()
         mock_db.get.return_value = sample_village
 
