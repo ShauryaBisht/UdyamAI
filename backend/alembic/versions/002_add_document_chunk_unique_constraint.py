@@ -16,6 +16,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Alter alembic_version table's version_num column length to VARCHAR(64) on PostgreSQL
+    bind = op.get_bind()
+    if bind is not None and bind.dialect.name == "postgresql":
+        op.execute("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64)")
+
     # Add unique constraint to document_chunks table on (document_id, chunk_index)
     op.create_unique_constraint(
         "uq_document_chunk_index", "document_chunks", ["document_id", "chunk_index"]
