@@ -37,7 +37,13 @@ jobs:
         cd backend
         python -c "from app.main import app; print('App imports OK')"
 
+    - name: Validate database migrations
+      run: |
+        cd backend
+        alembic upgrade head --sql
+
     - name: Run Tests
       run: |
         cd backend
         pytest -v
+

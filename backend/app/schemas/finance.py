@@ -1,6 +1,37 @@
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+
+class ScenarioMultiplierInput(BaseModel):
+    revenue_multiplier: float = Field(
+        ..., ge=0.0, le=5.0, description="Multiplier for baseline revenue (e.g. 0.8 for 80%)"
+    )
+    operating_cost_multiplier: float = Field(
+        ...,
+        ge=0.0,
+        le=5.0,
+        description="Multiplier for baseline operating cost (e.g. 1.1 for 110%)",
+    )
+
+
+class ScenarioConfigInput(BaseModel):
+    worst_case: ScenarioMultiplierInput = Field(
+        default_factory=lambda: ScenarioMultiplierInput(
+            revenue_multiplier=0.80, operating_cost_multiplier=1.10
+        )
+    )
+    expected_case: ScenarioMultiplierInput = Field(
+        default_factory=lambda: ScenarioMultiplierInput(
+            revenue_multiplier=1.00, operating_cost_multiplier=1.00
+        )
+    )
+    best_case: ScenarioMultiplierInput = Field(
+        default_factory=lambda: ScenarioMultiplierInput(
+            revenue_multiplier=1.20, operating_cost_multiplier=0.90
+        )
+    )
 
 
 class SchemeRuleInput(BaseModel):
@@ -94,6 +125,15 @@ class FinanceCalculateRequest(BaseModel):
     # Financial performance inputs for scenario generation
     monthly_revenue: float | None = Field(default=None, ge=0.0)
     monthly_operating_cost: float | None = Field(default=None, ge=0.0)
+    verified_revenue: float | None = Field(
+        default=None, ge=0.0, description="Verified benchmark monthly revenue"
+    )
+    verified_operating_cost: float | None = Field(
+        default=None, ge=0.0, description="Verified benchmark monthly operating cost"
+    )
+    scenario_config: ScenarioConfigInput | None = Field(
+        default=None, description="Configurable scenario multipliers"
+    )
     analysis_run_id: UUID | None = Field(
         default=None, description="Optional AnalysisRun ID for DB persistence"
     )
@@ -117,13 +157,40 @@ class RepaymentScheduleItemResponse(BaseModel):
 
 class FinancialScenarioResponse(BaseModel):
     scenario_type: str = Field(..., description="worst_case, expected_case, or best_case")
-    monthly_revenue: float = Field(..., ge=0)
-    monthly_expenses: float = Field(..., ge=0)
-    monthly_profit: float = Field(...)
-    repayment_coverage: float | None = Field(
-        default=None, description="Debt Service Coverage Ratio (Net Monthly Profit / EMI)"
+    sufficient_assumptions_exist: bool = Field(
+        default=True, description="Whether sufficient data/assumptions exist to calculate scenario"
     )
-    cash_flow: dict[str, float] | None = None
+    revenue: float | None = Field(
+        default=None, ge=0.0, description="Monthly revenue under scenario"
+    )
+    operating_costs: float | None = Field(
+        default=None, ge=0.0, description="Monthly operating costs under scenario"
+    )
+    surplus: float | None = Field(
+        default=None, description="Monthly operating surplus (revenue - operating_costs)"
+    )
+    loan_repayment: float | None = Field(
+        default=None, ge=0.0, description="Monthly loan repayment / EMI"
+    )
+    cash_surplus: float | None = Field(
+        default=None, description="Net monthly cash surplus (surplus - loan_repayment)"
+    )
+
+    # Legacy fields maintained for backward compatibility
+    monthly_revenue: float | None = Field(default=None, ge=0.0)
+    monthly_expenses: float | None = Field(default=None, ge=0.0)
+    monthly_profit: float | None = Field(default=None)
+    repayment_coverage: float | None = Field(
+        default=None, description="Debt Service Coverage Ratio (Surplus / Loan Repayment)"
+    )
+    data_source: str | None = Field(
+        default=None,
+        description="'verified_data', 'explicit_user_assumptions', or 'configurable_assumptions'",
+    )
+    marked_assumptions: dict[str, Any] | None = Field(
+        default=None, description="Clearly marked assumptions and source transparency metadata"
+    )
+    cash_flow: dict[str, Any] | None = None
 
 
 class FinanceCalculateResponse(BaseModel):
