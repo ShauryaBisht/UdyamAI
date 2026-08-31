@@ -5,8 +5,8 @@ from app.api.routes import (
     agriculture,
     analysis,
     businesses,
-    feasibility,
     economic,
+    feasibility,
     finance,
     health,
     infrastructure,
@@ -147,6 +147,10 @@ app.include_router(
     feasibility.router,
     prefix="/api/v1/feasibility",
     tags=["Feasibility Engine"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
     infrastructure.router,
     prefix="/infrastructure",
     tags=["Infrastructure"],
