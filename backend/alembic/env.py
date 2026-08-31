@@ -14,7 +14,7 @@ import app.models  # noqa: F401
 from app.config import settings
 
 config = context.config
-if config.config_file_name and config.file_config.has_section("loggers"):
+if config.config_file_name:
     fileConfig(config.config_file_name)
 
 target_metadata = SQLModel.metadata
