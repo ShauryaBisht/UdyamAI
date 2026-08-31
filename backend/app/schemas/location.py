@@ -48,3 +48,63 @@ class LocationQuery(BaseModel):
     taluka_id: UUID | None = None
     limit: int = Field(default=50, ge=1, le=500, description="Maximum number of items to return")
     offset: int = Field(default=0, ge=0, description="Pagination offset")
+
+
+# --- Nearby Query & Response Schemas ---
+
+
+class NearbyQuery(BaseModel):
+    lat: float = Field(..., ge=-90.0, le=90.0, description="Center latitude")
+    lng: float = Field(..., ge=-180.0, le=180.0, description="Center longitude")
+    radius_km: float = Field(default=10.0, gt=0.0, le=100.0, description="Search radius in km")
+    limit: int = Field(default=50, ge=1, le=200, description="Maximum results")
+
+
+class NearbyVillageResponse(BaseModel):
+    id: UUID
+    name: str
+    district_id: UUID
+    taluka_id: UUID
+    gram_panchayat_id: UUID | None = None
+    pin_code: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    distance_meters: float = Field(..., description="Distance from center point in meters")
+
+    model_config = {"from_attributes": True}
+
+
+class NearbyBusinessResponse(BaseModel):
+    id: UUID
+    name: str | None = None
+    category: str | None = None
+    business_category_id: UUID | None = None
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    distance_meters: float = Field(..., description="Distance from center point in meters")
+
+    model_config = {"from_attributes": True}
+
+
+class NearbyMarketResponse(BaseModel):
+    id: UUID
+    name: str | None = None
+    market_type: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    distance_meters: float = Field(..., description="Distance from center point in meters")
+
+    model_config = {"from_attributes": True}
+
+
+class NearbyFacilityResponse(BaseModel):
+    id: UUID
+    name: str | None = None
+    facility_type: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    capacity: float | None = None
+    distance_meters: float = Field(..., description="Distance from center point in meters")
+
+    model_config = {"from_attributes": True}

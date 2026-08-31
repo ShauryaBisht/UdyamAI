@@ -1,9 +1,10 @@
 import './globals.css';
 import React from 'react';
 
+
 export const metadata = {
-  title: 'UdyamAI',
-  description: 'AI-Powered Business Feasibility and Scheme Advisor',
+  title: "UdyamAI",
+  description: "AI-Powered Business Feasibility and Scheme Advisor",
 };
 
 export default function RootLayout({
