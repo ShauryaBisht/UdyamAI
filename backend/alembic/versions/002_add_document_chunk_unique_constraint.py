@@ -23,9 +23,7 @@ def upgrade() -> None:
 
     # Add unique constraint to document_chunks table using batch mode for SQLite compatibility
     with op.batch_alter_table("document_chunks", schema=None) as batch_op:
-        batch_op.create_unique_constraint(
-            "uq_document_chunk_index", ["document_id", "chunk_index"]
-        )
+        batch_op.create_unique_constraint("uq_document_chunk_index", ["document_id", "chunk_index"])
 
 
 def downgrade() -> None:
