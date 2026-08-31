@@ -47,6 +47,6 @@ def format_evidence_item(chunk: DocumentChunk, document: Document, score: float)
     return EvidenceItem(
         chunk_id=chunk.id,
         text=chunk.content,
-        score=round(float(score), 4),
+        score=round(float(score), 6),
         source=source_meta,
     )

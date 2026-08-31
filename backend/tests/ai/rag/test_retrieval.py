@@ -302,22 +302,49 @@ def test_citation_formatting(db_session: Session, sample_documents):
     assert meta.section_title == "Funding Pattern"
     assert meta.source_name == "Ministry of Food Processing"
 
-    item = format_evidence_item(chunk_1, doc_1, 0.8954)
+    item = format_evidence_item(chunk_1, doc_1, 0.8954321)
     assert item.chunk_id == chunk_1.id
     assert item.text == chunk_1.content
-    assert item.score == 0.8954
+    assert item.score == 0.895432
     assert item.source.document_id == doc_1.id
 
 
-# --- 8. Invalid Query Validation ---
+# --- 8. Invalid Query & Max Length Validation ---
 
 
 def test_invalid_query_raises_value_error(db_session: Session):
     with pytest.raises(ValueError, match="cannot be empty or whitespace-only"):
         retrieve_evidence(db=db_session, query="   ")
 
+    with pytest.raises(ValueError, match="Query exceeds max length of 2000 characters"):
+        retrieve_evidence(db=db_session, query="a" * 2001)
 
-# --- 9. RAGQueryRequest Input Handling ---
+
+# --- 9. Cosine Similarity Edge Case Unit Tests ---
+
+
+def test_cosine_similarity_edge_cases():
+    from app.rag.retriever import _cosine_similarity
+
+    # Identical vectors
+    assert abs(_cosine_similarity([1.0, 2.0], [1.0, 2.0]) - 1.0) < 1e-6
+
+    # Orthogonal vectors
+    assert abs(_cosine_similarity([1.0, 0.0], [0.0, 1.0])) < 1e-6
+
+    # Zero vectors
+    assert _cosine_similarity([0.0, 0.0], [1.0, 2.0]) == 0.0
+    assert _cosine_similarity([], [1.0, 2.0]) == 0.0
+
+    # Dimension mismatch
+    assert _cosine_similarity([1.0, 2.0], [1.0, 2.0, 3.0]) == 0.0
+
+    # NaN / Inf vectors
+    assert _cosine_similarity([float("nan"), 1.0], [1.0, 2.0]) == 0.0
+    assert _cosine_similarity([float("inf"), 1.0], [1.0, 2.0]) == 0.0
+
+
+# --- 10. RAGQueryRequest Input Handling ---
 
 
 @patch("app.rag.retriever.generate_embedding")
@@ -338,7 +365,7 @@ def test_retrieve_evidence_request_schema(
     assert len(response.evidence) == 1
 
 
-# --- 10. Document Loader Integration ---
+# --- 11. Document Loader Integration ---
 
 
 @patch("app.rag.document_loader.retrieve_evidence")

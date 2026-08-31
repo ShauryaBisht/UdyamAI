@@ -14,17 +14,37 @@ from app.schemas.rag import EvidenceItem, RAGQueryRequest, RAGQueryResponse
 
 logger = logging.getLogger(__name__)
 
+MAX_QUERY_LENGTH = 2000
+
 
 def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
-    """Computes cosine similarity between two float vectors."""
-    if not vec_a or not vec_b or len(vec_a) != len(vec_b):
+    """
+    Computes cosine similarity between two float vectors.
+    Includes strict dimension checks and NaN/Infinity safety guards.
+    """
+    if not vec_a or not vec_b:
         return 0.0
-    dot_product = sum(a * b for a, b in zip(vec_a, vec_b, strict=False))
+
+    if len(vec_a) != len(vec_b):
+        logger.warning(
+            f"Vector dimension mismatch in similarity calculation: {len(vec_a)} vs {len(vec_b)}."
+        )
+        return 0.0
+
+    dot_product = sum(a * b for a, b in zip(vec_a, vec_b, strict=True))
     norm_a = math.sqrt(sum(a * a for a in vec_a))
     norm_b = math.sqrt(sum(b * b for b in vec_b))
+
     if norm_a == 0.0 or norm_b == 0.0:
         return 0.0
-    return dot_product / (norm_a * norm_b)
+
+    score = dot_product / (norm_a * norm_b)
+
+    if math.isnan(score) or math.isinf(score):
+        logger.warning(f"Invalid (NaN/Inf) similarity score computed: {score}. Returning 0.0.")
+        return 0.0
+
+    return score
 
 
 def _detect_metric_conflicts(chunk_doc_tuples: list[tuple[DocumentChunk, Document]]) -> bool:
@@ -52,7 +72,7 @@ def _detect_metric_conflicts(chunk_doc_tuples: list[tuple[DocumentChunk, Documen
         for chunk, doc in group:
             found_metrics = set(
                 re.findall(
-                    r"\b(?:\d+(?:\.\d+)?%\b|₹?\s*\d+(?:\.\d+)?\s*(?:lakh|crore|percent|%)?\b)",
+                    r"\b\d+(?:\.\d+)?%|\b\d+(?:\.\d+)?\s*(?:percent|lakh|crore)s?\b|₹\s*\d+(?:\.\d+)?",
                     chunk.content,
                     flags=re.IGNORECASE,
                 )
@@ -118,6 +138,10 @@ def retrieve_evidence(
         raise ValueError("Query string cannot be empty or whitespace-only.")
 
     query_str = query_str.strip()
+
+    if len(query_str) > MAX_QUERY_LENGTH:
+        raise ValueError(f"Query exceeds max length of {MAX_QUERY_LENGTH} characters.")
+
     top_k = limit if limit is not None else settings.RAG_DEFAULT_TOP_K
     threshold = (
         score_threshold if score_threshold is not None else settings.RAG_DEFAULT_SCORE_THRESHOLD
@@ -149,24 +173,39 @@ def retrieve_evidence(
     # Apply effective date filter if provided
     if effective_date is not None:
         stmt = stmt.where(
-            (Document.effective_from.is_(None)) | (Document.effective_from <= effective_date)
-        ).where((Document.effective_until.is_(None)) | (Document.effective_until >= effective_date))
+            (Document.effective_from.is_(None)) | (Document.effective_from <= effective_date),
+            (Document.effective_until.is_(None)) | (Document.effective_until >= effective_date),
+        )
 
     results = db.exec(stmt).all()
 
     if not results:
-        logger.info("No documents matched the requested metadata filters.")
+        logger.info("No active documents matched the requested metadata filters.")
         return RAGQueryResponse(status="no_relevant_evidence", evidence=[])
+
+    # Sanity check for inverted document effective dates
+    for _, doc in results:
+        if doc.effective_from and doc.effective_until and doc.effective_from > doc.effective_until:
+            logger.warning(
+                f"Document '{doc.id}' ({doc.title}) has inverted effective dates "
+                f"({doc.effective_from} > {doc.effective_until})."
+            )
 
     # 3. Calculate similarity score for each candidate chunk and apply score threshold
     scored_candidates: list[tuple[DocumentChunk, Document, float]] = []
+    skipped_count = 0
 
     for chunk, doc in results:
         if not chunk.embedding:
+            skipped_count += 1
+            logger.debug(f"Skipping chunk {chunk.id}: missing vector embedding.")
             continue
         score = _cosine_similarity(chunk.embedding, query_vector)
         if score >= threshold:
             scored_candidates.append((chunk, doc, score))
+
+    if skipped_count > 0:
+        logger.info(f"Skipped {skipped_count} chunks due to missing embeddings.")
 
     if not scored_candidates:
         logger.info(f"No evidence chunks satisfied similarity threshold ({threshold}).")
@@ -185,6 +224,11 @@ def retrieve_evidence(
     evidence_items: list[EvidenceItem] = [
         format_evidence_item(chunk, doc, score) for chunk, doc, score in top_candidates
     ]
+
+    if len(evidence_items) < top_k:
+        logger.info(
+            f"Retrieved {len(evidence_items)} items, less than requested top_k limit of {top_k}."
+        )
 
     logger.info(
         f"RAG retrieval finished. Status='{status}', retrieved {len(evidence_items)} items."
