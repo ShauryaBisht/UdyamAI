@@ -32,17 +32,17 @@ def find_nearby_facilities(
     """
     radius_km = min(radius_km, 50.0)
 
-    results = find_within_radius(
+    # Push facility type filter into the SQL query for efficiency
+    filters = []
+    if facility_type is not None:
+        filters.append(Infrastructure.facility_type == facility_type)
+
+    return find_within_radius(
         db=db,
         model=Infrastructure,
         lat=lat,
         lng=lng,
         radius_km=radius_km,
         limit=limit,
+        filters=filters or None,
     )
-
-    # Apply facility type filter in Python since it's a non-spatial column
-    if facility_type is not None:
-        results = [r for r in results if r.get("facility_type") == facility_type]
-
-    return results

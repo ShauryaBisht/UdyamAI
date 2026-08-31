@@ -32,17 +32,17 @@ def find_nearby_markets(
     """
     radius_km = min(radius_km, 100.0)
 
-    results = find_within_radius(
+    # Push market type filter into the SQL query for efficiency
+    filters = []
+    if market_type is not None:
+        filters.append(Market.market_type == market_type)
+
+    return find_within_radius(
         db=db,
         model=Market,
         lat=lat,
         lng=lng,
         radius_km=radius_km,
         limit=limit,
+        filters=filters or None,
     )
-
-    # Apply market type filter in Python since it's a non-spatial column
-    if market_type is not None:
-        results = [r for r in results if r.get("market_type") == market_type]
-
-    return results

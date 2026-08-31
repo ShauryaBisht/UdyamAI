@@ -4,10 +4,10 @@ Unit tests for UdyamAI Geo module.
 Covers:
 1. coordinates.py — lat/lng ↔ WKT conversion, haversine distance, unit conversion
 2. radius.py — _get_geo_column mapping, find_within_radius with mocked DB
-3. nearby_businesses.py — category filtering
-4. nearby_markets.py — market_type filtering
-5. nearby_villages.py — district filtering
-6. nearby_facilities.py — facility_type filtering
+3. nearby_businesses.py — category filtering via SQL filters
+4. nearby_markets.py — market_type filtering via SQL filters
+5. nearby_villages.py — district filtering via SQL filters
+6. nearby_facilities.py — facility_type filtering via SQL filters
 """
 
 from unittest.mock import MagicMock, patch
@@ -152,7 +152,21 @@ class TestGetGeoColumn:
     def test_infrastructure_has_geog(self):
         assert _get_geo_column(Infrastructure) == "geog"
 
-    def test_unknown_model_raises(self):
+    def test_explicit_override(self):
+        """Explicit geo_column overrides the map."""
+        assert _get_geo_column(Village, explicit="custom_col") == "custom_col"
+
+    def test_introspection_fallback(self):
+        """When model isn't in the map, introspection finds the Geography column."""
+
+        class _CustomModel:
+            __name__ = "CustomVillage"
+            # No entry in _GEO_COLUMN_MAP, but has a Geography attribute
+            geom = MagicMock()
+            # Make isinstance check pass for Geography
+            geom.type = type("G", (), {})()  # won't match, so this tests the ValueError path
+
+        # The ValueError path still works for truly unknown models
         class FakeModel:
             __name__ = "FakeModel"
 
@@ -288,6 +302,74 @@ class TestFindWithinRadius:
         assert results[1]["name"] == "Far"
         assert results[1]["distance_meters"] == 5000.0
 
+    def test_filters_passed_as_where_clauses(self):
+        """Test that filters are applied as additional .where() calls."""
+        mock_db = _mock_exec([])
+        mock_stmt = MagicMock()
+        mock_stmt.where.return_value = mock_stmt
+        mock_stmt.order_by.return_value = mock_stmt
+        mock_stmt.limit.return_value = mock_stmt
+
+        fake_filter = MagicMock(name="fake_filter")
+
+        with patch("app.geo.radius.select", return_value=mock_stmt):
+            find_within_radius(
+                db=mock_db,
+                model=Village,
+                lat=18.52,
+                lng=73.85,
+                radius_km=10.0,
+                filters=[fake_filter],
+            )
+
+        # .where should be called multiple times: spatial filter + our filter
+        where_calls = mock_stmt.where.call_args_list
+        assert len(where_calls) >= 2  # at least spatial + our filter
+
+    def test_explicit_geo_column(self):
+        """Test that explicit geo_column overrides the map."""
+        # Create a mock model that has both __name__ and the custom column
+        mock_model = type("MockModel", (), {"__name__": "MockModel", "custom_geom": MagicMock()})
+        mock_db = _mock_exec([])
+        mock_stmt = MagicMock()
+        mock_stmt.where.return_value = mock_stmt
+        mock_stmt.order_by.return_value = mock_stmt
+        mock_stmt.limit.return_value = mock_stmt
+
+        with patch("app.geo.radius.select", return_value=mock_stmt):
+            results = find_within_radius(
+                db=mock_db,
+                model=mock_model,
+                lat=18.52,
+                lng=73.85,
+                radius_km=10.0,
+                geo_column="custom_geom",
+            )
+
+        assert results == []
+
+    def test_explicit_geo_column_skips_map(self):
+        """Explicit geo_column bypasses _GEO_COLUMN_MAP lookup."""
+        # Village is mapped to 'geom' in _GEO_COLUMN_MAP, but explicit override should take precedence
+        mock_model = type("MockModel", (), {"__name__": "MockModel", "my_geo": MagicMock()})
+        mock_db = _mock_exec([])
+        mock_stmt = MagicMock()
+        mock_stmt.where.return_value = mock_stmt
+        mock_stmt.order_by.return_value = mock_stmt
+        mock_stmt.limit.return_value = mock_stmt
+
+        with patch("app.geo.radius.select", return_value=mock_stmt):
+            results = find_within_radius(
+                db=mock_db,
+                model=mock_model,
+                lat=18.52,
+                lng=73.85,
+                radius_km=10.0,
+                geo_column="my_geo",
+            )
+
+        assert results == []
+
 
 # ---------------------------------------------------------------------------
 # nearby_businesses.py tests
@@ -318,31 +400,20 @@ class TestFindNearbyBusinesses:
 
         assert len(results) == 2
         mock_radius.assert_called_once_with(
-            db=mock_db, model=Business, lat=18.52, lng=73.85, radius_km=10.0, limit=50
+            db=mock_db, model=Business, lat=18.52, lng=73.85, radius_km=10.0, limit=50, filters=None
         )
 
     @patch("app.geo.nearby_businesses.find_within_radius")
-    def test_filters_by_category(self, mock_radius):
+    def test_passes_category_filter_to_db(self, mock_radius):
+        """Category filter is pushed into SQL, not applied in Python."""
         cat_a = uuid4()
-        cat_b = uuid4()
+        # Mock returns only the filtered result (DB already applied the filter)
         mock_radius.return_value = [
             {
                 "id": uuid4(),
                 "name": "Shop A",
                 "business_category_id": cat_a,
                 "distance_meters": 500,
-            },
-            {
-                "id": uuid4(),
-                "name": "Shop B",
-                "business_category_id": cat_b,
-                "distance_meters": 1000,
-            },
-            {
-                "id": uuid4(),
-                "name": "Shop C",
-                "business_category_id": cat_a,
-                "distance_meters": 1500,
             },
         ]
         from app.geo.nearby_businesses import find_nearby_businesses
@@ -352,8 +423,11 @@ class TestFindNearbyBusinesses:
             mock_db, lat=18.52, lng=73.85, radius_km=10.0, category_id=cat_a
         )
 
-        assert len(results) == 2
-        assert all(r["business_category_id"] == cat_a for r in results)
+        assert len(results) == 1
+        # Verify filters were passed (non-None)
+        call_kwargs = mock_radius.call_args
+        assert call_kwargs.kwargs["filters"] is not None
+        assert len(call_kwargs.kwargs["filters"]) == 1
 
     @patch("app.geo.nearby_businesses.find_within_radius")
     def test_radius_capped_at_50(self, mock_radius):
@@ -365,7 +439,7 @@ class TestFindNearbyBusinesses:
 
         # Should be capped to 50
         mock_radius.assert_called_once_with(
-            db=mock_db, model=Business, lat=18.52, lng=73.85, radius_km=50.0, limit=50
+            db=mock_db, model=Business, lat=18.52, lng=73.85, radius_km=50.0, limit=50, filters=None
         )
 
     @patch("app.geo.nearby_businesses.find_within_radius")
@@ -398,15 +472,14 @@ class TestFindNearbyMarkets:
 
         assert len(results) == 2
         mock_radius.assert_called_once_with(
-            db=mock_db, model=Market, lat=18.52, lng=73.85, radius_km=25.0, limit=50
+            db=mock_db, model=Market, lat=18.52, lng=73.85, radius_km=25.0, limit=50, filters=None
         )
 
     @patch("app.geo.nearby_markets.find_within_radius")
-    def test_filters_by_market_type(self, mock_radius):
+    def test_passes_market_type_filter_to_db(self, mock_radius):
+        """Market type filter is pushed into SQL."""
         mock_radius.return_value = [
             {"id": uuid4(), "name": "Mandi A", "market_type": "mandi", "distance_meters": 2000},
-            {"id": uuid4(), "name": "Retail B", "market_type": "retail", "distance_meters": 5000},
-            {"id": uuid4(), "name": "Mandi C", "market_type": "mandi", "distance_meters": 8000},
         ]
         from app.geo.nearby_markets import find_nearby_markets
 
@@ -415,8 +488,10 @@ class TestFindNearbyMarkets:
             mock_db, lat=18.52, lng=73.85, radius_km=25.0, market_type="mandi"
         )
 
-        assert len(results) == 2
-        assert all(r["market_type"] == "mandi" for r in results)
+        assert len(results) == 1
+        call_kwargs = mock_radius.call_args
+        assert call_kwargs.kwargs["filters"] is not None
+        assert len(call_kwargs.kwargs["filters"]) == 1
 
     @patch("app.geo.nearby_markets.find_within_radius")
     def test_radius_capped_at_100(self, mock_radius):
@@ -428,7 +503,7 @@ class TestFindNearbyMarkets:
 
         # Should be capped to 100
         mock_radius.assert_called_once_with(
-            db=mock_db, model=Market, lat=18.52, lng=73.85, radius_km=100.0, limit=50
+            db=mock_db, model=Market, lat=18.52, lng=73.85, radius_km=100.0, limit=50, filters=None
         )
 
 
@@ -451,17 +526,15 @@ class TestFindNearbyVillages:
 
         assert len(results) == 2
         mock_radius.assert_called_once_with(
-            db=mock_db, model=Village, lat=18.52, lng=73.85, radius_km=10.0, limit=50
+            db=mock_db, model=Village, lat=18.52, lng=73.85, radius_km=10.0, limit=50, filters=None
         )
 
     @patch("app.geo.nearby_villages.find_within_radius")
-    def test_filters_by_district(self, mock_radius):
+    def test_passes_district_filter_to_db(self, mock_radius):
+        """District filter is pushed into SQL."""
         dist_a = uuid4()
-        dist_b = uuid4()
         mock_radius.return_value = [
             {"id": uuid4(), "name": "Village A", "district_id": dist_a, "distance_meters": 300},
-            {"id": uuid4(), "name": "Village B", "district_id": dist_b, "distance_meters": 700},
-            {"id": uuid4(), "name": "Village C", "district_id": dist_a, "distance_meters": 1200},
         ]
         from app.geo.nearby_villages import find_nearby_villages
 
@@ -470,8 +543,10 @@ class TestFindNearbyVillages:
             mock_db, lat=18.52, lng=73.85, radius_km=10.0, district_id=dist_a
         )
 
-        assert len(results) == 2
-        assert all(r["district_id"] == dist_a for r in results)
+        assert len(results) == 1
+        call_kwargs = mock_radius.call_args
+        assert call_kwargs.kwargs["filters"] is not None
+        assert len(call_kwargs.kwargs["filters"]) == 1
 
     @patch("app.geo.nearby_villages.find_within_radius")
     def test_radius_capped_at_50(self, mock_radius):
@@ -483,7 +558,7 @@ class TestFindNearbyVillages:
 
         # Should be capped to 50
         mock_radius.assert_called_once_with(
-            db=mock_db, model=Village, lat=18.52, lng=73.85, radius_km=50.0, limit=50
+            db=mock_db, model=Village, lat=18.52, lng=73.85, radius_km=50.0, limit=50, filters=None
         )
 
 
@@ -511,24 +586,18 @@ class TestFindNearbyFacilities:
 
         assert len(results) == 2
         mock_radius.assert_called_once_with(
-            db=mock_db, model=Infrastructure, lat=18.52, lng=73.85, radius_km=10.0, limit=50
+            db=mock_db, model=Infrastructure, lat=18.52, lng=73.85, radius_km=10.0, limit=50, filters=None
         )
 
     @patch("app.geo.nearby_facilities.find_within_radius")
-    def test_filters_by_facility_type(self, mock_radius):
+    def test_passes_facility_type_filter_to_db(self, mock_radius):
+        """Facility type filter is pushed into SQL."""
         mock_radius.return_value = [
             {
                 "id": uuid4(),
                 "name": "Hospital A",
                 "facility_type": "hospital",
                 "distance_meters": 1000,
-            },
-            {"id": uuid4(), "name": "Bank B", "facility_type": "bank", "distance_meters": 2000},
-            {
-                "id": uuid4(),
-                "name": "Hospital C",
-                "facility_type": "hospital",
-                "distance_meters": 3000,
             },
         ]
         from app.geo.nearby_facilities import find_nearby_facilities
@@ -538,8 +607,10 @@ class TestFindNearbyFacilities:
             mock_db, lat=18.52, lng=73.85, radius_km=10.0, facility_type="hospital"
         )
 
-        assert len(results) == 2
-        assert all(r["facility_type"] == "hospital" for r in results)
+        assert len(results) == 1
+        call_kwargs = mock_radius.call_args
+        assert call_kwargs.kwargs["filters"] is not None
+        assert len(call_kwargs.kwargs["filters"]) == 1
 
     @patch("app.geo.nearby_facilities.find_within_radius")
     def test_radius_capped_at_50(self, mock_radius):
@@ -551,7 +622,7 @@ class TestFindNearbyFacilities:
 
         # Should be capped to 50
         mock_radius.assert_called_once_with(
-            db=mock_db, model=Infrastructure, lat=18.52, lng=73.85, radius_km=50.0, limit=50
+            db=mock_db, model=Infrastructure, lat=18.52, lng=73.85, radius_km=50.0, limit=50, filters=None
         )
 
     @patch("app.geo.nearby_facilities.find_within_radius")

@@ -34,17 +34,17 @@ def find_nearby_businesses(
     """
     radius_km = min(radius_km, 50.0)
 
-    results = find_within_radius(
+    # Push category filter into the SQL query for efficiency
+    filters = []
+    if category_id is not None:
+        filters.append(Business.business_category_id == category_id)
+
+    return find_within_radius(
         db=db,
         model=Business,
         lat=lat,
         lng=lng,
         radius_km=radius_km,
         limit=limit,
+        filters=filters or None,
     )
-
-    # Apply category filter in Python since it's a non-spatial column
-    if category_id is not None:
-        results = [r for r in results if r.get("business_category_id") == category_id]
-
-    return results

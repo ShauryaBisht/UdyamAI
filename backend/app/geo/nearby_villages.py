@@ -34,17 +34,17 @@ def find_nearby_villages(
     """
     radius_km = min(radius_km, 50.0)
 
-    results = find_within_radius(
+    # Push district filter into the SQL query for efficiency
+    filters = []
+    if district_id is not None:
+        filters.append(Village.district_id == district_id)
+
+    return find_within_radius(
         db=db,
         model=Village,
         lat=lat,
         lng=lng,
         radius_km=radius_km,
         limit=limit,
+        filters=filters or None,
     )
-
-    # Apply district filter in Python since it's a non-spatial column
-    if district_id is not None:
-        results = [r for r in results if r.get("district_id") == district_id]
-
-    return results
