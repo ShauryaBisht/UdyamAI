@@ -4,11 +4,8 @@ Provides a generic `find_within_radius` function that works with any model
 having a PostGIS Geography POINT column (Village, Business, Market, Infrastructure).
 """
 
-from typing import Type
-
-from geoalchemy2.elements import WKTElement
+from sqlalchemy import func
 from sqlmodel import Session, select
-from sqlalchemy import func, text
 
 from app.geo.coordinates import km_to_meters
 
@@ -59,9 +56,6 @@ def find_within_radius(
     limit = min(limit, 200)
     radius_meters = km_to_meters(radius_km)
     geo_col = _get_geo_column(model)
-
-    # Build WKT point for the center
-    center_wkt = f"SRID=4326;POINT({lng} {lat})"
 
     # Use ST_DWithin for the spatial filter and ST_Distance for sorting
     stmt = (

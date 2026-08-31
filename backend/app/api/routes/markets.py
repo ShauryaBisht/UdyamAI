@@ -12,7 +12,6 @@ from app.schemas.market import (
     MarketAnalysisResponse,
     MarketPriceResponse,
     MarketResponse,
-    PriceHistoryResponse,
 )
 from app.services.market_service import MarketService
 
@@ -125,7 +124,9 @@ def list_markets(
     db: Session = Depends(get_session),
 ):
     """List markets with optional filters."""
-    return MarketService.get_markets(db, market_type=market_type, location_id=location_id, limit=limit)
+    return MarketService.get_markets(
+        db, market_type=market_type, location_id=location_id, limit=limit
+    )
 
 
 @router.get("/{market_id}", response_model=MarketResponse)

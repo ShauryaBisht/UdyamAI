@@ -1,7 +1,17 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import analysis, businesses, finance, health, locations, markets, reports, schemes, users
+from app.api.routes import (
+    analysis,
+    businesses,
+    finance,
+    health,
+    locations,
+    markets,
+    reports,
+    schemes,
+    users,
+)
 from app.config import settings
 from app.utils.errors import setup_exception_handlers
 from app.utils.logging import setup_logging
@@ -110,7 +120,9 @@ app.include_router(
     include_in_schema=False,
     dependencies=[Depends(default_limiter)],
 )
-app.include_router(markets.router, prefix="/markets", tags=["Markets"], dependencies=[Depends(default_limiter)])
+app.include_router(
+    markets.router, prefix="/markets", tags=["Markets"], dependencies=[Depends(default_limiter)]
+)
 app.include_router(
     markets.router,
     prefix="/api/v1/markets",

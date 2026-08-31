@@ -10,7 +10,6 @@ Covers:
 6. nearby_facilities.py — facility_type filtering
 """
 
-import math
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -28,7 +27,6 @@ from app.models.business import Business
 from app.models.infrastructure import Infrastructure
 from app.models.location import Village
 from app.models.market import Market
-
 
 # ---------------------------------------------------------------------------
 # coordinates.py tests
@@ -252,9 +250,19 @@ class TestFindWithinRadius:
     def test_multiple_results_sorted_by_distance(self):
         """Test that multiple results are returned and contain distance."""
         mock_record_1 = MagicMock()
-        mock_record_1.__dict__ = {"id": uuid4(), "name": "Close", "geom": None, "_sa_instance_state": None}
+        mock_record_1.__dict__ = {
+            "id": uuid4(),
+            "name": "Close",
+            "geom": None,
+            "_sa_instance_state": None,
+        }
         mock_record_2 = MagicMock()
-        mock_record_2.__dict__ = {"id": uuid4(), "name": "Far", "geom": None, "_sa_instance_state": None}
+        mock_record_2.__dict__ = {
+            "id": uuid4(),
+            "name": "Far",
+            "geom": None,
+            "_sa_instance_state": None,
+        }
 
         mock_row_1 = (mock_record_1, 500.0)
         mock_row_2 = (mock_record_2, 5000.0)
@@ -290,8 +298,18 @@ class TestFindNearbyBusinesses:
     @patch("app.geo.nearby_businesses.find_within_radius")
     def test_returns_all_when_no_category_filter(self, mock_radius):
         mock_radius.return_value = [
-            {"id": uuid4(), "name": "Shop A", "business_category_id": uuid4(), "distance_meters": 500},
-            {"id": uuid4(), "name": "Shop B", "business_category_id": uuid4(), "distance_meters": 1000},
+            {
+                "id": uuid4(),
+                "name": "Shop A",
+                "business_category_id": uuid4(),
+                "distance_meters": 500,
+            },
+            {
+                "id": uuid4(),
+                "name": "Shop B",
+                "business_category_id": uuid4(),
+                "distance_meters": 1000,
+            },
         ]
         from app.geo.nearby_businesses import find_nearby_businesses
 
@@ -308,14 +326,31 @@ class TestFindNearbyBusinesses:
         cat_a = uuid4()
         cat_b = uuid4()
         mock_radius.return_value = [
-            {"id": uuid4(), "name": "Shop A", "business_category_id": cat_a, "distance_meters": 500},
-            {"id": uuid4(), "name": "Shop B", "business_category_id": cat_b, "distance_meters": 1000},
-            {"id": uuid4(), "name": "Shop C", "business_category_id": cat_a, "distance_meters": 1500},
+            {
+                "id": uuid4(),
+                "name": "Shop A",
+                "business_category_id": cat_a,
+                "distance_meters": 500,
+            },
+            {
+                "id": uuid4(),
+                "name": "Shop B",
+                "business_category_id": cat_b,
+                "distance_meters": 1000,
+            },
+            {
+                "id": uuid4(),
+                "name": "Shop C",
+                "business_category_id": cat_a,
+                "distance_meters": 1500,
+            },
         ]
         from app.geo.nearby_businesses import find_nearby_businesses
 
         mock_db = MagicMock()
-        results = find_nearby_businesses(mock_db, lat=18.52, lng=73.85, radius_km=10.0, category_id=cat_a)
+        results = find_nearby_businesses(
+            mock_db, lat=18.52, lng=73.85, radius_km=10.0, category_id=cat_a
+        )
 
         assert len(results) == 2
         assert all(r["business_category_id"] == cat_a for r in results)
@@ -376,7 +411,9 @@ class TestFindNearbyMarkets:
         from app.geo.nearby_markets import find_nearby_markets
 
         mock_db = MagicMock()
-        results = find_nearby_markets(mock_db, lat=18.52, lng=73.85, radius_km=25.0, market_type="mandi")
+        results = find_nearby_markets(
+            mock_db, lat=18.52, lng=73.85, radius_km=25.0, market_type="mandi"
+        )
 
         assert len(results) == 2
         assert all(r["market_type"] == "mandi" for r in results)
@@ -429,7 +466,9 @@ class TestFindNearbyVillages:
         from app.geo.nearby_villages import find_nearby_villages
 
         mock_db = MagicMock()
-        results = find_nearby_villages(mock_db, lat=18.52, lng=73.85, radius_km=10.0, district_id=dist_a)
+        results = find_nearby_villages(
+            mock_db, lat=18.52, lng=73.85, radius_km=10.0, district_id=dist_a
+        )
 
         assert len(results) == 2
         assert all(r["district_id"] == dist_a for r in results)
@@ -457,7 +496,12 @@ class TestFindNearbyFacilities:
     @patch("app.geo.nearby_facilities.find_within_radius")
     def test_returns_all_when_no_type_filter(self, mock_radius):
         mock_radius.return_value = [
-            {"id": uuid4(), "name": "Hospital A", "facility_type": "hospital", "distance_meters": 1000},
+            {
+                "id": uuid4(),
+                "name": "Hospital A",
+                "facility_type": "hospital",
+                "distance_meters": 1000,
+            },
             {"id": uuid4(), "name": "Bank B", "facility_type": "bank", "distance_meters": 2000},
         ]
         from app.geo.nearby_facilities import find_nearby_facilities
@@ -473,9 +517,19 @@ class TestFindNearbyFacilities:
     @patch("app.geo.nearby_facilities.find_within_radius")
     def test_filters_by_facility_type(self, mock_radius):
         mock_radius.return_value = [
-            {"id": uuid4(), "name": "Hospital A", "facility_type": "hospital", "distance_meters": 1000},
+            {
+                "id": uuid4(),
+                "name": "Hospital A",
+                "facility_type": "hospital",
+                "distance_meters": 1000,
+            },
             {"id": uuid4(), "name": "Bank B", "facility_type": "bank", "distance_meters": 2000},
-            {"id": uuid4(), "name": "Hospital C", "facility_type": "hospital", "distance_meters": 3000},
+            {
+                "id": uuid4(),
+                "name": "Hospital C",
+                "facility_type": "hospital",
+                "distance_meters": 3000,
+            },
         ]
         from app.geo.nearby_facilities import find_nearby_facilities
 
@@ -506,7 +560,9 @@ class TestFindNearbyFacilities:
         from app.geo.nearby_facilities import find_nearby_facilities
 
         mock_db = MagicMock()
-        results = find_nearby_facilities(mock_db, lat=18.52, lng=73.85, radius_km=1.0, facility_type="airport")
+        results = find_nearby_facilities(
+            mock_db, lat=18.52, lng=73.85, radius_km=1.0, facility_type="airport"
+        )
 
         assert results == []
 
