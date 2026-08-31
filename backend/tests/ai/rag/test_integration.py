@@ -120,6 +120,47 @@ def test_end_to_end_rag_pipeline_integration(
     assert "10%" in item.text
 
 
+@patch("app.rag.embeddings.get_openai_client")
+@patch("app.rag.document_parser.pypdf.PdfReader")
+def test_multipage_pdf_ingestion_integration(
+    mock_pdf_reader, mock_get_client, db_session: Session, temp_pdf_file: str
+):
+    """Verifies parsing and chunking multi-page PDF documents across page boundaries."""
+    mock_page_1 = MagicMock()
+    mock_page_1.extract_text.return_value = "Page 1: PMFME Overview and Subsidy Rules."
+    mock_page_2 = MagicMock()
+    mock_page_2.extract_text.return_value = (
+        "Page 2: Eligible Micro Food Enterprises and Documentation."
+    )
+
+    mock_reader = MagicMock()
+    mock_reader.is_encrypted = False
+    mock_reader.pages = [mock_page_1, mock_page_2]
+    mock_pdf_reader.return_value = mock_reader
+
+    mock_resp = MagicMock()
+    mock_resp.data = [
+        MagicMock(embedding=_create_vector(0.1)),
+        MagicMock(embedding=_create_vector(0.1)),
+    ]
+    mock_client = MagicMock()
+    mock_client.embeddings.create.return_value = mock_resp
+    mock_get_client.return_value = mock_client
+
+    doc = load_document(
+        db=db_session,
+        file_path=temp_pdf_file,
+        title="Multi Page Guidelines",
+        source_name="MoFPI",
+    )
+
+    assert doc is not None
+    chunks = db_session.query(DocumentChunk).filter_by(document_id=doc.id).all()
+    assert len(chunks) == 2
+    assert chunks[0].page_number == 1
+    assert chunks[1].page_number == 2
+
+
 @patch("app.rag.document_loader.ingest_document", return_value=None)
 def test_load_document_duplicate_returns_none(mock_ingest, db_session: Session, temp_pdf_file: str):
     """Verifies load_document returns None when ingest_document skips duplicate document hash."""
@@ -137,7 +178,7 @@ def test_load_document_nonexistent_file(db_session: Session):
 
 
 def test_load_document_empty_path(db_session: Session):
-    with pytest.raises(ValueError, match="File path cannot be empty"):
+    with pytest.raises(ValueError, match="File path must be a non-empty string"):
         load_document(db=db_session, file_path="", title="Test")
 
 

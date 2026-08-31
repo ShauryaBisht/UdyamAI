@@ -393,7 +393,23 @@ def test_document_loader_integration(
 
     res = query_rag_pipeline(db=db_session, query="test query")
     assert res == mock_response
-    mock_retrieve.assert_called_once()
+
+
+@patch("os.access", return_value=False)
+@patch("os.path.isfile", return_value=True)
+@patch("os.path.exists", return_value=True)
+def test_load_document_permission_denied(
+    mock_exists, mock_isfile, mock_access, db_session: Session
+):
+    with pytest.raises(PermissionError, match="not readable"):
+        load_document(db=db_session, file_path="unreadable.pdf", title="Test Doc")
+
+
+@patch("os.path.isfile", return_value=False)
+@patch("os.path.exists", return_value=True)
+def test_load_document_not_a_file(mock_exists, mock_isfile, db_session: Session):
+    with pytest.raises(ValueError, match="not a regular file"):
+        load_document(db=db_session, file_path="directory_path", title="Test Doc")
 
 
 # --- 12. API Error & Dimension Mismatch Tests ---

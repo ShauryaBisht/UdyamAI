@@ -68,24 +68,21 @@ def load_document(
         EmptyPDFError: If PDF is empty or 0 bytes.
         ScannedPDFError: If PDF contains no extractable text.
     """
-    logger.info(f"Initiating document_loader pipeline for '{title}' from path: {file_path}")
+    if file_path is None or not isinstance(file_path, str) or not file_path.strip():
+        raise ValueError("File path must be a non-empty string.")
 
-    if not file_path or not str(file_path).strip():
-        raise ValueError("File path cannot be empty.")
-
-    file_path_str = str(file_path).strip()
+    file_path_str = file_path.strip()
 
     if not os.path.exists(file_path_str):
-        logger.error(f"Document load failed. File not found: {file_path_str}")
         raise FileNotFoundError(f"File not found: {file_path_str}")
 
     if not os.path.isfile(file_path_str):
-        logger.error(f"Document load failed. Path is not a regular file: {file_path_str}")
         raise ValueError(f"Path is not a regular file: {file_path_str}")
 
     if not os.access(file_path_str, os.R_OK):
-        logger.error(f"Document load failed. File is not readable: {file_path_str}")
         raise PermissionError(f"File is not readable: {file_path_str}")
+
+    logger.info(f"Initiating document_loader pipeline for '{title}' from path: {file_path_str}")
 
     # Calls existing ingestion pipeline (executes remote API call outside DB transaction)
     return ingest_document(

@@ -13,10 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 def _is_metric_in_text(metric: str, text: str) -> bool:
-    """Uses regex word boundaries to check if metric string is in text without false substring matches."""
-    if not metric or not text:
+    """Checks if metric string is in text using word boundary safety for alphanumeric boundary ends."""
+    if not metric or not isinstance(metric, str) or not metric.strip() or not text:
         return False
-    pattern = r"\b" + re.escape(metric.strip()) + r"\b"
+    m = metric.strip()
+    escaped = re.escape(m)
+    prefix = r"\b" if re.match(r"^\w", m) else ""
+    suffix = r"\b" if re.search(r"\w$", m) else ""
+    pattern = prefix + escaped + suffix
     return bool(re.search(pattern, text, re.IGNORECASE))
 
 
@@ -62,7 +66,6 @@ def evaluate_retrieval(
 ) -> EvaluationReport:
     """
     Evaluates RAG retrieval performance over a benchmark dataset using Recall@K and Precision@K.
-    Resilient design: catches query exceptions gracefully to report complete evaluation results.
 
     Args:
         db: Active SQLModel database session containing indexed documents and chunks.
@@ -103,23 +106,32 @@ def evaluate_retrieval(
         expected_status = item.get("expected_status", "success")
         expected_doc = item.get("expected_document_title")
         expected_sec = item.get("expected_section")
-        gt_metrics = item.get("ground_truth_metrics", [])
+        gt_metrics = [
+            m
+            for m in item.get("ground_truth_metrics", [])
+            if m and isinstance(m, str) and m.strip()
+        ]
         is_missing = item.get("is_missing", False)
+        is_conflicting = item.get("is_conflicting", False)
 
-        # Precise scheme resolution: exact match on name/code first
+        # Precise scheme resolution
         scheme_id = item.get("scheme_id")
         if not scheme_id and item.get("scheme_name") and item["scheme_name"] != "Unknown":
             scheme_name = item["scheme_name"]
             statement = select(Scheme).where(Scheme.name == scheme_name)
             scheme_obj = db.exec(statement).first()
             if not scheme_obj:
-                # Fallback to case-insensitive partial match
                 statement_like = select(Scheme).where(Scheme.name.ilike(f"%{scheme_name}%"))
                 scheme_obj = db.exec(statement_like).first()
+
             if scheme_obj:
                 scheme_id = scheme_obj.id
+            else:
+                logger.warning(
+                    f"Query evaluation '{q_id}': Scheme lookup failed for scheme_name='{scheme_name}'. Executing retrieval without scheme filter."
+                )
 
-        # Robust execution loop with error handling
+        # Query retrieval execution
         try:
             response: RAGQueryResponse = retrieve_evidence(
                 db=db,
@@ -147,7 +159,15 @@ def evaluate_retrieval(
             elif expected_status == "conflicting_sources":
                 conflicting_matches += 1
 
-        # Calculate Recall@K and Precision@K
+        # Multi-source validation for conflict test cases
+        if is_conflicting and actual_status == "conflicting_sources":
+            distinct_docs = {ev.source.document_id for ev in retrieved_items}
+            if len(distinct_docs) < 2:
+                logger.warning(
+                    f"Query evaluation '{q_id}': Conflicting sources status reported but retrieved evidence from single document."
+                )
+
+        # Metric-grounded Recall@K & Precision@K calculations
         if is_missing or expected_status == "no_relevant_evidence":
             if actual_status == "no_relevant_evidence" and len(retrieved_items) == 0:
                 q_recall = 1.0
@@ -164,6 +184,28 @@ def evaluate_retrieval(
                 q_precision = 0.0
             else:
                 relevant_retrieved = 0
+                all_retrieved_text = " ".join([ev.text for ev in retrieved_items])
+
+                # Check ground-truth metric coverage for Recall
+                if gt_metrics:
+                    matched_gt_count = sum(
+                        1 for m in gt_metrics if _is_metric_in_text(m, all_retrieved_text)
+                    )
+                    q_recall = matched_gt_count / len(gt_metrics)
+                else:
+                    # Fallback to document/section metadata match
+                    doc_sec_match = any(
+                        (expected_doc and expected_doc.lower() in ev.source.title.lower())
+                        or (
+                            expected_sec
+                            and ev.source.section_title
+                            and expected_sec.lower() in ev.source.section_title.lower()
+                        )
+                        for ev in retrieved_items
+                    )
+                    q_recall = 1.0 if doc_sec_match else 0.0
+
+                # Precision calculation over retrieved items
                 for ev in retrieved_items:
                     doc_title_match = expected_doc and (
                         expected_doc.lower() in ev.source.title.lower()
@@ -182,7 +224,6 @@ def evaluate_retrieval(
                     if doc_title_match or sec_title_match or metric_match:
                         relevant_retrieved += 1
 
-                q_recall = 1.0 if relevant_retrieved > 0 else 0.0
                 q_precision = relevant_retrieved / len(retrieved_items)
 
         recalls.append(q_recall)
