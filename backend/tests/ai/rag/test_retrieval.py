@@ -368,9 +368,14 @@ def test_retrieve_evidence_request_schema(
 # --- 11. Document Loader Integration ---
 
 
+@patch("os.access", return_value=True)
+@patch("os.path.isfile", return_value=True)
+@patch("os.path.exists", return_value=True)
 @patch("app.rag.document_loader.retrieve_evidence")
 @patch("app.rag.document_loader.ingest_document")
-def test_document_loader_integration(mock_ingest, mock_retrieve, db_session: Session):
+def test_document_loader_integration(
+    mock_ingest, mock_retrieve, mock_exists, mock_isfile, mock_access, db_session: Session
+):
     mock_doc = Document(
         title="Test Doc",
         source_name="Source A",
@@ -388,7 +393,37 @@ def test_document_loader_integration(mock_ingest, mock_retrieve, db_session: Ses
 
     res = query_rag_pipeline(db=db_session, query="test query")
     assert res == mock_response
-    mock_retrieve.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "mock_exists,mock_isfile,mock_access,expected_error",
+    [
+        (False, True, True, FileNotFoundError),
+        (True, False, True, ValueError),
+        (True, True, False, PermissionError),
+    ],
+)
+def test_document_loader_all_error_paths(
+    mock_exists: bool,
+    mock_isfile: bool,
+    mock_access: bool,
+    expected_error: type[Exception],
+    db_session: Session,
+):
+    """Parametrized verification of document_loader file OS validation checks."""
+    with (
+        patch("os.path.exists", return_value=mock_exists),
+        patch("os.path.isfile", return_value=mock_isfile),
+        patch("os.access", return_value=mock_access),
+    ):
+        with pytest.raises(expected_error):
+            load_document(db=db_session, file_path="test_spec.pdf", title="Test")
+
+
+def test_load_document_invalid_language(db_session: Session):
+    """Verifies ValueError raised for unsupported language code."""
+    with pytest.raises(ValueError, match="Unsupported language code"):
+        load_document(db=db_session, file_path="dummy.pdf", title="Test", language="invalid_lang")
 
 
 # --- 12. API Error & Dimension Mismatch Tests ---

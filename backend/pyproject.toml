@@ -31,3 +31,8 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends", "fastapi.
 quote-style = "double"
 indent-style = "space"
 
+[tool.pytest.ini_options]
+markers = [
+    "postgresql_integration: mark test as requiring a live PostgreSQL + pgvector database instance",
+]
+
