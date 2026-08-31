@@ -3,36 +3,60 @@
 Evaluates deterministic risk indicators supported by empirical data thresholds.
 """
 
+import logging
 import os
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+def _env_float(name: str, default: float) -> float:
+    """Safely parses float environment variable falling back to default on invalid inputs."""
+    val = os.getenv(name)
+    if not val:
+        return default
+    try:
+        return float(val)
+    except ValueError:
+        logger.warning("Invalid float for %s: %r, using default %s", name, val, default)
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    """Safely parses int environment variable falling back to default on invalid inputs."""
+    val = os.getenv(name)
+    if not val:
+        return default
+    try:
+        return int(val)
+    except ValueError:
+        logger.warning("Invalid int for %s: %r, using default %s", name, val, default)
+        return default
+
 
 # ------------------------------------------------------------------ #
 # Empirical Threshold Constants (Configurable via Environment)
 # ------------------------------------------------------------------ #
 
-HIGH_COMPETITOR_DENSITY_THRESHOLD = float(os.getenv("HIGH_COMPETITOR_DENSITY_THRESHOLD", "5.0"))
-VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD = float(
-    os.getenv("VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD", "10.0")
+HIGH_COMPETITOR_DENSITY_THRESHOLD = _env_float("HIGH_COMPETITOR_DENSITY_THRESHOLD", 5.0)
+VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD = _env_float("VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD", 10.0)
+
+SEASONAL_VOLATILITY_THRESHOLD = _env_float("SEASONAL_VOLATILITY_THRESHOLD", 0.25)
+VERY_HIGH_SEASONAL_VOLATILITY_THRESHOLD = _env_float(
+    "VERY_HIGH_SEASONAL_VOLATILITY_THRESHOLD", 0.35
 )
 
-SEASONAL_VOLATILITY_THRESHOLD = float(os.getenv("SEASONAL_VOLATILITY_THRESHOLD", "0.25"))
-VERY_HIGH_SEASONAL_VOLATILITY_THRESHOLD = float(
-    os.getenv("VERY_HIGH_SEASONAL_VOLATILITY_THRESHOLD", "0.35")
-)
+LOW_MARKET_ACCESS_DISTANCE_KM = _env_float("LOW_MARKET_ACCESS_DISTANCE_KM", 10.0)
+VERY_LOW_MARKET_ACCESS_DISTANCE_KM = _env_float("VERY_LOW_MARKET_ACCESS_DISTANCE_KM", 20.0)
 
-LOW_MARKET_ACCESS_DISTANCE_KM = float(os.getenv("LOW_MARKET_ACCESS_DISTANCE_KM", "10.0"))
-VERY_LOW_MARKET_ACCESS_DISTANCE_KM = float(os.getenv("VERY_LOW_MARKET_ACCESS_DISTANCE_KM", "20.0"))
+PRICE_VOLATILITY_THRESHOLD = _env_float("PRICE_VOLATILITY_THRESHOLD", 0.20)
+VERY_HIGH_PRICE_VOLATILITY_THRESHOLD = _env_float("VERY_HIGH_PRICE_VOLATILITY_THRESHOLD", 0.35)
 
-PRICE_VOLATILITY_THRESHOLD = float(os.getenv("PRICE_VOLATILITY_THRESHOLD", "0.20"))
-VERY_HIGH_PRICE_VOLATILITY_THRESHOLD = float(
-    os.getenv("VERY_HIGH_PRICE_VOLATILITY_THRESHOLD", "0.35")
-)
-
-LOW_DEMOGRAPHIC_DEMAND_THRESHOLD = int(os.getenv("LOW_DEMOGRAPHIC_DEMAND_THRESHOLD", "1000"))
+LOW_DEMOGRAPHIC_DEMAND_THRESHOLD = _env_int("LOW_DEMOGRAPHIC_DEMAND_THRESHOLD", 1000)
 
 # Score thresholds for overall risk level classification (0.0 to 10.0 scale)
-HIGH_RISK_SCORE_THRESHOLD = float(os.getenv("HIGH_RISK_SCORE_THRESHOLD", "6.0"))
-MEDIUM_RISK_SCORE_THRESHOLD = float(os.getenv("MEDIUM_RISK_SCORE_THRESHOLD", "3.0"))
+HIGH_RISK_SCORE_THRESHOLD = _env_float("HIGH_RISK_SCORE_THRESHOLD", 6.0)
+MEDIUM_RISK_SCORE_THRESHOLD = _env_float("MEDIUM_RISK_SCORE_THRESHOLD", 3.0)
 
 
 def _safe_value(v: Any) -> float | int | str | bool | None:
@@ -41,6 +65,18 @@ def _safe_value(v: Any) -> float | int | str | bool | None:
         return None
     if isinstance(v, (int, float, str, bool)):
         return v
+    # Handle Decimal or numpy numeric types safely
+    type_name = type(v).__name__.lower()
+    if "decimal" in type_name or "float" in type_name:
+        try:
+            return float(v)
+        except Exception:
+            pass
+    if "int" in type_name:
+        try:
+            return int(v)
+        except Exception:
+            pass
     try:
         return float(v)
     except Exception:

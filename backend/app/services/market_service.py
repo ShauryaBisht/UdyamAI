@@ -11,8 +11,8 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import or_
-from sqlmodel import Session, col, select
+from sqlalchemy import or_, select
+from sqlmodel import Session, col
 
 from app.geo.nearby_businesses import find_nearby_businesses
 from app.geo.nearby_facilities import find_nearby_facilities
