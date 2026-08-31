@@ -56,7 +56,9 @@ class LocationQuery(BaseModel):
 class NormalizeRequest(BaseModel):
     """Request to normalize a raw location name."""
 
-    name: str = Field(..., min_length=1, max_length=200, description="Raw location name to normalize")
+    name: str = Field(
+        ..., min_length=1, max_length=200, description="Raw location name to normalize"
+    )
     level: str = Field(
         default="village",
         pattern=r"^(district|taluka|gram_panchayat|village)$",
@@ -122,8 +124,6 @@ class MergeResponse(BaseModel):
     keep_id: UUID
     merged_count: int
     summary: dict[str, int]
-
-
 
 
 # --- Nearby Query & Response Schemas ---

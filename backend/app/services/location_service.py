@@ -361,7 +361,10 @@ class LocationService:
         """
         if level == "district":
             match = LocationService.find_district(
-                db, name, state=state, lgd_code=lgd_code,
+                db,
+                name,
+                state=state,
+                lgd_code=lgd_code,
                 fuzzy_threshold=fuzzy_threshold,
             )
             if match:
@@ -380,14 +383,15 @@ class LocationService:
             if not district_id:
                 raise ValueError("district_id is required to resolve/create a taluka")
             match = LocationService.find_taluka(
-                db, name, district_id=district_id, lgd_code=lgd_code,
+                db,
+                name,
+                district_id=district_id,
+                lgd_code=lgd_code,
                 fuzzy_threshold=fuzzy_threshold,
             )
             if match:
                 return match.id
-            taluka = Taluka(
-                name=name.strip(), district_id=district_id, lgd_code=lgd_code
-            )
+            taluka = Taluka(name=name.strip(), district_id=district_id, lgd_code=lgd_code)
             db.add(taluka)
             db.commit()
             db.refresh(taluka)
@@ -399,8 +403,12 @@ class LocationService:
                     "taluka_id and district_id are required to resolve/create a gram panchayat"
                 )
             match = LocationService.find_gram_panchayat(
-                db, name, taluka_id=taluka_id, district_id=district_id,
-                lgd_code=lgd_code, fuzzy_threshold=fuzzy_threshold,
+                db,
+                name,
+                taluka_id=taluka_id,
+                district_id=district_id,
+                lgd_code=lgd_code,
+                fuzzy_threshold=fuzzy_threshold,
             )
             if match:
                 return match.id
@@ -419,7 +427,10 @@ class LocationService:
             if not taluka_id:
                 raise ValueError("taluka_id is required to resolve/create a village")
             match = LocationService.find_village(
-                db, name, taluka_id=taluka_id, lgd_code=lgd_code,
+                db,
+                name,
+                taluka_id=taluka_id,
+                lgd_code=lgd_code,
                 fuzzy_threshold=fuzzy_threshold,
             )
             if match:
@@ -436,7 +447,9 @@ class LocationService:
             db.refresh(village)
             return village.id
 
-        raise ValueError(f"Invalid level: {level!r}. Must be district|taluka|gram_panchayat|village")
+        raise ValueError(
+            f"Invalid level: {level!r}. Must be district|taluka|gram_panchayat|village"
+        )
 
     # -----------------------------------------------------------------------
     # Deduplication — detect & merge
@@ -465,9 +478,7 @@ class LocationService:
         raise ValueError(f"Invalid level: {level!r}")
 
     @staticmethod
-    def _detect_duplicates_district(
-        db: Session, state: str | None, threshold: float
-    ) -> list[dict]:
+    def _detect_duplicates_district(db: Session, state: str | None, threshold: float) -> list[dict]:
         stmt = select(District)
         if state:
             stmt = stmt.where(col(District.state).ilike(state))
@@ -476,9 +487,7 @@ class LocationService:
         return LocationService._group_by_normalized(districts, threshold)
 
     @staticmethod
-    def _detect_duplicates_taluka(
-        db: Session, state: str | None, threshold: float
-    ) -> list[dict]:
+    def _detect_duplicates_taluka(db: Session, state: str | None, threshold: float) -> list[dict]:
         stmt = select(Taluka)
         talukas = db.exec(stmt).all()
         # Group by parent district first, then fuzzy match within group
@@ -494,9 +503,7 @@ class LocationService:
         return groups
 
     @staticmethod
-    def _detect_duplicates_gp(
-        db: Session, state: str | None, threshold: float
-    ) -> list[dict]:
+    def _detect_duplicates_gp(db: Session, state: str | None, threshold: float) -> list[dict]:
         gps = db.exec(select(GramPanchayat)).all()
         by_taluka: dict[UUID, list[GramPanchayat]] = defaultdict(list)
         for gp in gps:
@@ -510,9 +517,7 @@ class LocationService:
         return groups
 
     @staticmethod
-    def _detect_duplicates_village(
-        db: Session, state: str | None, threshold: float
-    ) -> list[dict]:
+    def _detect_duplicates_village(db: Session, state: str | None, threshold: float) -> list[dict]:
         villages = db.exec(select(Village)).all()
         by_taluka: dict[UUID, list[Village]] = defaultdict(list)
         for v in villages:
@@ -526,9 +531,7 @@ class LocationService:
         return groups
 
     @staticmethod
-    def _group_by_normalized(
-        records: list, threshold: float
-    ) -> list[dict]:
+    def _group_by_normalized(records: list, threshold: float) -> list[dict]:
         """Group records by normalized name using single-linkage clustering.
 
         Records are grouped together if any pair in the group has a fuzzy
@@ -537,9 +540,7 @@ class LocationService:
         if not records:
             return []
 
-        norm_map: list[tuple[str, object]] = [
-            (normalize_for_match(r.name), r) for r in records
-        ]
+        norm_map: list[tuple[str, object]] = [(normalize_for_match(r.name), r) for r in records]
 
         # Union-find for clustering
         parent = list(range(len(norm_map)))
@@ -617,9 +618,7 @@ class LocationService:
     # --- Village merge (re-parents domain tables) ---
 
     @staticmethod
-    def _merge_villages(
-        db: Session, keep_id: UUID, merge_ids: list[UUID]
-    ) -> dict:
+    def _merge_villages(db: Session, keep_id: UUID, merge_ids: list[UUID]) -> dict:
         from sqlalchemy import text
 
         summary: dict[str, int] = {}
@@ -646,9 +645,7 @@ class LocationService:
     # --- Taluka merge (re-parent GP + villages, then village FKs) ---
 
     @staticmethod
-    def _merge_talukas(
-        db: Session, keep_id: UUID, merge_ids: list[UUID]
-    ) -> dict:
+    def _merge_talukas(db: Session, keep_id: UUID, merge_ids: list[UUID]) -> dict:
         from sqlalchemy import text
 
         summary: dict[str, int] = {}
@@ -667,18 +664,14 @@ class LocationService:
             )
 
             # Re-parent villages
-            rows = db.exec(
-                select(Village.id).where(Village.taluka_id == mid)
-            ).all()
+            rows = db.exec(select(Village.id).where(Village.taluka_id == mid)).all()
             affected_village_ids.extend(rows)
 
             result = db.execute(
                 text("UPDATE villages SET taluka_id = :keep WHERE taluka_id = :merge"),
                 {"keep": str(keep_id), "merge": str(mid)},
             )
-            summary["villages.taluka_id"] = (
-                summary.get("villages.taluka_id", 0) + result.rowcount
-            )
+            summary["villages.taluka_id"] = summary.get("villages.taluka_id", 0) + result.rowcount
 
         # Delete merged taluka records
         for mid in merge_ids:
@@ -691,9 +684,7 @@ class LocationService:
     # --- District merge (re-parent talukas + GP + villages, then village FKs) ---
 
     @staticmethod
-    def _merge_districts(
-        db: Session, keep_id: UUID, merge_ids: list[UUID]
-    ) -> dict:
+    def _merge_districts(db: Session, keep_id: UUID, merge_ids: list[UUID]) -> dict:
         from sqlalchemy import text
 
         summary: dict[str, int] = {}
@@ -704,16 +695,11 @@ class LocationService:
                 text("UPDATE talukas SET district_id = :keep WHERE district_id = :merge"),
                 {"keep": str(keep_id), "merge": str(mid)},
             )
-            summary["talukas.district_id"] = (
-                summary.get("talukas.district_id", 0) + result.rowcount
-            )
+            summary["talukas.district_id"] = summary.get("talukas.district_id", 0) + result.rowcount
 
             # Re-parent gram_panchayats
             result = db.execute(
-                text(
-                    "UPDATE gram_panchayats SET district_id = :keep "
-                    "WHERE district_id = :merge"
-                ),
+                text("UPDATE gram_panchayats SET district_id = :keep WHERE district_id = :merge"),
                 {"keep": str(keep_id), "merge": str(mid)},
             )
             summary["gram_panchayats.district_id"] = (
@@ -740,9 +726,7 @@ class LocationService:
     # --- Gram Panchayat merge (re-parent villages) ---
 
     @staticmethod
-    def _merge_gps(
-        db: Session, keep_id: UUID, merge_ids: list[UUID]
-    ) -> dict:
+    def _merge_gps(db: Session, keep_id: UUID, merge_ids: list[UUID]) -> dict:
         from sqlalchemy import text
 
         summary: dict[str, int] = {}
@@ -750,8 +734,7 @@ class LocationService:
         for mid in merge_ids:
             result = db.execute(
                 text(
-                    "UPDATE villages SET gram_panchayat_id = :keep "
-                    "WHERE gram_panchayat_id = :merge"
+                    "UPDATE villages SET gram_panchayat_id = :keep WHERE gram_panchayat_id = :merge"
                 ),
                 {"keep": str(keep_id), "merge": str(mid)},
             )
@@ -761,9 +744,7 @@ class LocationService:
 
         # Delete merged GP records
         for mid in merge_ids:
-            db.execute(
-                text("DELETE FROM gram_panchayats WHERE id = :id"), {"id": str(mid)}
-            )
+            db.execute(text("DELETE FROM gram_panchayats WHERE id = :id"), {"id": str(mid)})
         summary["gram_panchayats_deleted"] = len(merge_ids)
 
         db.commit()

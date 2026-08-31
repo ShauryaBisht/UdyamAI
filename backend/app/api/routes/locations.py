@@ -45,7 +45,6 @@ def get_villages(taluka_id: UUID | None = None, db: Session = Depends(get_sessio
     return LocationService.get_villages(db, taluka_id=taluka_id)
 
 
-
 # --- Normalization & Dedup Endpoints ---
 
 

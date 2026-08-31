@@ -136,9 +136,7 @@ def _make_district(name="Pune", state="Maharashtra", lgd_code=None):
 
 
 def _make_taluka(name="Haveli", district_id=None, lgd_code=None):
-    return Taluka(
-        id=uuid4(), name=name, district_id=district_id or uuid4(), lgd_code=lgd_code
-    )
+    return Taluka(id=uuid4(), name=name, district_id=district_id or uuid4(), lgd_code=lgd_code)
 
 
 def _make_gp(name="Wadgaon", taluka_id=None, district_id=None, lgd_code=None):
@@ -245,9 +243,7 @@ class TestFindVillage:
         taluka_id = uuid4()
         v = _make_village(name="Aundh", taluka_id=taluka_id, lgd_code="999")
         db.exec.return_value.first.return_value = v
-        result = LocationService.find_village(
-            db, "Anything", taluka_id=taluka_id, lgd_code="999"
-        )
+        result = LocationService.find_village(db, "Anything", taluka_id=taluka_id, lgd_code="999")
         assert result == v
 
 
@@ -282,9 +278,7 @@ class TestResolveLocation:
         v = _make_village(name="Aundh")
         mock_find.return_value = v
         taluka_id = uuid4()
-        result = LocationService.resolve_location(
-            db, "Aundh", level="village", taluka_id=taluka_id
-        )
+        result = LocationService.resolve_location(db, "Aundh", level="village", taluka_id=taluka_id)
         assert result == v.id
 
     def test_resolve_missing_parent_raises(self):
@@ -448,16 +442,24 @@ class TestNormalizeEndpoint:
 
 class TestDedupDetectEndpoint:
     def test_detect_duplicates(self, client):
-        with patch(
-            "app.api.routes.locations.LocationService.detect_duplicates"
-        ) as mock_detect:
+        with patch("app.api.routes.locations.LocationService.detect_duplicates") as mock_detect:
             mock_detect.return_value = [
                 {
                     "normalized_name": "pune",
                     "count": 2,
                     "records": [
-                        {"id": str(uuid4()), "name": "Pune", "normalized": "pune", "lgd_code": None},
-                        {"id": str(uuid4()), "name": "PUNE", "normalized": "pune", "lgd_code": None},
+                        {
+                            "id": str(uuid4()),
+                            "name": "Pune",
+                            "normalized": "pune",
+                            "lgd_code": None,
+                        },
+                        {
+                            "id": str(uuid4()),
+                            "name": "PUNE",
+                            "normalized": "pune",
+                            "lgd_code": None,
+                        },
                     ],
                 }
             ]
@@ -471,9 +473,7 @@ class TestDedupDetectEndpoint:
 
 class TestDedupMergeEndpoint:
     def test_merge_duplicates(self, client):
-        with patch(
-            "app.api.routes.locations.LocationService.merge_duplicates"
-        ) as mock_merge:
+        with patch("app.api.routes.locations.LocationService.merge_duplicates") as mock_merge:
             mock_merge.return_value = {
                 "villages.taluka_id": 5,
                 "villages_deleted": 1,
