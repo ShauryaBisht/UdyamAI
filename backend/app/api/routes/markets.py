@@ -9,6 +9,8 @@ from sqlmodel import Session
 from app.database import get_session
 from app.schemas.market import (
     CompetitorAnalysisResponse,
+    LocationMarketAnalysisResponse,
+    MarketAnalysisRequest,
     MarketAnalysisResponse,
     MarketPriceResponse,
     MarketResponse,
@@ -97,6 +99,46 @@ def get_latest_prices(
 # ------------------------------------------------------------------ #
 # Market / Competitor Analyses
 # ------------------------------------------------------------------ #
+
+
+@router.post("/analyze", response_model=LocationMarketAnalysisResponse)
+def run_market_analysis(
+    payload: MarketAnalysisRequest,
+    db: Session = Depends(get_session),
+):
+    """Run comprehensive market analysis for a village location across configurable radii."""
+    return MarketService.analyze_village_market(
+        db=db,
+        village_id=payload.village_id,
+        radii_km=payload.radii_km,
+        target_conversion_rate=payload.target_conversion_rate,
+        business_category_id=payload.business_category_id,
+        analysis_run_id=payload.analysis_run_id,
+    )
+
+
+@router.get("/analyze/{village_id}", response_model=LocationMarketAnalysisResponse)
+def get_village_market_analysis(
+    village_id: UUID,
+    radii: list[float] | None = Query(default=None, description="Radii in km (e.g. 5.0, 10.0)"),
+    target_conversion_rate: float = Query(
+        default=0.05, ge=0.0, le=1.0, description="Target customer conversion rate (0.0 to 1.0)"
+    ),
+    business_category_id: UUID | None = Query(
+        default=None, description="Optional business category"
+    ),
+    analysis_run_id: UUID | None = Query(default=None, description="Optional analysis run ID"),
+    db: Session = Depends(get_session),
+):
+    """Perform market analysis for a village location specified by path parameter."""
+    return MarketService.analyze_village_market(
+        db=db,
+        village_id=village_id,
+        radii_km=radii,
+        target_conversion_rate=target_conversion_rate,
+        business_category_id=business_category_id,
+        analysis_run_id=analysis_run_id,
+    )
 
 
 @router.get("/analyses/{analysis_run_id}", response_model=list[MarketAnalysisResponse])
