@@ -591,15 +591,20 @@ class MarketService:
         target_lat = lat
         target_lng = lng
 
-        if village_id is not None:
+        if (target_lat is None or target_lng is None) and village_id is not None:
             village = db.get(Village, village_id)
-            if village:
-                target_lat = village.latitude if village.latitude is not None else 19.75
-                target_lng = village.longitude if village.longitude is not None else 75.71
+            if not village:
+                raise HTTPException(
+                    status_code=404, detail=f"Village with id {village_id} not found"
+                )
+            target_lat = target_lat if target_lat is not None else village.latitude
+            target_lng = target_lng if target_lng is not None else village.longitude
 
         if target_lat is None or target_lng is None:
-            target_lat = 19.75
-            target_lng = 75.71
+            raise HTTPException(
+                status_code=400,
+                detail="Location coordinates (lat, lng) or a valid village_id are required for competition analysis.",
+            )
 
         # Resolve category name if ID provided
         resolved_category_name = category_name

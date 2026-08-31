@@ -4,6 +4,8 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+import pytest
+
 from app.market.competition import analyze_competition
 from app.schemas.market import CompetitionAnalysisDetailResponse
 from app.services.market_service import MarketService
@@ -216,6 +218,17 @@ class TestMarketServiceCompetitionOrchestration:
             assert res.businesses_within_10km == 1
             assert res.target_category == "Dairy"
             assert res.quality_indicator["verified_records_count"] == 1
+
+    def test_missing_coordinates_and_village_raises_400(self):
+        """When no lat/lng and no village_id are provided, raise HTTPException 400."""
+        from fastapi import HTTPException
+
+        mock_db = MagicMock()
+        with pytest.raises(HTTPException) as exc_info:
+            MarketService.analyze_competition_for_location(db=mock_db)
+
+        assert exc_info.value.status_code == 400
+        assert "required for competition analysis" in exc_info.value.detail
 
 
 class TestCompetitionAPIEndpoints:
