@@ -18,6 +18,7 @@ from app.schemas.rag import RAGQueryRequest, RAGQueryResponse
 
 logger = logging.getLogger(__name__)
 
+# Supported ISO 639-1 language codes for document ingestion
 VALID_LANGUAGES = {"en", "hi", "te", "ta", "ka", "mr", "gu", "bn", "pa", "ml", "kn", "or"}
 
 # Re-export exceptions for convenience
@@ -41,7 +42,7 @@ def load_document(
     source_name: str = "Official Department",
     source_url: str | None = None,
     document_type: str = "scheme_guideline",
-    language: str = "hi",
+    language: str = "en",
     document_version: str | None = None,
 ) -> Document | None:
     """
@@ -56,7 +57,7 @@ def load_document(
         source_name: Official publisher or department name.
         source_url: Reference URL for source document.
         document_type: Category of document (e.g. scheme_guideline).
-        language: ISO language code (default 'hi').
+        language: ISO language code (default 'en').
         document_version: Version identifier string.
 
     Returns:

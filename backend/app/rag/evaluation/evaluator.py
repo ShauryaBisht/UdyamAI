@@ -15,11 +15,16 @@ logger = logging.getLogger(__name__)
 
 @lru_cache(maxsize=256)
 def _compile_metric_pattern(metric: str) -> re.Pattern:
-    """Compiles metric regex pattern with smart word boundaries cached for performance."""
+    """Compiles metric regex pattern with smart word boundaries for alphanumeric boundary ends."""
     m = metric.strip()
     escaped = re.escape(m)
-    prefix = r"\b" if re.match(r"^\w", m) else ""
-    suffix = r"\b" if re.search(r"\w$", m) else ""
+
+    has_word_start = bool(re.match(r"^[a-zA-Z0-9]", m))
+    has_word_end = bool(re.search(r"[a-zA-Z0-9]$", m))
+
+    prefix = r"\b" if has_word_start else ""
+    suffix = r"\b" if has_word_end else ""
+
     return re.compile(prefix + escaped + suffix, re.IGNORECASE)
 
 
@@ -92,16 +97,25 @@ def evaluate_retrieval(
     score_threshold: float = 0.50,
 ) -> EvaluationReport:
     """
-    Evaluates RAG retrieval performance over a benchmark dataset using Recall@K and Precision@K.
+    Evaluates RAG retrieval performance using Recall@K, Precision@K, and Status Accuracy.
+
+    Features:
+    - Metric-grounded recall: counts matched ground-truth metrics / total metrics
+    - Multi-source conflict detection: identifies contradictory values across documents
+    - Scheme resolution: exact match first, then case-insensitive fallback
+    - Graceful error handling: catches retrieval exceptions and logs them
 
     Args:
         db: Active SQLModel database session containing indexed documents and chunks.
         eval_dataset: List of test case dictionaries from dataset.py.
         top_k: Max chunks retrieved per query.
-        score_threshold: Minimum cosine similarity score (default 0.50 corresponds to ~60° angular similarity cutoff).
+        score_threshold: Minimum cosine similarity score (0.50 corresponds to ~60° angular similarity cutoff).
 
     Returns:
         Structured EvaluationReport.
+
+    Raises:
+        None - exceptions are caught and reported in results.
     """
     if not eval_dataset:
         return EvaluationReport(
@@ -134,9 +148,9 @@ def evaluate_retrieval(
         expected_doc = item.get("expected_document_title")
         expected_sec = item.get("expected_section")
         gt_metrics = [
-            m.strip()
+            str(m).strip()
             for m in item.get("ground_truth_metrics", [])
-            if m and isinstance(m, str) and m.strip()
+            if m is not None and str(m).strip()
         ]
         is_missing = item.get("is_missing", False)
         is_conflicting = item.get("is_conflicting", False)
@@ -191,7 +205,7 @@ def evaluate_retrieval(
             has_multi_source_conflict = _detect_conflicting_values(retrieved_items, gt_metrics)
             if not has_multi_source_conflict and len(retrieved_items) > 1:
                 logger.debug(
-                    f"Query evaluation '{q_id}': Conflicting sources status detected for query."
+                    f"Query '{q_id}': Expected conflicting_sources but found compatible values across sources."
                 )
 
         # Metric-grounded Recall@K & Precision@K calculations
@@ -210,46 +224,45 @@ def evaluate_retrieval(
                 q_recall = 0.0
                 q_precision = 0.0
             else:
-                relevant_retrieved = 0
-                all_retrieved_text = " ".join([ev.text for ev in retrieved_items])
-
                 # Check ground-truth metric ratio for Recall
                 if gt_metrics:
-                    matched_gt_count = sum(
-                        1 for m in gt_metrics if _is_metric_in_text(m, all_retrieved_text)
-                    )
+                    matched_gt_count = 0
+                    for m in gt_metrics:
+                        if any(_is_metric_in_text(m, ev.text) for ev in retrieved_items):
+                            matched_gt_count += 1
                     q_recall = matched_gt_count / len(gt_metrics)
                 else:
                     doc_sec_match = any(
                         (
                             expected_doc
                             and ev.source
-                            and ev.source.title
-                            and expected_doc.lower() in ev.source.title.lower()
+                            and getattr(ev.source, "title", None)
+                            and expected_doc.lower() in str(ev.source.title).lower()
                         )
                         or (
                             expected_sec
                             and ev.source
-                            and ev.source.section_title
-                            and expected_sec.lower() in ev.source.section_title.lower()
+                            and getattr(ev.source, "section_title", None)
+                            and expected_sec.lower() in str(ev.source.section_title).lower()
                         )
                         for ev in retrieved_items
                     )
                     q_recall = 1.0 if doc_sec_match else 0.0
 
                 # Precision calculation over retrieved items
+                relevant_retrieved = 0
                 for ev in retrieved_items:
                     doc_title_match = (
                         expected_doc
                         and ev.source
-                        and ev.source.title
-                        and (expected_doc.lower() in ev.source.title.lower())
+                        and getattr(ev.source, "title", None)
+                        and (expected_doc.lower() in str(ev.source.title).lower())
                     )
                     sec_title_match = (
                         expected_sec
                         and ev.source
-                        and ev.source.section_title
-                        and (expected_sec.lower() in ev.source.section_title.lower())
+                        and getattr(ev.source, "section_title", None)
+                        and (expected_sec.lower() in str(ev.source.section_title).lower())
                     )
                     metric_match = (
                         any(_is_metric_in_text(m, ev.text) for m in gt_metrics)

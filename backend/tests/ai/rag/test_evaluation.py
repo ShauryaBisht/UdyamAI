@@ -12,6 +12,7 @@ from app.rag.evaluation.evaluator import EvaluationReport, evaluate_retrieval
 
 settings.OPENAI_API_KEY = "mock-openai-key-for-testing"
 EMBEDDING_DIM = getattr(settings, "EMBEDDING_DIMENSION", 1536)
+assert EMBEDDING_DIM > 0, "Invalid embedding dimension"
 
 
 def _make_vector(active_idx: int, dim: int = EMBEDDING_DIM) -> list[float]:

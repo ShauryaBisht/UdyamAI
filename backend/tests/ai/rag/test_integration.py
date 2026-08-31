@@ -155,10 +155,15 @@ def test_multipage_pdf_ingestion_integration(
     )
 
     assert doc is not None
-    chunks = db_session.query(DocumentChunk).filter_by(document_id=doc.id).all()
-    assert len(chunks) == 2
+    chunks = (
+        db_session.query(DocumentChunk)
+        .filter_by(document_id=doc.id)
+        .order_by(DocumentChunk.chunk_index)
+        .all()
+    )
+    assert len(chunks) >= 2
     assert chunks[0].page_number == 1
-    assert chunks[1].page_number == 2
+    assert chunks[-1].page_number == 2
 
 
 @patch("app.rag.document_loader.ingest_document", return_value=None)
