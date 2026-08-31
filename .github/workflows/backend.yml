@@ -44,10 +44,14 @@ jobs:
         alembic upgrade head
         alembic current
       env:
+        DATABASE_URL: sqlite:///./test.db
         SQLALCHEMY_DATABASE_URL: sqlite:///./test.db
 
     - name: Run Tests
       run: |
         cd backend
         pytest -v
+      env:
+        DATABASE_URL: sqlite:///./test.db
+        SQLALCHEMY_DATABASE_URL: sqlite:///./test.db
 

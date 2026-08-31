@@ -21,7 +21,7 @@ target_metadata = SQLModel.metadata
 
 
 def run_migrations_offline() -> None:
-    url = settings.DATABASE_URL
+    url = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URL") or settings.DATABASE_URL
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -34,8 +34,9 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    url = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URL") or settings.DATABASE_URL
     configuration = config.get_section(config.config_ini_section) or {}
-    configuration["sqlalchemy.url"] = settings.DATABASE_URL
+    configuration["sqlalchemy.url"] = url
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
