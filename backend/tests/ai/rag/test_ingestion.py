@@ -2,6 +2,7 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
+from pypdf.errors import PdfReadError
 
 import pytest
 from sqlmodel import Session, create_engine, select
@@ -95,7 +96,7 @@ def test_parse_pdf_encrypted(mock_pdf_reader, temp_file):
 
 @patch("app.rag.document_parser.pypdf.PdfReader")
 def test_parse_pdf_corrupted(mock_pdf_reader, temp_file):
-    mock_pdf_reader.side_effect = Exception("Corrupt headers")
+    mock_pdf_reader.side_effect = PdfReadError("Corrupt headers")
 
     with pytest.raises(CorruptedPDFError):
         parse_pdf(temp_file)
@@ -404,3 +405,207 @@ def test_ingest_document_retry_no_duplicate_chunks(mock_embed, mock_parse, db_se
     assert len(db_doc.chunks) == 2
     assert db_doc.chunks[0].content == "New chunk text 1"
     assert db_doc.chunks[1].content == "New chunk text 2"
+
+
+# --- 5. New Tests for Rate Limiting, Token Counter, Heading Detection, PDF Integration ---
+
+from app.rag.token_counter import count_tokens, count_tokens_batch, estimate_embedding_cost
+from app.rag.embeddings import EmbeddingRateLimiter
+import io
+
+
+def test_token_counter_basic():
+    # Basic token counter verification
+    text = "Hello world! This is a test."
+    tokens = count_tokens(text)
+    assert tokens > 0
+    
+    batch = ["First text chunk", "Second chunk here"]
+    batch_tokens = count_tokens_batch(batch)
+    assert batch_tokens == count_tokens(batch[0]) + count_tokens(batch[1])
+    
+    cost = estimate_embedding_cost(1000000)
+    assert abs(cost - 0.02) < 1e-9
+
+
+def test_rate_limiter_budget_check():
+    # Enforces monthly budget limits
+    limiter = EmbeddingRateLimiter(
+        max_tokens_per_minute=1000,
+        monthly_budget_cents=10,  # $0.10 i.e. 5 million tokens
+        alert_threshold_percent=80
+    )
+    
+    # 6 million tokens = 12 cents cost. This should raise budget exceeded ValueError
+    with pytest.raises(ValueError) as excinfo:
+        limiter.check_token_budget(6000000)
+    assert "budget exceeded" in str(excinfo.value)
+
+
+@patch("app.rag.embeddings.time.sleep")
+def test_rate_limiter_minute_window(mock_sleep):
+    # Enforces tokens per minute sleep block
+    limiter = EmbeddingRateLimiter(
+        max_tokens_per_minute=100,
+        monthly_budget_cents=5000,
+        alert_threshold_percent=80
+    )
+    
+    # First batch uses 60 tokens (fine, no sleep)
+    limiter.wait_for_rate_limit(60)
+    assert mock_sleep.call_count == 0
+    
+    # Second batch tries 50 tokens (total 110, exceeds 100 limit, should sleep)
+    limiter.wait_for_rate_limit(50)
+    assert mock_sleep.call_count == 1
+
+
+def test_heading_heuristic_detection():
+    # Verify various heading heuristic formats
+    doc_id = uuid4()
+    
+    # 1. Markdown Heading
+    chunks = chunk_document(
+        pages=[{"page_number": 1, "text": "# Section Heading 1\nSome details here."}],
+        document_id=doc_id,
+        source_title="Test Title",
+        chunk_size=100,
+        chunk_overlap=10
+    )
+    assert chunks[0]["section_heading"] == "# Section Heading 1"
+
+    # 2. Numbered Heading
+    chunks = chunk_document(
+        pages=[{"page_number": 1, "text": "1.2 Introduction\nSome details here."}],
+        document_id=doc_id,
+        source_title="Test Title",
+        chunk_size=100,
+        chunk_overlap=10
+    )
+    assert chunks[0]["section_heading"] == "1.2 Introduction"
+
+    # 3. Hindi Numbered Heading
+    chunks = chunk_document(
+        pages=[{"page_number": 1, "text": "१. प्रस्तावना\nSome details here."}],
+        document_id=doc_id,
+        source_title="Test Title",
+        chunk_size=100,
+        chunk_overlap=10
+    )
+    assert chunks[0]["section_heading"] == "१. प्रस्तावना"
+
+    # 4. Keyword heading (English/Hindi)
+    chunks = chunk_document(
+        pages=[{"page_number": 1, "text": "Chapter Three: Rules\nSome details here."}],
+        document_id=doc_id,
+        source_title="Test Title",
+        chunk_size=100,
+        chunk_overlap=10
+    )
+    assert chunks[0]["section_heading"] == "Chapter Three: Rules"
+
+    chunks = chunk_document(
+        pages=[{"page_number": 1, "text": "अध्याय २: पात्रता\nSome details here."}],
+        document_id=doc_id,
+        source_title="Test Title",
+        chunk_size=100,
+        chunk_overlap=10
+    )
+    assert chunks[0]["section_heading"] == "अध्याय २: पात्रता"
+
+    # 5. UPPERCASE English Heading
+    chunks = chunk_document(
+        pages=[{"page_number": 1, "text": "ELIGIBILITY CRITERIA\nSome details here."}],
+        document_id=doc_id,
+        source_title="Test Title",
+        chunk_size=100,
+        chunk_overlap=10
+    )
+    assert chunks[0]["section_heading"] == "ELIGIBILITY CRITERIA"
+
+    # 6. Colon endings
+    chunks = chunk_document(
+        pages=[{"page_number": 1, "text": "Eligibility Guidelines:\nSome details here."}],
+        document_id=doc_id,
+        source_title="Test Title",
+        chunk_size=100,
+        chunk_overlap=10
+    )
+    assert chunks[0]["section_heading"] == "Eligibility Guidelines:"
+
+    # 7. Non-heading (regular sentence fragment)
+    chunks = chunk_document(
+        pages=[{"page_number": 1, "text": "the quick brown fox jumped over the lazy dog."}],
+        document_id=doc_id,
+        source_title="Test Title",
+        chunk_size=100,
+        chunk_overlap=10
+    )
+    assert chunks[0]["section_heading"] is None
+
+
+def test_parse_pdf_real_scanned_file_integration():
+    # Writes minimal valid PDF bytes and tests real integration parsing
+    # This should trigger ScannedPDFError since it contains no extractable text
+    minimal_pdf_bytes = (
+        b"%PDF-1.4\n"
+        b"1 0 obj <</Type /Catalog /Pages 2 0 R>> endobj\n"
+        b"2 0 obj <</Type /Pages /Kids [3 0 R] /Count 1>> endobj\n"
+        b"3 0 obj <</Type /Page /Parent 2 0 R /Resources <<>> /MediaBox [0 0 612 792] /Contents 4 0 R>> endobj\n"
+        b"4 0 obj <</Length 21>> stream\n"
+        b"BT /F1 12 Tf ET\n"
+        b"endstream\n"
+        b"endobj\n"
+        b"xref\n"
+        b"0 5\n"
+        b"0000000000 65535 f\n"
+        b"0000000009 00000 n\n"
+        b"0000000056 00000 n\n"
+        b"0000000111 00000 n\n"
+        b"0000000212 00000 n\n"
+        b"trailer <</Size 5 /Root 1 0 R>>\n"
+        b"startxref\n"
+        b"282\n"
+        b"%%EOF"
+    )
+    
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        tmp.write(minimal_pdf_bytes)
+        tmp_name = tmp.name
+        
+    try:
+        with pytest.raises(ScannedPDFError):
+            parse_pdf(tmp_name)
+    finally:
+        os.remove(tmp_name)
+
+
+def test_config_defaults():
+    # Validate defaults are loaded correctly
+    assert settings.RAG_CHUNK_SIZE == 800
+    assert settings.RAG_CHUNK_OVERLAP == 150
+    assert settings.RAG_EMBEDDING_MODEL == "text-embedding-3-small"
+    assert settings.RAG_EMBEDDING_BATCH_SIZE == 50
+    assert settings.RAG_EMBEDDING_MAX_TOKENS_PER_MINUTE == 150000
+    assert settings.RAG_EMBEDDING_MONTHLY_BUDGET_CENTS == 5000
+
+
+@patch("app.rag.knowledge_base.parse_pdf")
+@patch("app.rag.knowledge_base.generate_embeddings")
+def test_ingest_document_mismatch_exception(mock_embed, mock_parse, db_session, temp_file):
+    # Mocking parser to return 2 chunks
+    mock_parse.return_value = [
+        {"page_number": 1, "text": "Page text chunk 1"},
+        {"page_number": 2, "text": "Page text chunk 2"}
+    ]
+    # Mocking embeddings to fail by returning only 1 embedding instead of 2
+    mock_embed.return_value = [[0.0] * 1536]
+    
+    with pytest.raises(ValueError) as excinfo:
+        ingest_document(
+            db=db_session,
+            file_path=temp_file,
+            title="Mismatch Test Doc"
+        )
+    assert "Embedding count mismatch" in str(excinfo.value)
+

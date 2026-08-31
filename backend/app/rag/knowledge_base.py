@@ -1,12 +1,16 @@
 import hashlib
+import logging
 from uuid import UUID
 
 from sqlmodel import Session, select
 
+from app.config import settings
 from app.models.rag import Document, DocumentChunk
 from app.rag.chunker import chunk_document
 from app.rag.document_parser import parse_pdf
 from app.rag.embeddings import generate_embeddings
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_sha256(file_path: str) -> str:
@@ -34,19 +38,29 @@ def ingest_document(
     Calculates SHA-256 hash to skip duplicates. If new, parses PDF,
     creates chunks, generates vector embeddings, and stores them in PostgreSQL.
     """
+    # Pre-flight check: validate OPENAI_API_KEY upfront
+    if not settings.OPENAI_API_KEY:
+        logger.error("Ingestion aborted: OPENAI_API_KEY environment variable is not set.")
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+
+    logger.info(f"Initiating ingestion pipeline for document '{title}' (file: {file_path})")
+
     content_hash = calculate_sha256(file_path)
 
     # 1. Parse the PDF page-by-page first to generate chunk candidate data
     pages = parse_pdf(file_path)
-
-    # 2. Query the document by content hash
-    statement = select(Document).where(Document.content_hash == content_hash)
-    existing_doc = db.exec(statement).first()
+    logger.info(f"PDF parsed. Found {len(pages)} pages.")
 
     db_doc = None
 
     try:
+        # 2. Query the document by content hash using row-level locking (with_for_update)
+        statement = select(Document).where(Document.content_hash == content_hash).with_for_update()
+        existing_doc = db.exec(statement).first()
+
         if existing_doc:
+            logger.info(f"Found existing document with content hash: {content_hash}. Verifying completeness...")
+            
             # Query existing chunks count in database
             chunks_stmt = select(DocumentChunk).where(DocumentChunk.document_id == existing_doc.id)
             existing_chunks = db.exec(chunks_stmt).all()
@@ -63,9 +77,15 @@ def ingest_document(
             # Verify completeness: does chunk count match expected?
             if len(chunks_data) > 0 and len(existing_chunks) == len(chunks_data):
                 # Genuinely complete! Return None to indicate skipped
+                logger.info(f"Document '{title}' ({content_hash}) is already complete with {len(existing_chunks)} chunks. Skipping ingestion.")
                 return None
 
             # If chunk count doesn't match expected or is 0, we treat it as incomplete and rebuild
+            logger.warning(
+                f"Document '{title}' ({content_hash}) is incomplete. "
+                f"Expected: {len(chunks_data)} chunks, Found in DB: {len(existing_chunks)} chunks. "
+                f"Wiping existing chunks and rebuilding..."
+            )
             db_doc = existing_doc
 
             # Clean up all existing chunks associated with this document ID
@@ -75,6 +95,7 @@ def ingest_document(
             db.flush()
         else:
             # If completely new document
+            logger.info(f"Ingesting completely new document: '{title}' ({content_hash})")
             db_doc = Document(
                 title=title,
                 source_name=source_name,
@@ -103,7 +124,16 @@ def ingest_document(
             texts = [chunk["content"] for chunk in chunks_data]
             embeddings = generate_embeddings(texts)
 
+            # Ensure embedding count exactly matches chunk count
+            if len(embeddings) != len(chunks_data):
+                logger.error(f"Embedding count mismatch. Generated {len(embeddings)} embeddings for {len(chunks_data)} chunks.")
+                raise ValueError(
+                    f"Embedding count mismatch. Expected {len(chunks_data)} embeddings, "
+                    f"but got {len(embeddings)}."
+                )
+
             # Store chunks along with their vector embeddings in pgvector
+            logger.info(f"Storing {len(chunks_data)} chunks in database...")
             for i, chunk in enumerate(chunks_data):
                 db_chunk = DocumentChunk(
                     document_id=db_doc.id,
@@ -112,15 +142,17 @@ def ingest_document(
                     content=chunk["content"],
                     page_number=chunk["page_number"],
                     section_title=chunk["section_heading"],
-                    embedding=embeddings[i] if i < len(embeddings) else None,
+                    embedding=embeddings[i],
                 )
                 db.add(db_chunk)
 
         # Commit everything atomically at the end
         db.commit()
         db.refresh(db_doc)
+        logger.info(f"Successfully ingested and committed document '{title}' (ID: {db_doc.id})")
         return db_doc
 
     except Exception as e:
+        logger.error(f"Error during ingestion of '{title}' (file: {file_path}): {str(e)}", exc_info=True)
         db.rollback()
         raise e

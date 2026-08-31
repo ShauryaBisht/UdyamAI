@@ -1,7 +1,11 @@
+import logging
+import re
 from typing import Any
 from uuid import UUID
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def chunk_document(
@@ -37,6 +41,8 @@ def chunk_document(
     if overlap < 0 or overlap >= size:
         raise ValueError("chunk_overlap must be non-negative and strictly less than chunk_size")
 
+    logger.info(f"Chunking document {document_id} ('{source_title}') with size={size}, overlap={overlap}")
+
     chunks = []
     chunk_index = 0
 
@@ -45,6 +51,7 @@ def chunk_document(
         text = page_data["text"]
 
         if not text:
+            logger.debug(f"Skipping empty text on page {page_num}")
             continue
 
         # Perform sliding window on the page text
@@ -55,9 +62,13 @@ def chunk_document(
             end = start + size
             chunk_text = text[start:end].strip()
 
-            # Avoid empty chunks at the very end of text if any
+            # Avoid infinite loop if chunk_text is empty
             if not chunk_text:
-                break
+                if start + size >= text_len:
+                    break
+                # Advance window step to avoid getting stuck on white space
+                start += size - overlap
+                continue
 
             # Identify optional section headings: check if the first line starts with a title-like format
             lines = chunk_text.split("\n")
@@ -65,7 +76,22 @@ def chunk_document(
             if lines:
                 first_line = lines[0].strip()
                 if 0 < len(first_line) < 100:
-                    section_heading = first_line
+                    # Robust Heading Check:
+                    # 1. Starts with Markdown header (#)
+                    # 2. Ends with a colon (:)
+                    # 3. Starts with standard section numbering (e.g. 1. , 1.2 , A. , I. , १. )
+                    # 4. Starts with section-like keywords (English or Hindi)
+                    # 5. Is in all uppercase (between 5 and 80 characters, English only)
+                    is_heading = (
+                        first_line.startswith("#") or
+                        first_line.endswith(":") or
+                        re.match(r"^(Chapter|Section|Part|Annexure|Appendix|Table|अध्याय|अनुभाग|भाग)\b", first_line, re.IGNORECASE) or
+                        re.match(r"^(\d+|[०-९]+)(\.(\d+|[०-९]+))*\s*[\s:.-]", first_line) or
+                        re.match(r"^([A-Z]|[IVXLCDM]+)\s*\.\s+", first_line) or
+                        (first_line.isupper() and len(first_line) >= 5)
+                    )
+                    if is_heading:
+                        section_heading = first_line
 
             chunks.append(
                 {
@@ -88,4 +114,5 @@ def chunk_document(
 
             start += size - overlap
 
+    logger.info(f"Generated {len(chunks)} chunks for document {document_id}")
     return chunks

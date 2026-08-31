@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     # RAG Configuration
     RAG_CHUNK_SIZE: int = 800
     RAG_CHUNK_OVERLAP: int = 150
+    RAG_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    RAG_EMBEDDING_BATCH_SIZE: int = 50
+    RAG_EMBEDDING_MAX_TOKENS_PER_MINUTE: int = 150000
+    RAG_EMBEDDING_MONTHLY_BUDGET_CENTS: int = 5000  # $50/month
+    RAG_EMBEDDING_ALERT_THRESHOLD_PERCENT: int = 80
+
+    # API Rate Limiting Configuration
+    API_RATE_LIMIT_REQUESTS: int = 100
+    API_RATE_LIMIT_WINDOW: int = 60
 
     # Security Configuration
     SECRET_KEY: str = "supersecretjwtkey"
