@@ -50,6 +50,82 @@ class LocationQuery(BaseModel):
     offset: int = Field(default=0, ge=0, description="Pagination offset")
 
 
+# --- Normalization Schemas ---
+
+
+class NormalizeRequest(BaseModel):
+    """Request to normalize a raw location name."""
+
+    name: str = Field(..., min_length=1, max_length=200, description="Raw location name to normalize")
+    level: str = Field(
+        default="village",
+        pattern=r"^(district|taluka|gram_panchayat|village)$",
+        description="Location hierarchy level",
+    )
+
+
+class NormalizeResponse(BaseModel):
+    """Response from name normalization."""
+
+    original: str
+    normalized: str
+    level: str
+
+
+# --- Deduplication Schemas ---
+
+
+class DedupGroupRecord(BaseModel):
+    """A single record within a dedup group."""
+
+    id: UUID
+    name: str
+    normalized: str
+    lgd_code: str | None = None
+
+
+class DedupGroup(BaseModel):
+    """A group of potential duplicate locations."""
+
+    normalized_name: str
+    count: int
+    records: list[DedupGroupRecord]
+    district_id: str | None = None
+    taluka_id: str | None = None
+
+
+class DedupDetectResponse(BaseModel):
+    """Response from dedup detection."""
+
+    level: str
+    total_groups: int
+    groups: list[DedupGroup]
+
+
+class MergeRequest(BaseModel):
+    """Request to merge duplicate locations into one canonical record."""
+
+    keep_id: UUID = Field(..., description="UUID of the record to keep (canonical)")
+    merge_ids: list[UUID] = Field(
+        ..., min_length=1, description="UUIDs of duplicate records to merge into keep_id"
+    )
+    level: str = Field(
+        default="village",
+        pattern=r"^(district|taluka|gram_panchayat|village)$",
+        description="Location hierarchy level",
+    )
+
+
+class MergeResponse(BaseModel):
+    """Response from a merge operation."""
+
+    keep_id: UUID
+    merged_count: int
+    summary: dict[str, int]
+
+
+
+
 # --- Nearby Query & Response Schemas ---
 
 
