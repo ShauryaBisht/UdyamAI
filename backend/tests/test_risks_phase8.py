@@ -20,7 +20,7 @@ class TestPhase8RiskIndicatorsEngine:
 
         target_risk = next(r for r in res["risks"] if r["risk_type"] == "high_competitor_density")
         assert target_risk["severity"] == "medium"
-        assert "6.50 competitors/km²" in target_risk["evidence"]
+        assert target_risk["value"] == 6.5
         assert target_risk["source"] == "Normalized Business Registry"
 
     def test_high_competitor_density_high_severity(self):
@@ -28,6 +28,7 @@ class TestPhase8RiskIndicatorsEngine:
         res = assess_market_risks(competition_density=12.0)
         target_risk = next(r for r in res["risks"] if r["risk_type"] == "high_competitor_density")
         assert target_risk["severity"] == "high"
+        assert target_risk["value"] == 12.0
 
     def test_seasonal_market_trigger(self):
         """Triggers seasonal_market when is_seasonal is True or volatility is seasonal."""
@@ -38,6 +39,7 @@ class TestPhase8RiskIndicatorsEngine:
 
         target_risk = next(r for r in res["risks"] if r["risk_type"] == "seasonal_market")
         assert target_risk["severity"] == "medium"
+        assert target_risk["value"] == 0.30
         assert target_risk["source"] == "Agmarknet & Crop Seasonality Data"
 
     def test_low_market_access_trigger_distant(self):
@@ -51,7 +53,7 @@ class TestPhase8RiskIndicatorsEngine:
 
         target_risk = next(r for r in res["risks"] if r["risk_type"] == "low_market_access")
         assert target_risk["severity"] == "medium"
-        assert "14.5km" in target_risk["evidence"]
+        assert target_risk["value"] == 14.5
         assert target_risk["source"] == "Market & Mandi Registry"
 
     def test_low_market_access_trigger_zero_markets(self):
