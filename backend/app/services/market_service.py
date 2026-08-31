@@ -13,8 +13,6 @@ from fastapi import HTTPException
 from sqlalchemy import or_
 from sqlmodel import Session, col, select
 
-logger = logging.getLogger(__name__)
-
 from app.geo.nearby_businesses import find_nearby_businesses
 from app.geo.nearby_facilities import find_nearby_facilities
 from app.geo.nearby_markets import find_nearby_markets
@@ -40,6 +38,8 @@ from app.schemas.market import (
     NearbyMarketSummary,
     RadiusMarketAnalysisResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class MarketService:
@@ -541,7 +541,7 @@ class MarketService:
                 raise HTTPException(
                     status_code=500,
                     detail=f"Database commit error while persisting market analysis: {e}",
-                )
+                ) from e
 
         return LocationMarketAnalysisResponse(
             village_id=village.id,
