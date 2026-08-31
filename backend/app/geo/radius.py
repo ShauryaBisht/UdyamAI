@@ -9,8 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from geoalchemy2 import Geography
-from sqlalchemy import literal_column
-from sqlalchemy import func
+from sqlalchemy import func, literal_column
 from sqlalchemy.sql.elements import ClauseElement
 from sqlmodel import Session, select
 
@@ -39,7 +38,9 @@ def _introspect_geo_column(model: type) -> str | None:
         sa_col = getattr(attr, "property", None)
         if sa_col is None:
             continue
-        col_type = getattr(sa_col.columns[0].type if hasattr(sa_col, "columns") else sa_col, "type", None)
+        col_type = getattr(
+            sa_col.columns[0].type if hasattr(sa_col, "columns") else sa_col, "type", None
+        )
         if isinstance(col_type, Geography):
             return attr_name
     return None
@@ -118,13 +119,10 @@ def find_within_radius(
     geom = getattr(model, geo_col)
     point = func.ST_SetSRID(func.ST_MakePoint(lng, lat), 4326)
 
-    stmt = (
-        select(
-            model,
-            func.ST_Distance(geom, point).label("distance_meters"),
-        )
-        .where(func.ST_DWithin(geom, point, radius_meters))
-    )
+    stmt = select(
+        model,
+        func.ST_Distance(geom, point).label("distance_meters"),
+    ).where(func.ST_DWithin(geom, point, radius_meters))
 
     # Apply additional non-spatial filters in the DB
     if filters:

@@ -586,7 +586,13 @@ class TestFindNearbyFacilities:
 
         assert len(results) == 2
         mock_radius.assert_called_once_with(
-            db=mock_db, model=Infrastructure, lat=18.52, lng=73.85, radius_km=10.0, limit=50, filters=None
+            db=mock_db,
+            model=Infrastructure,
+            lat=18.52,
+            lng=73.85,
+            radius_km=10.0,
+            limit=50,
+            filters=None,
         )
 
     @patch("app.geo.nearby_facilities.find_within_radius")
@@ -622,7 +628,13 @@ class TestFindNearbyFacilities:
 
         # Should be capped to 50
         mock_radius.assert_called_once_with(
-            db=mock_db, model=Infrastructure, lat=18.52, lng=73.85, radius_km=50.0, limit=50, filters=None
+            db=mock_db,
+            model=Infrastructure,
+            lat=18.52,
+            lng=73.85,
+            radius_km=50.0,
+            limit=50,
+            filters=None,
         )
 
     @patch("app.geo.nearby_facilities.find_within_radius")
