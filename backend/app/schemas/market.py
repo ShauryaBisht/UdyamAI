@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class MarketResponse(BaseModel):
@@ -66,12 +66,69 @@ class CompetitorAnalysisResponse(BaseModel):
     radius_km: float | None = None
     competitor_count: int | None = None
     competition_density: float | None = None
+    businesses_within_5km: int | None = None
+    businesses_within_10km: int | None = None
     competitor_distribution: dict[str, Any] | None = None
     identified_gaps: dict[str, Any] | None = None
+    quality_indicator: dict[str, Any] | None = None
     data_confidence: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class MarketProvenanceInfo(BaseModel):
+    dataset_name: str
+    source: str | None = None
+    source_url: str | None = None
+    data_year: int | None = None
+    record_count: int = 0
+    confidence_score: str = "medium"
+
+
+class CompetitionAnalysisRequest(BaseModel):
+    village_id: UUID | None = Field(
+        default=None, description="Optional target village location UUID"
+    )
+    latitude: float | None = Field(
+        default=None, ge=-90.0, le=90.0, description="Optional latitude center point"
+    )
+    longitude: float | None = Field(
+        default=None, ge=-180.0, le=180.0, description="Optional longitude center point"
+    )
+    radius_km: float = Field(
+        default=10.0, ge=0.1, le=50.0, description="Primary analysis radius in km"
+    )
+    business_category_id: UUID | None = Field(
+        default=None, description="Optional target BusinessCategory UUID"
+    )
+    category_name: str | None = Field(
+        default=None, description="Optional target category name (e.g. Dairy)"
+    )
+
+    @model_validator(mode="after")
+    def validate_location(self) -> "CompetitionAnalysisRequest":
+        if not self.village_id and (self.latitude is None or self.longitude is None):
+            raise ValueError(
+                "Either village_id or both latitude and longitude coordinates must be provided."
+            )
+        return self
+
+
+class CompetitionAnalysisDetailResponse(BaseModel):
+    competitor_count: int = Field(..., description="Direct competitors in selected category")
+    competitor_density: float = Field(..., description="Competitors per square km")
+    businesses_within_5km: int = Field(..., description="Competitor count within 5km distance")
+    businesses_within_10km: int = Field(..., description="Competitor count within 10km distance")
+    total_businesses_in_radius: int = Field(
+        ..., description="Total commercial establishments in radius"
+    )
+    target_category: str | None = None
+    category_distribution: dict[str, int] = Field(default_factory=dict)
+    identified_market_gaps: list[str] = Field(default_factory=list)
+    quality_indicator: dict[str, Any] = Field(default_factory=dict)
+    data_confidence: str = "medium"
+    provenance: list[MarketProvenanceInfo] = Field(default_factory=list)
 
 
 class PriceHistoryResponse(BaseModel):
@@ -105,15 +162,6 @@ class MarketAnalysisRequest(BaseModel):
         default=None,
         description="Optional analysis run UUID to link and persist MarketAnalysis records",
     )
-
-
-class MarketProvenanceInfo(BaseModel):
-    dataset_name: str
-    source: str | None = None
-    source_url: str | None = None
-    data_year: int | None = None
-    record_count: int = 0
-    confidence_score: str = "medium"
 
 
 class NearbyMarketSummary(BaseModel):
