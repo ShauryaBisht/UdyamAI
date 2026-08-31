@@ -236,6 +236,9 @@ def assess_market_risks(
             }
         )
 
+    # Deterministically sort risks by risk_type key for predictable API output
+    risks.sort(key=lambda r: str(r.get("risk_type")))
+
     # Risk level classification
     risk_score_capped = round(min(overall_risk_score, 10.0), 1)
     if risk_score_capped >= HIGH_RISK_SCORE_THRESHOLD:

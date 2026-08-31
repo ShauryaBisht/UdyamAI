@@ -7,6 +7,7 @@ master Market Analysis orchestrator.
 
 import logging
 from datetime import date
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -44,6 +45,14 @@ from app.schemas.market import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _get_entity_by_id(db: Session, model_cls: type, entity_id: UUID) -> Any:
+    """Safely retrieves an entity by ID supporting SQLModel Session, SQLAlchemy 2.0, and legacy Session APIs."""
+    try:
+        return db.get(model_cls, entity_id)
+    except AttributeError:
+        return db.query(model_cls).get(entity_id)
 
 
 class MarketService:
@@ -226,7 +235,7 @@ class MarketService:
         if not radii_km:
             radii_km = [5.0, 10.0]
 
-        village = db.get(Village, village_id)
+        village = _get_entity_by_id(db, Village, village_id)
         if not village:
             raise HTTPException(status_code=404, detail=f"Village with id {village_id} not found")
 
@@ -611,7 +620,7 @@ class MarketService:
         target_lng = lng
 
         if (target_lat is None or target_lng is None) and village_id is not None:
-            village = db.get(Village, village_id)
+            village = _get_entity_by_id(db, Village, village_id)
             if not village:
                 raise HTTPException(
                     status_code=404, detail=f"Village with id {village_id} not found"
@@ -633,7 +642,7 @@ class MarketService:
         # Resolve category name if ID provided
         resolved_category_name = category_name
         if business_category_id and not resolved_category_name:
-            b_cat = db.get(BusinessCategory, business_category_id)
+            b_cat = _get_entity_by_id(db, BusinessCategory, business_category_id)
             if b_cat:
                 resolved_category_name = b_cat.name
 
@@ -700,7 +709,7 @@ class MarketService:
         target_lng = lng
 
         if (target_lat is None or target_lng is None) and village_id is not None:
-            village = db.get(Village, village_id)
+            village = _get_entity_by_id(db, Village, village_id)
             if not village:
                 raise HTTPException(
                     status_code=404, detail=f"Village with id {village_id} not found"
@@ -735,11 +744,11 @@ class MarketService:
 
         calc_comp_density = competition_density
         if calc_comp_density is None:
-            comp_analysis = analyze_competition(nearby_biz, radius_km=radius_km)
-            calc_comp_density = comp_analysis.get("competition_density_per_km2", 0.0)
+            comp_analysis = analyze_competition(nearby_biz, radius_km=radius_km) or {}
+            calc_comp_density = float(comp_analysis.get("competition_density_per_km2", 0.0) or 0.0)
 
-        infra_analysis = analyze_relevant_infrastructure(nearby_facs)
-        facility_counts = infra_analysis.get("facility_counts_by_type", {})
+        infra_analysis = analyze_relevant_infrastructure(nearby_facs) or {}
+        facility_counts = infra_analysis.get("facility_counts_by_type", {}) or {}
 
         pop_reach = sum(v.get("population", 0) or 0 for v in nearby_vils)
 

@@ -4,7 +4,14 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+try:
+    from pydantic import BaseModel, Field, model_validator
+
+    HAS_PYDANTIC_V2 = True
+except ImportError:
+    from pydantic import BaseModel, Field, root_validator
+
+    HAS_PYDANTIC_V2 = False
 
 
 class MarketResponse(BaseModel):
@@ -106,13 +113,27 @@ class CompetitionAnalysisRequest(BaseModel):
         default=None, description="Optional target category name (e.g. Dairy)"
     )
 
-    @model_validator(mode="after")
-    def validate_location(self) -> "CompetitionAnalysisRequest":
-        if not self.village_id and (self.latitude is None or self.longitude is None):
-            raise ValueError(
-                "Either village_id or both latitude and longitude coordinates must be provided."
-            )
-        return self
+    if HAS_PYDANTIC_V2:
+
+        @model_validator(mode="after")
+        def validate_location(self) -> "CompetitionAnalysisRequest":
+            if not self.village_id and (self.latitude is None or self.longitude is None):
+                raise ValueError(
+                    "Either village_id or both latitude and longitude coordinates must be provided."
+                )
+            return self
+
+    else:
+
+        @root_validator
+        def validate_location_v1(cls, values):
+            if not values.get("village_id") and (
+                values.get("latitude") is None or values.get("longitude") is None
+            ):
+                raise ValueError(
+                    "Either village_id or both latitude and longitude coordinates must be provided."
+                )
+            return values
 
 
 class CompetitionAnalysisDetailResponse(BaseModel):
@@ -252,13 +273,27 @@ class MarketRiskAssessmentRequest(BaseModel):
         default=False, description="Flag indicating seasonal crop/trade market"
     )
 
-    @model_validator(mode="after")
-    def validate_location(self) -> "MarketRiskAssessmentRequest":
-        if not self.village_id and (self.latitude is None or self.longitude is None):
-            raise ValueError(
-                "Either village_id or both latitude and longitude coordinates must be provided."
-            )
-        return self
+    if HAS_PYDANTIC_V2:
+
+        @model_validator(mode="after")
+        def validate_location(self) -> "MarketRiskAssessmentRequest":
+            if not self.village_id and (self.latitude is None or self.longitude is None):
+                raise ValueError(
+                    "Either village_id or both latitude and longitude coordinates must be provided."
+                )
+            return self
+
+    else:
+
+        @root_validator
+        def validate_location_v1(cls, values):
+            if not values.get("village_id") and (
+                values.get("latitude") is None or values.get("longitude") is None
+            ):
+                raise ValueError(
+                    "Either village_id or both latitude and longitude coordinates must be provided."
+                )
+            return values
 
 
 class MarketRiskAssessmentResponse(BaseModel):
