@@ -10,6 +10,7 @@ Verifies:
 """
 
 import pytest
+
 from app.finance.profitability import generate_financial_scenarios
 from app.reports.financial_report import format_financial_scenario_report
 from app.schemas.finance import (
