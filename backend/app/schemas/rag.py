@@ -123,7 +123,10 @@ class RAGQueryResponse(BaseModel):
 
     status: str = Field(
         ...,
-        description="Retrieval status: 'success', 'no_relevant_evidence', or 'conflicting_sources'.",
+        description=(
+            "Retrieval status: 'success', 'no_relevant_evidence', 'conflicting_sources', "
+            "or 'embedding_generation_failed'."
+        ),
     )
     evidence: list[EvidenceItem] = Field(
         default_factory=list, description="List of verified evidence items."

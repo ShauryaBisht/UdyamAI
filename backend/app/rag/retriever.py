@@ -15,6 +15,7 @@ from app.schemas.rag import EvidenceItem, RAGQueryRequest, RAGQueryResponse
 logger = logging.getLogger(__name__)
 
 MAX_QUERY_LENGTH = 2000
+EXPECTED_EMBEDDING_DIMENSION = 1536
 
 
 def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
@@ -47,6 +48,23 @@ def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
     return score
 
 
+def _is_policy_metric(text: str) -> bool:
+    """Checks if an extracted metric text looks policy-relevant (excluding pure years, dates, or version strings)."""
+    cleaned = text.strip()
+    if not cleaned:
+        return False
+    # Skip pure 4-digit years (e.g. 2023, 2024)
+    if re.match(r"^\d{4}$", cleaned):
+        return False
+    # Skip dates like 01/01/2024 or 2024-01-01
+    if re.match(r"^\d{1,4}[./-]\d{1,2}[./-]\d{1,4}$", cleaned):
+        return False
+    # Skip version numbers like v1.0 or v2.1
+    if re.match(r"^v?\d+\.\d+$", cleaned, re.IGNORECASE):
+        return False
+    return True
+
+
 def _detect_metric_conflicts(chunk_doc_tuples: list[tuple[DocumentChunk, Document]]) -> bool:
     """
     Detects whether chunks from multiple distinct active documents for the SAME scheme
@@ -70,13 +88,12 @@ def _detect_metric_conflicts(chunk_doc_tuples: list[tuple[DocumentChunk, Documen
         # Group extracted metrics by document_id within this scheme
         doc_metrics: dict[UUID, set[str]] = {}
         for chunk, doc in group:
-            found_metrics = set(
-                re.findall(
-                    r"\b\d+(?:\.\d+)?%|\b\d+(?:\.\d+)?\s*(?:percent|lakh|crore)s?\b|₹\s*\d+(?:\.\d+)?",
-                    chunk.content,
-                    flags=re.IGNORECASE,
-                )
+            raw_matches = re.findall(
+                r"\b\d+(?:\.\d+)?%|\b\d+(?:\.\d+)?\s*(?:percent|lakh|crore)s?\b|₹\s*\d+(?:\.\d+)?",
+                chunk.content,
+                flags=re.IGNORECASE,
             )
+            found_metrics = set(m for m in raw_matches if _is_policy_metric(m))
             if found_metrics:
                 if doc.id not in doc_metrics:
                     doc_metrics[doc.id] = set()
@@ -121,7 +138,8 @@ def retrieve_evidence(
         effective_date: Optional date filter for document version applicability.
 
     Returns:
-        RAGQueryResponse with status ('success', 'no_relevant_evidence', 'conflicting_sources') and evidence items.
+        RAGQueryResponse with status ('success', 'no_relevant_evidence', 'conflicting_sources', 'embedding_generation_failed')
+        and evidence items.
     """
     if isinstance(query, RAGQueryRequest):
         req = query
@@ -152,8 +170,22 @@ def retrieve_evidence(
         f"language={language}, limit={top_k}, score_threshold={threshold}"
     )
 
-    # 1. Generate query embedding using existing embedding module
-    query_vector = generate_embedding(query_str)
+    # 1. Generate query embedding using existing embedding module with robust exception handling
+    try:
+        query_vector = generate_embedding(query_str)
+    except ValueError as e:
+        logger.error(f"Embedding validation failed: {str(e)}")
+        return RAGQueryResponse(status="embedding_generation_failed", evidence=[])
+    except Exception as e:
+        logger.error(f"Unexpected error during embedding generation: {str(e)}")
+        return RAGQueryResponse(status="embedding_generation_failed", evidence=[])
+
+    if not query_vector or len(query_vector) != EXPECTED_EMBEDDING_DIMENSION:
+        logger.error(
+            f"Invalid query vector received: dimension={len(query_vector) if query_vector else 0}, "
+            f"expected {EXPECTED_EMBEDDING_DIMENSION}."
+        )
+        return RAGQueryResponse(status="embedding_generation_failed", evidence=[])
 
     # 2. Build base SQL query joining DocumentChunk and Document
     stmt = (
@@ -183,29 +215,49 @@ def retrieve_evidence(
         logger.info("No active documents matched the requested metadata filters.")
         return RAGQueryResponse(status="no_relevant_evidence", evidence=[])
 
-    # Sanity check for inverted document effective dates
+    # Exclude documents with invalid/inverted effective dates
+    bad_doc_ids: set[UUID] = set()
     for _, doc in results:
         if doc.effective_from and doc.effective_until and doc.effective_from > doc.effective_until:
-            logger.warning(
-                f"Document '{doc.id}' ({doc.title}) has inverted effective dates "
-                f"({doc.effective_from} > {doc.effective_until})."
+            logger.error(
+                f"Document '{doc.id}' ({doc.title}) has invalid/inverted date range "
+                f"({doc.effective_from} > {doc.effective_until}). Excluding from retrieval results."
             )
+            bad_doc_ids.add(doc.id)
+
+    if bad_doc_ids:
+        results = [(c, d) for c, d in results if d.id not in bad_doc_ids]
+        if not results:
+            logger.warning("All matching documents excluded due to invalid effective date ranges.")
+            return RAGQueryResponse(status="no_relevant_evidence", evidence=[])
 
     # 3. Calculate similarity score for each candidate chunk and apply score threshold
     scored_candidates: list[tuple[DocumentChunk, Document, float]] = []
     skipped_count = 0
+    invalid_dim_count = 0
 
     for chunk, doc in results:
         if not chunk.embedding:
             skipped_count += 1
             logger.debug(f"Skipping chunk {chunk.id}: missing vector embedding.")
             continue
+
+        if len(chunk.embedding) != EXPECTED_EMBEDDING_DIMENSION:
+            invalid_dim_count += 1
+            logger.warning(
+                f"Skipping chunk {chunk.id}: embedding dimension {len(chunk.embedding)} "
+                f"!= expected {EXPECTED_EMBEDDING_DIMENSION}."
+            )
+            continue
+
         score = _cosine_similarity(chunk.embedding, query_vector)
         if score >= threshold:
             scored_candidates.append((chunk, doc, score))
 
     if skipped_count > 0:
         logger.info(f"Skipped {skipped_count} chunks due to missing embeddings.")
+    if invalid_dim_count > 0:
+        logger.warning(f"Skipped {invalid_dim_count} chunks due to vector dimension mismatch.")
 
     if not scored_candidates:
         logger.info(f"No evidence chunks satisfied similarity threshold ({threshold}).")

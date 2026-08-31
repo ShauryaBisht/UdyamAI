@@ -389,3 +389,86 @@ def test_document_loader_integration(mock_ingest, mock_retrieve, db_session: Ses
     res = query_rag_pipeline(db=db_session, query="test query")
     assert res == mock_response
     mock_retrieve.assert_called_once()
+
+
+# --- 12. API Error & Dimension Mismatch Tests ---
+
+
+@patch("app.rag.retriever.generate_embedding", side_effect=Exception("OpenAI API error"))
+def test_retrieve_evidence_embedding_generation_failure(mock_gen_embedding, db_session: Session):
+    """Test graceful failure when embedding generation raises an exception."""
+    response = retrieve_evidence(db=db_session, query="test query")
+    assert response.status == "embedding_generation_failed"
+    assert len(response.evidence) == 0
+
+
+@patch("app.rag.retriever.generate_embedding")
+def test_retrieve_evidence_invalid_query_vector_dimension(mock_gen_embedding, db_session: Session):
+    """Test failure status when query vector has wrong dimension (e.g. 768)."""
+    mock_gen_embedding.return_value = [0.1] * 768
+    response = retrieve_evidence(db=db_session, query="test query")
+    assert response.status == "embedding_generation_failed"
+    assert len(response.evidence) == 0
+
+
+@patch("app.rag.retriever.generate_embedding")
+def test_skip_chunks_with_mismatched_embedding_dimensions(mock_gen_embedding, db_session: Session):
+    """Test skipping chunks in DB that have wrong embedding dimensions."""
+    mock_gen_embedding.return_value = _create_vector(0.1)
+
+    doc = Document(
+        title="Doc Wrong Vector",
+        source_name="Dept",
+        document_type="guideline",
+        content_hash="hash_wrong_vec",
+        active=True,
+    )
+    db_session.add(doc)
+    db_session.flush()
+
+    chunk_wrong = DocumentChunk(
+        id=uuid4(),
+        document_id=doc.id,
+        chunk_index=0,
+        content="Chunk with 768 vector instead of 1536",
+        embedding=[0.1] * 768,  # Mismatched dimension!
+    )
+    db_session.add(chunk_wrong)
+    db_session.commit()
+
+    response = retrieve_evidence(db=db_session, query="test query", score_threshold=0.1)
+    assert response.status == "no_relevant_evidence"
+    assert len(response.evidence) == 0
+
+
+@patch("app.rag.retriever.generate_embedding")
+def test_exclude_documents_with_inverted_dates(mock_gen_embedding, db_session: Session):
+    """Test excluding documents with inverted effective date ranges."""
+    mock_gen_embedding.return_value = _create_vector(0.1)
+
+    doc = Document(
+        id=uuid4(),
+        title="Doc Inverted Dates",
+        source_name="Dept Bad Date",
+        document_type="guideline",
+        content_hash="hash_bad_dates",
+        active=True,
+        effective_from=date(2024, 12, 31),
+        effective_until=date(2024, 1, 1),  # Inverted dates!
+    )
+    db_session.add(doc)
+    db_session.flush()
+
+    chunk = DocumentChunk(
+        id=uuid4(),
+        document_id=doc.id,
+        chunk_index=0,
+        content="Document content with inverted effective dates",
+        embedding=_create_vector(0.1),
+    )
+    db_session.add(chunk)
+    db_session.commit()
+
+    response = retrieve_evidence(db=db_session, query="test query", score_threshold=0.1)
+    assert response.status == "no_relevant_evidence"
+    assert len(response.evidence) == 0
