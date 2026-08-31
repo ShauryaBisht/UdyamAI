@@ -182,12 +182,20 @@ def analyze_competition_get(
     category_name: str | None = Query(
         default=None, description="Optional category name (e.g. Dairy)"
     ),
+    lat: float | None = Query(
+        default=None, ge=-90.0, le=90.0, description="Optional override latitude center point"
+    ),
+    lng: float | None = Query(
+        default=None, ge=-180.0, le=180.0, description="Optional override longitude center point"
+    ),
     db: Session = Depends(get_session),
 ):
     """Run Phase 7 competition analysis for a village specified by path parameter."""
     return MarketService.analyze_competition_for_location(
         db=db,
         village_id=village_id,
+        lat=lat,
+        lng=lng,
         radius_km=radius_km,
         business_category_id=business_category_id,
         category_name=category_name,

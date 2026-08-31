@@ -27,7 +27,7 @@ def find_nearby_businesses(
         lng: Center longitude.
         radius_km: Search radius in kilometers (default 10, max 50).
         category_id: Optional filter by BusinessCategory UUID.
-        limit: Maximum results (default 50, max 200).
+        limit: Maximum results (default 50, max 500).
 
     Returns:
         List of business dicts with distance_meters included.

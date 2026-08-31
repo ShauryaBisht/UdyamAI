@@ -610,7 +610,12 @@ class MarketService:
 
         try:
             nearby_businesses = find_nearby_businesses(
-                db, lat=target_lat, lng=target_lng, radius_km=radius_km, limit=500
+                db,
+                lat=target_lat,
+                lng=target_lng,
+                radius_km=radius_km,
+                category_id=business_category_id,
+                limit=500,
             )
         except Exception as e:
             logger.warning(f"Spatial lookup failed for competition analysis: {e}")

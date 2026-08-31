@@ -96,6 +96,41 @@ class TestPhase7CompetitionAnalysis:
         assert res["total_businesses_in_radius"] == 3
         assert res["businesses_within_5km"] == 2
 
+    def test_missing_distance_meters_not_in_5km_10km_buckets(self):
+        """Businesses missing distance_meters should NOT be falsely categorized in 5km/10km buckets."""
+        businesses = [
+            {"id": uuid4(), "category": "Dairy", "distance_meters": None},  # Missing distance
+            {"id": uuid4(), "category": "Dairy", "distance_meters": 4000.0},  # Within 5km & 10km
+            {"id": uuid4(), "category": "Dairy", "distance_meters": 8000.0},  # Within 10km only
+        ]
+
+        res = analyze_competition(
+            businesses=businesses,
+            radius_km=10.0,
+            target_category_name="Dairy",
+        )
+
+        assert res["competitor_count"] == 3  # All 3 are competitors
+        assert res["businesses_within_5km"] == 1  # Only the 4000m business
+        assert res["businesses_within_10km"] == 2  # The 4000m & 8000m businesses
+
+    def test_empty_string_category_name_normalized(self):
+        """Empty string category name '' should be normalized to None without filter crash."""
+        businesses = [
+            {"id": uuid4(), "category": "Dairy", "distance_meters": 2000.0},
+            {"id": uuid4(), "category": "Retail", "distance_meters": 3000.0},
+        ]
+
+        res = analyze_competition(
+            businesses=businesses,
+            radius_km=5.0,
+            target_category_name="   ",  # Whitespace only
+        )
+
+        # Should behave as no filter
+        assert res["competitor_count"] == 2
+        assert res["quality_indicator"]["has_category_filter"] is False
+
     def test_data_completeness_and_quality_indicator(self):
         """Completeness score and verified ratio reporting."""
         businesses = [

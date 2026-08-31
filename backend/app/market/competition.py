@@ -44,8 +44,12 @@ def analyze_competition(
     sources: set[tuple[str | None, str | None, int | None]] = set()
     source_names: set[str] = set()
 
-    has_filter = bool(target_category_id or target_category_name)
-    norm_target_name = target_category_name.strip().lower() if target_category_name else None
+    norm_target_name = None
+    if target_category_name:
+        stripped = target_category_name.strip().lower()
+        norm_target_name = stripped if stripped else None
+
+    has_filter = bool(target_category_id or norm_target_name)
 
     for b in businesses:
         cat_id = (
@@ -69,7 +73,7 @@ def analyze_competition(
         if is_competitor:
             competitor_count += 1
 
-        # Distance-based breakdown
+        # Distance-based breakdown (only count when distance_meters is explicitly available)
         dist_m = b.get("distance_meters")
         if dist_m is not None:
             if dist_m <= 5000.0:
@@ -77,16 +81,6 @@ def analyze_competition(
                 if is_competitor:
                     competitors_5km += 1
             if dist_m <= 10000.0:
-                total_10km += 1
-                if is_competitor:
-                    competitors_10km += 1
-        else:
-            # If distance_meters not populated, fallback to radius comparison
-            if radius_km <= 5.0:
-                total_5km += 1
-                if is_competitor:
-                    competitors_5km += 1
-            if radius_km <= 10.0:
                 total_10km += 1
                 if is_competitor:
                     competitors_10km += 1
