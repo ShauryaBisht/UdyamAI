@@ -5,6 +5,28 @@ Evaluates deterministic risk indicators supported by empirical data thresholds.
 
 from typing import Any
 
+# ------------------------------------------------------------------ #
+# Named Empirical Threshold Constants
+# ------------------------------------------------------------------ #
+
+HIGH_COMPETITOR_DENSITY_THRESHOLD = 5.0
+VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD = 10.0
+
+SEASONAL_VOLATILITY_THRESHOLD = 0.25
+VERY_HIGH_SEASONAL_VOLATILITY_THRESHOLD = 0.35
+
+LOW_MARKET_ACCESS_DISTANCE_KM = 10.0
+VERY_LOW_MARKET_ACCESS_DISTANCE_KM = 20.0
+
+PRICE_VOLATILITY_THRESHOLD = 0.20
+VERY_HIGH_PRICE_VOLATILITY_THRESHOLD = 0.35
+
+LOW_DEMOGRAPHIC_DEMAND_THRESHOLD = 1000
+
+# Score thresholds for overall risk level classification (0.0 to 10.0 scale)
+HIGH_RISK_SCORE_THRESHOLD = 6.0
+MEDIUM_RISK_SCORE_THRESHOLD = 3.0
+
 
 def assess_market_risks(
     competition_density: float = 0.0,
@@ -33,7 +55,7 @@ def assess_market_risks(
         Dict containing:
         - overall_market_risk_level ('low', 'medium', 'high')
         - risk_score (0.0 to 10.0)
-        - risks: List of {risk_type, severity, evidence, source} dicts
+        - risks: List of {risk_type, severity, evidence, source, value} dicts
         - identified_risk_flags: List of summary strings
         - provenance: List of data sources evaluated
     """
@@ -44,16 +66,19 @@ def assess_market_risks(
     overall_risk_score = 0.0
 
     # 1. high_competitor_density
-    if competition_density > 5.0:
-        severity = "high" if competition_density >= 10.0 else "medium"
+    if competition_density > HIGH_COMPETITOR_DENSITY_THRESHOLD:
+        severity = (
+            "high" if competition_density >= VERY_HIGH_COMPETITOR_DENSITY_THRESHOLD else "medium"
+        )
         score_add = 3.0 if severity == "high" else 2.0
         overall_risk_score += score_add
         risks.append(
             {
                 "risk_type": "high_competitor_density",
                 "severity": severity,
-                "evidence": f"Competitor density of {competition_density:.2f} competitors/km² exceeds the threshold of 5.0/km².",
+                "evidence": f"Competitor density of {competition_density:.2f} competitors/km² exceeds the threshold of {HIGH_COMPETITOR_DENSITY_THRESHOLD:.1f}/km².",
                 "source": "Normalized Business Registry",
+                "value": round(competition_density, 2),
             }
         )
 
@@ -62,38 +87,55 @@ def assess_market_risks(
     is_seasonal_trigger = (
         is_seasonal
         or norm_vol_str in ("seasonal", "high_seasonal")
-        or (price_volatility_score is not None and price_volatility_score >= 0.25)
+        or (
+            price_volatility_score is not None
+            and price_volatility_score >= SEASONAL_VOLATILITY_THRESHOLD
+        )
     )
     if is_seasonal_trigger:
-        severity = "high" if (price_volatility_score or 0.0) >= 0.35 else "medium"
+        severity = (
+            "high"
+            if (price_volatility_score or 0.0) >= VERY_HIGH_SEASONAL_VOLATILITY_THRESHOLD
+            else "medium"
+        )
         overall_risk_score += 2.0
         if price_volatility_score is not None:
             ev_str = f"Market exhibits seasonal trade fluctuations with price variance coefficient of {price_volatility_score:.2f}."
+            val_out: Any = round(price_volatility_score, 2)
         else:
             ev_str = "Market activity and commodity trade in the region are subject to seasonal peak and off-peak supply cycles."
+            val_out = "seasonal"
         risks.append(
             {
                 "risk_type": "seasonal_market",
                 "severity": severity,
                 "evidence": ev_str,
                 "source": "Agmarknet & Crop Seasonality Data",
+                "value": val_out,
             }
         )
 
     # 3. low_market_access
     has_low_access = (
-        nearest_market_distance_km is not None and nearest_market_distance_km > 10.0
+        nearest_market_distance_km is not None
+        and nearest_market_distance_km > LOW_MARKET_ACCESS_DISTANCE_KM
     ) or (nearby_markets_count == 0)
     if has_low_access:
         if nearby_markets_count == 0:
             severity = "high"
             ev_str = f"Zero commercial markets or mandis identified within {radius_km:.1f}km primary radius."
-        elif nearest_market_distance_km is not None and nearest_market_distance_km > 20.0:
+            val_dist: Any = 0.0
+        elif (
+            nearest_market_distance_km is not None
+            and nearest_market_distance_km > VERY_LOW_MARKET_ACCESS_DISTANCE_KM
+        ):
             severity = "high"
-            ev_str = f"Nearest commercial market/mandi is located {nearest_market_distance_km:.1f}km away (exceeds 20km distant access threshold)."
+            ev_str = f"Nearest commercial market/mandi is located {nearest_market_distance_km:.1f}km away (exceeds {VERY_LOW_MARKET_ACCESS_DISTANCE_KM:.0f}km distant access threshold)."
+            val_dist = round(nearest_market_distance_km, 1)
         else:
             severity = "medium"
-            ev_str = f"Nearest commercial market/mandi is located {nearest_market_distance_km:.1f}km away (exceeds 10km access threshold)."
+            ev_str = f"Nearest commercial market/mandi is located {nearest_market_distance_km:.1f}km away (exceeds {LOW_MARKET_ACCESS_DISTANCE_KM:.0f}km access threshold)."
+            val_dist = round(nearest_market_distance_km, 1)
 
         overall_risk_score += 2.5 if severity == "high" else 1.5
         risks.append(
@@ -102,6 +144,7 @@ def assess_market_risks(
                 "severity": severity,
                 "evidence": ev_str,
                 "source": "Market & Mandi Registry",
+                "value": val_dist,
             }
         )
 
@@ -115,6 +158,7 @@ def assess_market_risks(
                 "severity": "medium",
                 "evidence": f"Only 1 commercial market{m_name_str} identified within {radius_km:.1f}km radius, creating single-point market dependency.",
                 "source": "Market & Mandi Registry",
+                "value": 1,
             }
         )
 
@@ -143,52 +187,60 @@ def assess_market_risks(
                 "severity": severity,
                 "evidence": ev_str,
                 "source": "Facilities & Infrastructure Registry",
+                "value": f"financial:{financial_count},logistics:{logistics_count}",
             }
         )
 
     # 6. price_volatility
     is_high_vol = norm_vol_str in ("high", "very_high") or (
-        price_volatility_score is not None and price_volatility_score >= 0.20
+        price_volatility_score is not None and price_volatility_score >= PRICE_VOLATILITY_THRESHOLD
     )
     if is_high_vol:
         severity = (
             "high"
-            if (norm_vol_str == "very_high" or (price_volatility_score or 0.0) >= 0.35)
+            if (
+                norm_vol_str == "very_high"
+                or (price_volatility_score or 0.0) >= VERY_HIGH_PRICE_VOLATILITY_THRESHOLD
+            )
             else "medium"
         )
         overall_risk_score += 2.5 if severity == "high" else 1.5
         if price_volatility_score is not None:
             ev_str = f"Commodity prices exhibit high historical volatility ({price_volatility_score * 100:.1f}% variance coefficient)."
+            val_vol: Any = round(price_volatility_score, 2)
         else:
             ev_str = (
                 "Commodity prices in surrounding markets exhibit high historical price volatility."
             )
+            val_vol = norm_vol_str or "high"
         risks.append(
             {
                 "risk_type": "price_volatility",
                 "severity": severity,
                 "evidence": ev_str,
                 "source": "Agmarknet Price Records",
+                "value": val_vol,
             }
         )
 
     # 7. low_demographic_demand
-    if 0 < population_reach < 1000:
+    if 0 < population_reach < LOW_DEMOGRAPHIC_DEMAND_THRESHOLD:
         overall_risk_score += 2.0
         risks.append(
             {
                 "risk_type": "low_demographic_demand",
                 "severity": "medium",
-                "evidence": f"Total population reach within radius is {population_reach} (below 1,000 threshold for viable local demand).",
+                "evidence": f"Total population reach within radius is {population_reach} (below {LOW_DEMOGRAPHIC_DEMAND_THRESHOLD:,} threshold for viable local demand).",
                 "source": "Census Population Data",
+                "value": population_reach,
             }
         )
 
     # Risk level classification
     risk_score_capped = round(min(overall_risk_score, 10.0), 1)
-    if risk_score_capped >= 6.0:
+    if risk_score_capped >= HIGH_RISK_SCORE_THRESHOLD:
         risk_level = "high"
-    elif risk_score_capped >= 3.0:
+    elif risk_score_capped >= MEDIUM_RISK_SCORE_THRESHOLD:
         risk_level = "medium"
     else:
         risk_level = "low"

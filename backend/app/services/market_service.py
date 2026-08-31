@@ -749,6 +749,11 @@ class MarketService:
             else None
         )
         single_mkt_name = nearby_mkts[0].get("name") if len(nearby_mkts) == 1 else None
+        logger.debug(
+            f"Risk assessment empirical inputs: comp_density={calc_comp_density}, "
+            f"facility_counts={facility_counts}, pop_reach={pop_reach}, "
+            f"nearby_mkts={len(nearby_mkts)}, nearest_dist={nearest_dist}"
+        )
 
         risk_res = assess_market_risks(
             competition_density=calc_comp_density,
@@ -768,6 +773,7 @@ class MarketService:
                 severity=r["severity"],
                 evidence=r["evidence"],
                 source=r["source"],
+                value=r.get("value"),
             )
             for r in risk_res.get("risks", [])
         ]

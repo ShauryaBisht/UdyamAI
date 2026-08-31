@@ -83,6 +83,57 @@ class TestPhase8RiskIndicatorsEngine:
         target_risk = next(r for r in res["risks"] if r["risk_type"] == "single_market_dependency")
         assert target_risk["severity"] == "medium"
         assert "APMC Pune Mandi" in target_risk["evidence"]
+        assert target_risk["value"] == 1
+
+    def test_single_market_dependency_not_triggered_for_multiple_markets(self):
+        """When nearby_markets_count != 1 (e.g. 2), single_market_dependency is NOT triggered and score is NOT incremented."""
+        res_two = assess_market_risks(
+            nearby_markets_count=2,
+            nearest_market_distance_km=3.0,
+            facility_counts={"bank": 1, "cold_storage": 1},
+            population_reach=5000,
+        )
+
+        risk_types = [r["risk_type"] for r in res_two["risks"]]
+        assert "single_market_dependency" not in risk_types
+        assert res_two["risk_score"] == 0.0
+        assert res_two["overall_market_risk_level"] == "low"
+
+    def test_exact_threshold_boundaries(self):
+        """Test boundary conditions for competitor density, volatility scores, and population reach."""
+        # Competitor density boundary: 5.0 (no risk) vs 5.01 (medium)
+        res_comp_exact = assess_market_risks(competition_density=5.0)
+        assert "high_competitor_density" not in [r["risk_type"] for r in res_comp_exact["risks"]]
+
+        res_comp_over = assess_market_risks(competition_density=5.01)
+        assert "high_competitor_density" in [r["risk_type"] for r in res_comp_over["risks"]]
+        assert res_comp_over["risks"][0]["value"] == 5.01
+
+        # Price volatility score boundary: 0.19 (no risk) vs 0.20 (medium) vs 0.35 (high)
+        res_vol_sub = assess_market_risks(price_volatility_score=0.19)
+        assert "price_volatility" not in [r["risk_type"] for r in res_vol_sub["risks"]]
+
+        res_vol_mid = assess_market_risks(price_volatility_score=0.20)
+        risk_vol_mid = next(r for r in res_vol_mid["risks"] if r["risk_type"] == "price_volatility")
+        assert risk_vol_mid["severity"] == "medium"
+        assert risk_vol_mid["value"] == 0.20
+
+        res_vol_high = assess_market_risks(price_volatility_score=0.35)
+        risk_vol_high = next(
+            r for r in res_vol_high["risks"] if r["risk_type"] == "price_volatility"
+        )
+        assert risk_vol_high["severity"] == "high"
+
+        # Population reach boundary: 1000 (no risk) vs 999 (medium)
+        res_pop_1000 = assess_market_risks(population_reach=1000)
+        assert "low_demographic_demand" not in [r["risk_type"] for r in res_pop_1000["risks"]]
+
+        res_pop_999 = assess_market_risks(population_reach=999)
+        risk_pop = next(
+            r for r in res_pop_999["risks"] if r["risk_type"] == "low_demographic_demand"
+        )
+        assert risk_pop["severity"] == "medium"
+        assert risk_pop["value"] == 999
 
     def test_limited_infrastructure_trigger(self):
         """Triggers limited_infrastructure when financial or storage facilities are zero."""
@@ -92,6 +143,7 @@ class TestPhase8RiskIndicatorsEngine:
         target_fin = next(r for r in res_fin["risks"] if r["risk_type"] == "limited_infrastructure")
         assert target_fin["severity"] == "medium"
         assert "Financial infrastructure gap" in target_fin["evidence"]
+        assert target_fin["value"] == "financial:0,logistics:2"
 
         # Case B: Missing both financial and logistics infrastructure
         res_both = assess_market_risks(facility_counts={})
@@ -100,6 +152,7 @@ class TestPhase8RiskIndicatorsEngine:
         )
         assert target_both["severity"] == "high"
         assert "Zero financial infrastructure" in target_both["evidence"]
+        assert target_both["value"] == "financial:0,logistics:0"
 
     def test_price_volatility_trigger(self):
         """Triggers price_volatility when price volatility is high."""
@@ -112,6 +165,7 @@ class TestPhase8RiskIndicatorsEngine:
         assert target_risk["severity"] == "medium"
         assert "28.0% variance" in target_risk["evidence"]
         assert target_risk["source"] == "Agmarknet Price Records"
+        assert target_risk["value"] == 0.28
 
     def test_no_plausible_risks_when_data_is_healthy(self):
         """Do not create risks merely because they sound plausible when data is healthy."""

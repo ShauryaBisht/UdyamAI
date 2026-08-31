@@ -225,6 +225,9 @@ class RiskIndicatorItem(BaseModel):
     severity: str = Field(..., description="Risk severity level: 'low', 'medium', or 'high'")
     evidence: str = Field(..., description="Empirical evidence backing the risk flag")
     source: str = Field(..., description="Data source origin for the evidence")
+    value: float | int | str | None = Field(
+        default=None, description="Programmatic metric value associated with the risk flag"
+    )
 
 
 class MarketRiskAssessmentRequest(BaseModel):
