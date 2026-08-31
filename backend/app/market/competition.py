@@ -37,9 +37,7 @@ def analyze_competition(
     verified_count = 0
 
     competitors_5km = 0
-    total_5km = 0
     competitors_10km = 0
-    total_10km = 0
 
     sources: set[tuple[str | None, str | None, int | None]] = set()
     source_names: set[str] = set()
@@ -76,14 +74,10 @@ def analyze_competition(
         # Distance-based breakdown (only count when distance_meters is explicitly available)
         dist_m = b.get("distance_meters")
         if dist_m is not None:
-            if dist_m <= 5000.0:
-                total_5km += 1
-                if is_competitor:
-                    competitors_5km += 1
-            if dist_m <= 10000.0:
-                total_10km += 1
-                if is_competitor:
-                    competitors_10km += 1
+            if dist_m <= 5000.0 and is_competitor:
+                competitors_5km += 1
+            if dist_m <= 10000.0 and is_competitor:
+                competitors_10km += 1
 
         if b.get("verified_at"):
             verified_count += 1
@@ -131,7 +125,8 @@ def analyze_competition(
         else:
             confidence_level = "medium"
 
-        category_str = f" for '{target_category_name or target_category_id}'" if has_filter else ""
+        category_label = target_category_name or "selected category"
+        category_str = f" for '{category_label}'" if has_filter else ""
         quality_notes = (
             f"Analyzed {total_businesses} total businesses, identifying {competitor_count} direct competitors{category_str}. "
             f"{verified_count} of {total_businesses} records verified ({int(verified_ratio * 100)}% verification rate)."

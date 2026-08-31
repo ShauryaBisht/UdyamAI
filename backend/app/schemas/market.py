@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class MarketResponse(BaseModel):
@@ -105,6 +105,14 @@ class CompetitionAnalysisRequest(BaseModel):
     category_name: str | None = Field(
         default=None, description="Optional target category name (e.g. Dairy)"
     )
+
+    @model_validator(mode="after")
+    def validate_location(self) -> "CompetitionAnalysisRequest":
+        if not self.village_id and (self.latitude is None or self.longitude is None):
+            raise ValueError(
+                "Either village_id or both latitude and longitude coordinates must be provided."
+            )
+        return self
 
 
 class CompetitionAnalysisDetailResponse(BaseModel):

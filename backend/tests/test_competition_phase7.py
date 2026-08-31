@@ -230,6 +230,47 @@ class TestMarketServiceCompetitionOrchestration:
         assert exc_info.value.status_code == 400
         assert "required for competition analysis" in exc_info.value.detail
 
+    def test_non_existent_village_id_raises_404(self):
+        """When village_id does not exist in DB and no lat/lng supplied, raise 404."""
+        from fastapi import HTTPException
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            MarketService.analyze_competition_for_location(db=mock_db, village_id=uuid4())
+
+        assert exc_info.value.status_code == 404
+        assert "not found" in exc_info.value.detail
+
+    def test_lat_lng_takes_precedence_over_village_id(self):
+        """User provided lat/lng takes precedence over village DB lookup."""
+        from app.models.location import Village
+
+        mock_db = MagicMock()
+        mock_village = Village(id=uuid4(), name="Test Vil", latitude=10.0, longitude=10.0)
+        mock_db.get.return_value = mock_village
+
+        with patch("app.services.market_service.find_nearby_businesses") as mock_find:
+            mock_find.return_value = []
+            res = MarketService.analyze_competition_for_location(
+                db=mock_db,
+                village_id=mock_village.id,
+                lat=18.52,  # User override
+                lng=73.85,  # User override
+            )
+
+            assert res is not None
+            # Verify find_nearby_businesses was called with user's override lat/lng (18.52, 73.85), NOT village's (10.0, 10.0)
+            mock_find.assert_called_once_with(
+                mock_db,
+                lat=18.52,
+                lng=73.85,
+                radius_km=10.0,
+                category_id=None,
+                limit=500,
+            )
+
 
 class TestCompetitionAPIEndpoints:
     """Test API route endpoints for Phase 7 Competition Analysis."""
@@ -316,3 +357,16 @@ class TestCompetitionAPIEndpoints:
             data = response.json()
             assert data["competitor_count"] == 0
             assert data["data_confidence"] == "low"
+
+    def test_post_missing_location_fails_validation(self, client):
+        """POST /markets/competition with no village_id and no lat/lng returns 422 validation error."""
+        response = client.post(
+            "/markets/competition",
+            json={
+                "radius_km": 10.0,
+                "category_name": "Dairy",
+            },
+        )
+        assert response.status_code == 422
+        data = response.json()
+        assert "Either village_id or both latitude and longitude" in str(data)
