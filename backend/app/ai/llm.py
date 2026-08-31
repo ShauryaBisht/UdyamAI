@@ -57,7 +57,9 @@ def _generate_openai(prompt: str) -> str:
     try:
         from openai import OpenAI
     except ImportError as exc:
-        raise LLMError("openai package not installed", error_code="AI_PROVIDER_UNAVAILABLE") from exc
+        raise LLMError(
+            "openai package not installed", error_code="AI_PROVIDER_UNAVAILABLE"
+        ) from exc
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -71,7 +73,9 @@ def _generate_openai(prompt: str) -> str:
         )
     except Exception as exc:
         logger.exception("OpenAI generation failed")
-        raise LLMError(str(exc) or "OpenAI request failed", error_code=_error_code_for_exception(exc)) from exc
+        raise LLMError(
+            str(exc) or "OpenAI request failed", error_code=_error_code_for_exception(exc)
+        ) from exc
 
     try:
         content = response.choices[0].message.content
@@ -87,7 +91,9 @@ def _generate_gemini(prompt: str) -> str:
     try:
         from google import genai
     except ImportError as exc:
-        raise LLMError("google-genai package not installed", error_code="AI_PROVIDER_UNAVAILABLE") from exc
+        raise LLMError(
+            "google-genai package not installed", error_code="AI_PROVIDER_UNAVAILABLE"
+        ) from exc
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -101,7 +107,9 @@ def _generate_gemini(prompt: str) -> str:
         )
     except Exception as exc:
         logger.exception("Gemini generation failed")
-        raise LLMError(str(exc) or "Gemini request failed", error_code=_error_code_for_exception(exc)) from exc
+        raise LLMError(
+            str(exc) or "Gemini request failed", error_code=_error_code_for_exception(exc)
+        ) from exc
 
     text = getattr(response, "text", None)
     if not text:

@@ -9,7 +9,6 @@ the rest of the backend analysis flow.
 """
 
 import logging
-from typing import Any
 
 from app.ai import context_builder, guardrails, llm, prompts, recommendation
 from app.schemas.ai import AIAdvice, AnalysisContext
@@ -87,6 +86,6 @@ def generate_advice(analysis_context: AnalysisContext, language: str = "en") -> 
     except llm.LLMError as exc:
         logger.warning("AI provider call failed; returning degraded fallback: %s", exc)
         return _fallback_ai_advice(language)
-    except Exception as exc:  # pragma: no cover - defensive fallback for incomplete pipeline modules
+    except Exception:  # pragma: no cover - defensive fallback for incomplete pipeline modules
         logger.exception("AI advice generation failed; returning degraded fallback")
         return _fallback_ai_advice(language)
