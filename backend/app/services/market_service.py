@@ -432,6 +432,12 @@ class MarketService:
 
             # 3. Infrastructure
             infra_res = analyze_relevant_infrastructure(nearby_facs)
+            if not isinstance(infra_res, dict):
+                logger.warning(
+                    "analyze_relevant_infrastructure returned unexpected type: %r", infra_res
+                )
+                infra_res = {"facility_summaries": [], "facility_counts_by_type": {}}
+
             infra_summaries = [
                 NearbyInfrastructureSummary(
                     id=item.get("id"),
@@ -440,13 +446,13 @@ class MarketService:
                     distance_km=item.get("distance_km", 0.0),
                     capacity=item.get("capacity"),
                 )
-                for item in infra_res["facility_summaries"]
+                for item in infra_res.get("facility_summaries", [])
             ]
 
             # 4. Competition
             target_cat_name = None
             if business_category_id:
-                b_cat = db.get(BusinessCategory, business_category_id)
+                b_cat = _get_entity_by_id(db, BusinessCategory, business_category_id)
                 if b_cat:
                     target_cat_name = b_cat.name
 
