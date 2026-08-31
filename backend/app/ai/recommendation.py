@@ -1,1 +1,2 @@
-# UdyamAI: recommendation.py
+def explain(feasibility: dict) -> str:
+    raise NotImplementedError

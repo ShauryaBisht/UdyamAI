@@ -1,1 +1,2 @@
-# UdyamAI: context_builder.py
+def build(analysis_context: dict) -> dict:
+    raise NotImplementedError
