@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+
 from app.market.competition import analyze_competition
 from app.market.demand import calculate_demand_indicators
 from app.market.infrastructure import analyze_relevant_infrastructure
