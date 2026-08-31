@@ -18,9 +18,13 @@ export async function startAnalysis(data: {
     body: JSON.stringify(data),
   });
 
-  if (!response.ok) {
-    throw new Error('Analysis submission failed');
-  }
+ if (!response.ok) {
+  const errorText = await response.text();
+  console.error('Analysis API error:', response.status, errorText);
 
+  throw new Error(
+    `Analysis submission failed (${response.status}): ${errorText}`
+  );
+}
   return response.json();
 }
