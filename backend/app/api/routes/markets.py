@@ -8,6 +8,8 @@ from sqlmodel import Session
 
 from app.database import get_session
 from app.schemas.market import (
+    CompetitionAnalysisDetailResponse,
+    CompetitionAnalysisRequest,
     CompetitorAnalysisResponse,
     LocationMarketAnalysisResponse,
     MarketAnalysisRequest,
@@ -151,6 +153,41 @@ def get_market_analyses(analysis_run_id: UUID, db: Session = Depends(get_session
 def get_competitor_analyses(analysis_run_id: UUID, db: Session = Depends(get_session)):
     """Get competitor analyses for an analysis run."""
     return MarketService.get_competitor_analyses(db, analysis_run_id)
+
+
+@router.post("/competition", response_model=CompetitionAnalysisDetailResponse)
+def analyze_competition_post(
+    payload: CompetitionAnalysisRequest,
+    db: Session = Depends(get_session),
+):
+    """Run standalone Phase 7 competition analysis for a location and business category."""
+    return MarketService.analyze_competition_for_location(
+        db=db,
+        village_id=payload.village_id,
+        lat=payload.latitude,
+        lng=payload.longitude,
+        radius_km=payload.radius_km,
+        business_category_id=payload.business_category_id,
+        category_name=payload.category_name,
+    )
+
+
+@router.get("/competition/{village_id}", response_model=CompetitionAnalysisDetailResponse)
+def analyze_competition_get(
+    village_id: UUID,
+    radius_km: float = Query(default=10.0, ge=0.1, le=50.0, description="Analysis radius in km"),
+    business_category_id: UUID | None = Query(default=None, description="Optional business category ID"),
+    category_name: str | None = Query(default=None, description="Optional category name (e.g. Dairy)"),
+    db: Session = Depends(get_session),
+):
+    """Run Phase 7 competition analysis for a village specified by path parameter."""
+    return MarketService.analyze_competition_for_location(
+        db=db,
+        village_id=village_id,
+        radius_km=radius_km,
+        business_category_id=business_category_id,
+        category_name=category_name,
+    )
 
 
 # ------------------------------------------------------------------ #
