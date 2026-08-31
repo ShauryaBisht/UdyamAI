@@ -21,12 +21,14 @@ def upgrade() -> None:
     if bind is not None and bind.dialect.name == "postgresql":
         op.execute("ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64)")
 
-    # Add unique constraint to document_chunks table on (document_id, chunk_index)
-    op.create_unique_constraint(
-        "uq_document_chunk_index", "document_chunks", ["document_id", "chunk_index"]
-    )
+    # Add unique constraint to document_chunks table using batch mode for SQLite compatibility
+    with op.batch_alter_table("document_chunks", schema=None) as batch_op:
+        batch_op.create_unique_constraint(
+            "uq_document_chunk_index", ["document_id", "chunk_index"]
+        )
 
 
 def downgrade() -> None:
-    # Drop unique constraint from document_chunks table
-    op.drop_constraint("uq_document_chunk_index", "document_chunks", type_="unique")
+    # Drop unique constraint from document_chunks table using batch mode for SQLite compatibility
+    with op.batch_alter_table("document_chunks", schema=None) as batch_op:
+        batch_op.drop_constraint("uq_document_chunk_index", type_="unique")
