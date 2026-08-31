@@ -1,8 +1,9 @@
-import React from 'react';
+import React from "react";
+import "./globals.css";
 
 export const metadata = {
-  title: 'UdyamAI',
-  description: 'AI-Powered Business Feasibility and Scheme Advisor',
+  title: "UdyamAI",
+  description: "AI-Powered Business Feasibility and Scheme Advisor",
 };
 
 export default function RootLayout({
