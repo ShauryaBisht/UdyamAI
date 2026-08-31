@@ -204,6 +204,8 @@ def benchmark_database(db_session: Session):
             )
             db_session.add(chunk)
 
+    db_session.commit()
+
     # Add conflicting document chunks for conflict test cases (vector idx=9)
     s_conflict_pmfme = uuid4()
     db_session.add(Scheme(id=s_conflict_pmfme, name="PMFME Conflict Scheme", active=True))

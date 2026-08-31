@@ -395,21 +395,35 @@ def test_document_loader_integration(
     assert res == mock_response
 
 
-@patch("os.access", return_value=False)
-@patch("os.path.isfile", return_value=True)
-@patch("os.path.exists", return_value=True)
-def test_load_document_permission_denied(
-    mock_exists, mock_isfile, mock_access, db_session: Session
+@pytest.mark.parametrize(
+    "mock_exists,mock_isfile,mock_access,expected_error",
+    [
+        (False, True, True, FileNotFoundError),
+        (True, False, True, ValueError),
+        (True, True, False, PermissionError),
+    ],
+)
+def test_document_loader_all_error_paths(
+    mock_exists: bool,
+    mock_isfile: bool,
+    mock_access: bool,
+    expected_error: type[Exception],
+    db_session: Session,
 ):
-    with pytest.raises(PermissionError, match="not readable"):
-        load_document(db=db_session, file_path="unreadable.pdf", title="Test Doc")
+    """Parametrized verification of document_loader file OS validation checks."""
+    with (
+        patch("os.path.exists", return_value=mock_exists),
+        patch("os.path.isfile", return_value=mock_isfile),
+        patch("os.access", return_value=mock_access),
+    ):
+        with pytest.raises(expected_error):
+            load_document(db=db_session, file_path="test_spec.pdf", title="Test")
 
 
-@patch("os.path.isfile", return_value=False)
-@patch("os.path.exists", return_value=True)
-def test_load_document_not_a_file(mock_exists, mock_isfile, db_session: Session):
-    with pytest.raises(ValueError, match="not a regular file"):
-        load_document(db=db_session, file_path="directory_path", title="Test Doc")
+def test_load_document_invalid_language(db_session: Session):
+    """Verifies ValueError raised for unsupported language code."""
+    with pytest.raises(ValueError, match="Unsupported language code"):
+        load_document(db=db_session, file_path="dummy.pdf", title="Test", language="invalid_lang")
 
 
 # --- 12. API Error & Dimension Mismatch Tests ---

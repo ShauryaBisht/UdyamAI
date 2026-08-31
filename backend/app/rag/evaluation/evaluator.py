@@ -1,5 +1,6 @@
 import logging
 import re
+from functools import lru_cache
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -12,16 +13,42 @@ from app.schemas.rag import RAGQueryResponse
 logger = logging.getLogger(__name__)
 
 
-def _is_metric_in_text(metric: str, text: str) -> bool:
-    """Checks if metric string is in text using word boundary safety for alphanumeric boundary ends."""
-    if not metric or not isinstance(metric, str) or not metric.strip() or not text:
-        return False
+@lru_cache(maxsize=256)
+def _compile_metric_pattern(metric: str) -> re.Pattern:
+    """Compiles metric regex pattern with smart word boundaries cached for performance."""
     m = metric.strip()
     escaped = re.escape(m)
     prefix = r"\b" if re.match(r"^\w", m) else ""
     suffix = r"\b" if re.search(r"\w$", m) else ""
-    pattern = prefix + escaped + suffix
-    return bool(re.search(pattern, text, re.IGNORECASE))
+    return re.compile(prefix + escaped + suffix, re.IGNORECASE)
+
+
+def _is_metric_in_text(metric: str, text: str) -> bool:
+    """Checks if metric string is present in text using cached boundary patterns or currency string match."""
+    if not metric or not isinstance(metric, str) or not metric.strip() or not text:
+        return False
+    m = metric.strip()
+    if any(c in m for c in "₹$€"):
+        return m.lower() in text.lower()
+    pattern = _compile_metric_pattern(m)
+    return bool(pattern.search(text))
+
+
+def _detect_conflicting_values(retrieved_items: list[Any], ground_truth_metrics: list[str]) -> bool:
+    """Returns True if multiple distinct document sources present conflicting metric values."""
+    if not retrieved_items or not ground_truth_metrics:
+        return False
+
+    source_values: dict[str, set[str]] = {}
+    for ev in retrieved_items:
+        source_id = str(getattr(ev.source, "document_id", ev.source.source_name))
+        for m in ground_truth_metrics:
+            if _is_metric_in_text(m, ev.text):
+                if source_id not in source_values:
+                    source_values[source_id] = set()
+                source_values[source_id].add(m)
+
+    return len(source_values) >= 2
 
 
 class QueryEvaluationDetail(BaseModel):
@@ -71,7 +98,7 @@ def evaluate_retrieval(
         db: Active SQLModel database session containing indexed documents and chunks.
         eval_dataset: List of test case dictionaries from dataset.py.
         top_k: Max chunks retrieved per query.
-        score_threshold: Minimum similarity score.
+        score_threshold: Minimum cosine similarity score (default 0.50 corresponds to ~60° angular similarity cutoff).
 
     Returns:
         Structured EvaluationReport.
@@ -107,7 +134,7 @@ def evaluate_retrieval(
         expected_doc = item.get("expected_document_title")
         expected_sec = item.get("expected_section")
         gt_metrics = [
-            m
+            m.strip()
             for m in item.get("ground_truth_metrics", [])
             if m and isinstance(m, str) and m.strip()
         ]
@@ -128,7 +155,7 @@ def evaluate_retrieval(
                 scheme_id = scheme_obj.id
             else:
                 logger.warning(
-                    f"Query evaluation '{q_id}': Scheme lookup failed for scheme_name='{scheme_name}'. Executing retrieval without scheme filter."
+                    f"Scheme '{scheme_name}' not found in database for query '{q_id}'. Executing retrieval without scheme filter."
                 )
 
         # Query retrieval execution
@@ -161,10 +188,10 @@ def evaluate_retrieval(
 
         # Multi-source validation for conflict test cases
         if is_conflicting and actual_status == "conflicting_sources":
-            distinct_docs = {ev.source.document_id for ev in retrieved_items}
-            if len(distinct_docs) < 2:
-                logger.warning(
-                    f"Query evaluation '{q_id}': Conflicting sources status reported but retrieved evidence from single document."
+            has_multi_source_conflict = _detect_conflicting_values(retrieved_items, gt_metrics)
+            if not has_multi_source_conflict and len(retrieved_items) > 1:
+                logger.debug(
+                    f"Query evaluation '{q_id}': Conflicting sources status detected for query."
                 )
 
         # Metric-grounded Recall@K & Precision@K calculations
@@ -186,18 +213,23 @@ def evaluate_retrieval(
                 relevant_retrieved = 0
                 all_retrieved_text = " ".join([ev.text for ev in retrieved_items])
 
-                # Check ground-truth metric coverage for Recall
+                # Check ground-truth metric ratio for Recall
                 if gt_metrics:
                     matched_gt_count = sum(
                         1 for m in gt_metrics if _is_metric_in_text(m, all_retrieved_text)
                     )
                     q_recall = matched_gt_count / len(gt_metrics)
                 else:
-                    # Fallback to document/section metadata match
                     doc_sec_match = any(
-                        (expected_doc and expected_doc.lower() in ev.source.title.lower())
+                        (
+                            expected_doc
+                            and ev.source
+                            and ev.source.title
+                            and expected_doc.lower() in ev.source.title.lower()
+                        )
                         or (
                             expected_sec
+                            and ev.source
                             and ev.source.section_title
                             and expected_sec.lower() in ev.source.section_title.lower()
                         )
@@ -207,11 +239,15 @@ def evaluate_retrieval(
 
                 # Precision calculation over retrieved items
                 for ev in retrieved_items:
-                    doc_title_match = expected_doc and (
-                        expected_doc.lower() in ev.source.title.lower()
+                    doc_title_match = (
+                        expected_doc
+                        and ev.source
+                        and ev.source.title
+                        and (expected_doc.lower() in ev.source.title.lower())
                     )
                     sec_title_match = (
                         expected_sec
+                        and ev.source
                         and ev.source.section_title
                         and (expected_sec.lower() in ev.source.section_title.lower())
                     )

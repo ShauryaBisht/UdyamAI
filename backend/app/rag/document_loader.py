@@ -18,6 +18,8 @@ from app.schemas.rag import RAGQueryRequest, RAGQueryResponse
 
 logger = logging.getLogger(__name__)
 
+VALID_LANGUAGES = {"en", "hi", "te", "ta", "ka", "mr", "gu", "bn", "pa", "ml", "kn", "or"}
+
 # Re-export exceptions for convenience
 __all__ = [
     "load_document",
@@ -27,6 +29,7 @@ __all__ = [
     "EncryptedPDFError",
     "EmptyPDFError",
     "ScannedPDFError",
+    "VALID_LANGUAGES",
 ]
 
 
@@ -42,7 +45,7 @@ def load_document(
     document_version: str | None = None,
 ) -> Document | None:
     """
-    Validates PDF file existence & readability, then ingests document into RAG knowledge base.
+    Validates PDF file existence, ISO language, and readability, then ingests document into RAG knowledge base.
     Remote OpenAI embedding calls execute outside DB transactions to prevent lock contention.
 
     Args:
@@ -62,7 +65,7 @@ def load_document(
     Raises:
         FileNotFoundError: If file path does not exist.
         PermissionError: If file path is not readable.
-        ValueError: If parameters or file are invalid.
+        ValueError: If parameters, language, or file are invalid.
         CorruptedPDFError: If PDF structure is corrupted.
         EncryptedPDFError: If PDF is password protected.
         EmptyPDFError: If PDF is empty or 0 bytes.
@@ -70,6 +73,11 @@ def load_document(
     """
     if file_path is None or not isinstance(file_path, str) or not file_path.strip():
         raise ValueError("File path must be a non-empty string.")
+
+    if language not in VALID_LANGUAGES:
+        raise ValueError(
+            f"Unsupported language code: '{language}'. Supported: {sorted(VALID_LANGUAGES)}"
+        )
 
     file_path_str = file_path.strip()
 
