@@ -18,7 +18,12 @@ from app.rag.document_parser import (
     ScannedPDFError,
     parse_pdf,
 )
-from app.rag.embeddings import EmbeddingRateLimiter, generate_embedding, generate_embeddings
+from app.rag.embeddings import (
+    EmbeddingRateLimiter,
+    EmbeddingRetryExhaustedError,
+    generate_embedding,
+    generate_embeddings,
+)
 from app.rag.knowledge_base import calculate_sha256, ingest_document
 from app.rag.token_counter import count_tokens, count_tokens_batch, estimate_embedding_cost
 
@@ -663,3 +668,152 @@ def test_rate_limiter_forwarded_ip_helper():
     req4.headers = {}
     req4.client = None
     assert get_client_ip(req4) == "unknown"
+
+
+# --- 7. Review Refinements (Lock Release, Retry Backoff, Transaction Decoupling) ---
+
+
+def test_rate_limiter_releases_lock_during_sleep():
+    # Create rate limiter with very low limit to trigger sleep
+    limiter = EmbeddingRateLimiter(max_tokens_per_minute=100)
+
+    # First thread consumes 80 tokens (succeeds immediately)
+    limiter.wait_for_rate_limit(80)
+
+    # Second thread consumes 30 tokens -> exceeds limit (must wait)
+    import threading
+
+    sleep_called = threading.Event()
+
+    def mock_sleep(seconds):
+        # Verify lock is not held by checking limiter._lock status during sleep
+        lock_released = not limiter._lock.locked()
+        assert lock_released, "Lock must be released during sleep!"
+        sleep_called.set()
+
+    with patch("time.sleep", side_effect=mock_sleep):
+        limiter.wait_for_rate_limit(30)
+
+    assert sleep_called.is_set()
+
+
+@patch("app.rag.embeddings.get_openai_client")
+@patch("time.sleep")
+def test_retry_successful_first_attempt(mock_sleep, mock_get_client):
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.data = [MagicMock(embedding=[0.1] * 1536)]
+    mock_client.embeddings.create.return_value = mock_response
+    mock_get_client.return_value = mock_client
+
+    embedding = generate_embedding("Test text")
+    assert len(embedding) == 1536
+    assert mock_sleep.call_count == 0
+
+
+@patch("app.rag.embeddings.get_openai_client")
+@patch("time.sleep")
+def test_retry_429_followed_by_success(mock_sleep, mock_get_client):
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.data = [MagicMock(embedding=[0.1] * 1536)]
+
+    from openai import RateLimitError
+
+    mock_client.embeddings.create.side_effect = [
+        RateLimitError(
+            message="Rate Limit Exceeded", response=MagicMock(status_code=429), body=None
+        ),
+        mock_response,
+    ]
+    mock_get_client.return_value = mock_client
+
+    embedding = generate_embedding("Test text", max_retries=3, base_delay=0.01)
+    assert len(embedding) == 1536
+    assert mock_sleep.call_count == 1
+
+
+@patch("app.rag.embeddings.get_openai_client")
+@patch("time.sleep")
+def test_retry_transient_failure_followed_by_success(mock_sleep, mock_get_client):
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.data = [MagicMock(embedding=[0.1] * 1536)]
+
+    from openai import InternalServerError
+
+    mock_client.embeddings.create.side_effect = [
+        InternalServerError(
+            message="Internal Server Error", response=MagicMock(status_code=500), body=None
+        ),
+        mock_response,
+    ]
+    mock_get_client.return_value = mock_client
+
+    embedding = generate_embedding("Test text", max_retries=3, base_delay=0.01)
+    assert len(embedding) == 1536
+    assert mock_sleep.call_count == 1
+
+
+@patch("app.rag.embeddings.get_openai_client")
+@patch("time.sleep")
+def test_retry_exhaustion_raises_custom_error(mock_sleep, mock_get_client):
+    mock_client = MagicMock()
+    from openai import APITimeoutError
+
+    mock_client.embeddings.create.side_effect = APITimeoutError(request=MagicMock())
+
+    mock_get_client.return_value = mock_client
+
+    with pytest.raises(EmbeddingRetryExhaustedError) as excinfo:
+        generate_embedding("Test text", max_retries=3, base_delay=0.01)
+    assert "OpenAI API call failed after 3 attempts" in str(excinfo.value)
+    assert mock_sleep.call_count == 3
+
+
+@patch("app.rag.embeddings.get_openai_client")
+@patch("time.sleep")
+def test_retry_permanent_failure_raises_immediately(mock_sleep, mock_get_client):
+    mock_client = MagicMock()
+    from openai import AuthenticationError
+
+    mock_client.embeddings.create.side_effect = AuthenticationError(
+        message="Invalid API Key", response=MagicMock(status_code=401), body=None
+    )
+    mock_get_client.return_value = mock_client
+
+    with pytest.raises(AuthenticationError) as excinfo:
+        generate_embedding("Test text", max_retries=3, base_delay=0.01)
+    assert "Invalid API Key" in str(excinfo.value)
+    assert mock_sleep.call_count == 0
+
+
+@patch("app.rag.knowledge_base.parse_pdf")
+@patch("app.rag.knowledge_base.generate_embeddings")
+def test_ingest_document_transaction_decoupling(mock_embed, mock_parse, db_session, temp_file):
+    mock_parse.return_value = [
+        {"page_number": 1, "text": "Page text chunk 1"},
+    ]
+
+    # Spy on DB commit and generate_embeddings calls
+    call_order = []
+
+    original_commit = db_session.commit
+
+    def spy_commit():
+        call_order.append("commit")
+        return original_commit()
+
+    db_session.commit = spy_commit
+
+    def spy_embed(texts):
+        call_order.append("embed")
+        return [[0.1] * 1536]
+
+    mock_embed.side_effect = spy_embed
+
+    # Execute ingestion
+    ingest_document(db=db_session, file_path=temp_file, title="Transaction Decoupling Test")
+
+    # Verify call order: commit (first short metadata transaction), then embed, then commit (second final chunk save transaction)
+    assert call_order == ["commit", "embed", "commit"]

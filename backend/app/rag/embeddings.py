@@ -1,14 +1,28 @@
 import logging
+import random
 import threading
 import time
 from datetime import datetime, timedelta
 
-from openai import OpenAI
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    InternalServerError,
+    OpenAI,
+    RateLimitError,
+)
 
 from app.config import settings
 from app.rag.token_counter import count_tokens, count_tokens_batch, estimate_embedding_cost
 
 logger = logging.getLogger(__name__)
+
+
+class EmbeddingRetryExhaustedError(Exception):
+    """Raised when embedding API retries are exhausted."""
+
+    pass
 
 
 class EmbeddingRateLimiter:
@@ -60,35 +74,41 @@ class EmbeddingRateLimiter:
                 )
 
     def wait_for_rate_limit(self, tokens: int) -> None:
-        """Wait if necessary to respect token rate limit."""
-        with self._lock:
-            now = datetime.now()
+        """Wait if necessary to respect token rate limit, releasing the lock during sleep."""
+        while True:
+            wait_seconds = 0
+            with self._lock:
+                now = datetime.now()
 
-            # Reset minute window if needed
-            if now - self.minute_window_start > timedelta(minutes=1):
-                self.tokens_this_minute = 0
-                self.minute_window_start = now
+                # Reset minute window if needed
+                if now - self.minute_window_start > timedelta(minutes=1):
+                    self.tokens_this_minute = 0
+                    self.minute_window_start = now
 
-            # Reset month window if needed (simple check on month change)
-            if now.month != self.month_start.month or now.year != self.month_start.year:
-                self.tokens_this_month = 0
-                self.month_start = now
+                # Reset month window if needed (simple check on month change)
+                if now.month != self.month_start.month or now.year != self.month_start.year:
+                    self.tokens_this_month = 0
+                    self.month_start = now
 
-            # Check if adding these tokens exceeds per-minute limit
-            if self.tokens_this_minute + tokens > self.max_tokens_per_minute:
-                wait_seconds = (
-                    self.minute_window_start + timedelta(minutes=1) - now
-                ).total_seconds()
-                if wait_seconds > 0:
-                    logger.info(
-                        f"Embedding rate limit reached: waiting {wait_seconds:.1f}s for next minute window"
-                    )
-                    time.sleep(wait_seconds)
-                self.tokens_this_minute = 0
-                self.minute_window_start = datetime.now()
+                # Check if adding these tokens exceeds per-minute limit
+                if self.tokens_this_minute + tokens > self.max_tokens_per_minute:
+                    wait_seconds = (
+                        self.minute_window_start + timedelta(minutes=1) - now
+                    ).total_seconds()
+                else:
+                    # Within limit, increment and return
+                    self.tokens_this_minute += tokens
+                    self.tokens_this_month += tokens
+                    return
 
-            self.tokens_this_minute += tokens
-            self.tokens_this_month += tokens
+            if wait_seconds > 0:
+                logger.info(
+                    f"Embedding rate limit reached: waiting {wait_seconds:.1f}s for next minute window"
+                )
+                time.sleep(wait_seconds)
+            else:
+                # Prevent busy loops right at boundary conditions
+                time.sleep(0.1)
 
 
 # Global rate limiter instance
@@ -110,13 +130,12 @@ def get_openai_client() -> OpenAI:
     return _client
 
 
-def generate_embedding(text: str) -> list[float]:
+def generate_embedding(text: str, max_retries: int = 5, base_delay: float = 1.0) -> list[float]:
     """
     Generate an embedding using text-embedding-3-small (1536 dimensions) for a single text.
+    Includes rate limiting, budget checks, and retry with exponential backoff and jitter.
     """
-    # Upfront validation of API key
     client = get_openai_client()
-
     tokens = count_tokens(text)
 
     # Rate limit and budget checks
@@ -126,24 +145,62 @@ def generate_embedding(text: str) -> list[float]:
     cleaned_text = text.replace("\n", " ").strip()
     logger.debug(f"Generating single embedding ({tokens} tokens) for text: {cleaned_text[:30]}...")
 
-    response = client.embeddings.create(input=[cleaned_text], model=settings.RAG_EMBEDDING_MODEL)
-    embedding = response.data[0].embedding
-    if len(embedding) != 1536:
-        raise ValueError(f"Generated embedding dimension is {len(embedding)}, expected 1536.")
-    return embedding
+    attempt = 0
+    while True:
+        try:
+            response = client.embeddings.create(
+                input=[cleaned_text], model=settings.RAG_EMBEDDING_MODEL
+            )
+            embedding = response.data[0].embedding
+            if len(embedding) != 1536:
+                raise ValueError(
+                    f"Generated embedding dimension is {len(embedding)}, expected 1536."
+                )
+            return embedding
+        except (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError) as e:
+            attempt += 1
+            if attempt > max_retries:
+                raise EmbeddingRetryExhaustedError(
+                    f"OpenAI API call failed after {max_retries} attempts: {str(e)}"
+                ) from e
+            delay = base_delay * (2 ** (attempt - 1))
+            jitter = random.uniform(0, 0.5 * delay)
+            wait_time = delay + jitter
+            logger.warning(
+                f"Transient OpenAI error encountered ({type(e).__name__}): {str(e)}. "
+                f"Retrying attempt {attempt}/{max_retries} in {wait_time:.2f}s..."
+            )
+            time.sleep(wait_time)
+        except APIStatusError as e:
+            if e.status_code >= 500:
+                attempt += 1
+                if attempt > max_retries:
+                    raise EmbeddingRetryExhaustedError(
+                        f"OpenAI API call failed after {max_retries} attempts: {str(e)}"
+                    ) from e
+                delay = base_delay * (2 ** (attempt - 1))
+                jitter = random.uniform(0, 0.5 * delay)
+                wait_time = delay + jitter
+                logger.warning(
+                    f"Transient OpenAI status error encountered ({e.status_code}): {str(e)}. "
+                    f"Retrying attempt {attempt}/{max_retries} in {wait_time:.2f}s..."
+                )
+                time.sleep(wait_time)
+            else:
+                raise
 
 
-def generate_embeddings(texts: list[str]) -> list[list[float]]:
+def generate_embeddings(
+    texts: list[str], max_retries: int = 5, base_delay: float = 1.0
+) -> list[list[float]]:
     """
     Generate embeddings using text-embedding-3-small for a batch of texts.
-    Enforces batching, rate limiting, budget checks, and logging.
+    Enforces batching, rate limiting, budget checks, retries, and logging.
     """
     if not texts:
         return []
 
-    # Upfront validation of API key
     client = get_openai_client()
-
     total_tokens = count_tokens_batch(texts)
     cost = estimate_embedding_cost(total_tokens)
     logger.info(
@@ -164,21 +221,56 @@ def generate_embeddings(texts: list[str]) -> list[list[float]]:
             f"Sending batch {i // batch_size + 1} ({len(batch)} items) to OpenAI embeddings API"
         )
 
-        response = client.embeddings.create(input=cleaned_batch, model=settings.RAG_EMBEDDING_MODEL)
-
-        # Verify the API response items
-        batch_embeddings = [item.embedding for item in response.data]
-        if len(batch_embeddings) != len(batch):
-            raise ValueError(
-                f"OpenAI returned {len(batch_embeddings)} embeddings for a batch of size {len(batch)}"
-            )
-
-        for embedding in batch_embeddings:
-            if len(embedding) != 1536:
-                raise ValueError(
-                    f"Generated embedding dimension is {len(embedding)}, expected 1536."
+        attempt = 0
+        while True:
+            try:
+                response = client.embeddings.create(
+                    input=cleaned_batch, model=settings.RAG_EMBEDDING_MODEL
                 )
+                batch_embeddings = [item.embedding for item in response.data]
+                if len(batch_embeddings) != len(batch):
+                    raise ValueError(
+                        f"OpenAI returned {len(batch_embeddings)} embeddings for a batch of size {len(batch)}"
+                    )
 
-        all_embeddings.extend(batch_embeddings)
+                for embedding in batch_embeddings:
+                    if len(embedding) != 1536:
+                        raise ValueError(
+                            f"Generated embedding dimension is {len(embedding)}, expected 1536."
+                        )
+
+                all_embeddings.extend(batch_embeddings)
+                break
+            except (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError) as e:
+                attempt += 1
+                if attempt > max_retries:
+                    raise EmbeddingRetryExhaustedError(
+                        f"OpenAI API call failed after {max_retries} attempts: {str(e)}"
+                    ) from e
+                delay = base_delay * (2 ** (attempt - 1))
+                jitter = random.uniform(0, 0.5 * delay)
+                wait_time = delay + jitter
+                logger.warning(
+                    f"Transient OpenAI error encountered ({type(e).__name__}): {str(e)}. "
+                    f"Retrying attempt {attempt}/{max_retries} in {wait_time:.2f}s..."
+                )
+                time.sleep(wait_time)
+            except APIStatusError as e:
+                if e.status_code >= 500:
+                    attempt += 1
+                    if attempt > max_retries:
+                        raise EmbeddingRetryExhaustedError(
+                            f"OpenAI API call failed after {max_retries} attempts: {str(e)}"
+                        ) from e
+                    delay = base_delay * (2 ** (attempt - 1))
+                    jitter = random.uniform(0, 0.5 * delay)
+                    wait_time = delay + jitter
+                    logger.warning(
+                        f"Transient OpenAI status error encountered ({e.status_code}): {str(e)}. "
+                        f"Retrying attempt {attempt}/{max_retries} in {wait_time:.2f}s..."
+                    )
+                    time.sleep(wait_time)
+                else:
+                    raise
 
     return all_embeddings
