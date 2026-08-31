@@ -96,7 +96,9 @@ def parse_pdf(file_path: str) -> list[dict]:
 
     # If the total extracted text across the entire PDF is empty, it is scanned/image-only
     if total_text_length == 0:
-        logger.error(f"PDF extraction failed. PDF appears scanned/image-only (no text extracted): {file_path}")
+        logger.error(
+            f"PDF extraction failed. PDF appears scanned/image-only (no text extracted): {file_path}"
+        )
         raise ScannedPDFError(
             "The PDF file appears to be scanned or image-only (no text extracted)."
         )

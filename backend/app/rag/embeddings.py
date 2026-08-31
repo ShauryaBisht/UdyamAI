@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 from datetime import datetime, timedelta
+
 from openai import OpenAI
 
 from app.config import settings
@@ -9,11 +10,13 @@ from app.rag.token_counter import count_tokens, count_tokens_batch, estimate_emb
 
 logger = logging.getLogger(__name__)
 
+
 class EmbeddingRateLimiter:
     """
     Manages rate limiting and cost controls for OpenAI embeddings API.
     Thread-safe synchronous implementation.
     """
+
     def __init__(
         self,
         max_tokens_per_minute: int = 150_000,
@@ -73,9 +76,13 @@ class EmbeddingRateLimiter:
 
             # Check if adding these tokens exceeds per-minute limit
             if self.tokens_this_minute + tokens > self.max_tokens_per_minute:
-                wait_seconds = (self.minute_window_start + timedelta(minutes=1) - now).total_seconds()
+                wait_seconds = (
+                    self.minute_window_start + timedelta(minutes=1) - now
+                ).total_seconds()
                 if wait_seconds > 0:
-                    logger.info(f"Embedding rate limit reached: waiting {wait_seconds:.1f}s for next minute window")
+                    logger.info(
+                        f"Embedding rate limit reached: waiting {wait_seconds:.1f}s for next minute window"
+                    )
                     time.sleep(wait_seconds)
                 self.tokens_this_minute = 0
                 self.minute_window_start = datetime.now()
@@ -109,20 +116,17 @@ def generate_embedding(text: str) -> list[float]:
     """
     # Upfront validation of API key
     client = get_openai_client()
-    
+
     tokens = count_tokens(text)
-    
+
     # Rate limit and budget checks
     rate_limiter.check_token_budget(tokens)
     rate_limiter.wait_for_rate_limit(tokens)
-    
+
     cleaned_text = text.replace("\n", " ").strip()
     logger.debug(f"Generating single embedding ({tokens} tokens) for text: {cleaned_text[:30]}...")
-    
-    response = client.embeddings.create(
-        input=[cleaned_text], 
-        model=settings.RAG_EMBEDDING_MODEL
-    )
+
+    response = client.embeddings.create(input=[cleaned_text], model=settings.RAG_EMBEDDING_MODEL)
     return response.data[0].embedding
 
 
@@ -133,13 +137,15 @@ def generate_embeddings(texts: list[str]) -> list[list[float]]:
     """
     if not texts:
         return []
-        
+
     # Upfront validation of API key
     client = get_openai_client()
 
     total_tokens = count_tokens_batch(texts)
     cost = estimate_embedding_cost(total_tokens)
-    logger.info(f"Generating embeddings for {len(texts)} texts. Total tokens: {total_tokens:,}. Estimated cost: ${cost:.6f}")
+    logger.info(
+        f"Generating embeddings for {len(texts)} texts. Total tokens: {total_tokens:,}. Estimated cost: ${cost:.6f}"
+    )
 
     # Rate limit and budget checks
     rate_limiter.check_token_budget(total_tokens)
@@ -151,18 +157,19 @@ def generate_embeddings(texts: list[str]) -> list[list[float]]:
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
         cleaned_batch = [text.replace("\n", " ").strip() for text in batch]
-        logger.debug(f"Sending batch {i//batch_size + 1} ({len(batch)} items) to OpenAI embeddings API")
-        
-        response = client.embeddings.create(
-            input=cleaned_batch,
-            model=settings.RAG_EMBEDDING_MODEL
+        logger.debug(
+            f"Sending batch {i // batch_size + 1} ({len(batch)} items) to OpenAI embeddings API"
         )
-        
+
+        response = client.embeddings.create(input=cleaned_batch, model=settings.RAG_EMBEDDING_MODEL)
+
         # Verify the API response items
         batch_embeddings = [item.embedding for item in response.data]
         if len(batch_embeddings) != len(batch):
-            raise ValueError(f"OpenAI returned {len(batch_embeddings)} embeddings for a batch of size {len(batch)}")
-            
+            raise ValueError(
+                f"OpenAI returned {len(batch_embeddings)} embeddings for a batch of size {len(batch)}"
+            )
+
         all_embeddings.extend(batch_embeddings)
 
     return all_embeddings

@@ -59,8 +59,10 @@ def ingest_document(
         existing_doc = db.exec(statement).first()
 
         if existing_doc:
-            logger.info(f"Found existing document with content hash: {content_hash}. Verifying completeness...")
-            
+            logger.info(
+                f"Found existing document with content hash: {content_hash}. Verifying completeness..."
+            )
+
             # Query existing chunks count in database
             chunks_stmt = select(DocumentChunk).where(DocumentChunk.document_id == existing_doc.id)
             existing_chunks = db.exec(chunks_stmt).all()
@@ -77,7 +79,9 @@ def ingest_document(
             # Verify completeness: does chunk count match expected?
             if len(chunks_data) > 0 and len(existing_chunks) == len(chunks_data):
                 # Genuinely complete! Return None to indicate skipped
-                logger.info(f"Document '{title}' ({content_hash}) is already complete with {len(existing_chunks)} chunks. Skipping ingestion.")
+                logger.info(
+                    f"Document '{title}' ({content_hash}) is already complete with {len(existing_chunks)} chunks. Skipping ingestion."
+                )
                 return None
 
             # If chunk count doesn't match expected or is 0, we treat it as incomplete and rebuild
@@ -126,7 +130,9 @@ def ingest_document(
 
             # Ensure embedding count exactly matches chunk count
             if len(embeddings) != len(chunks_data):
-                logger.error(f"Embedding count mismatch. Generated {len(embeddings)} embeddings for {len(chunks_data)} chunks.")
+                logger.error(
+                    f"Embedding count mismatch. Generated {len(embeddings)} embeddings for {len(chunks_data)} chunks."
+                )
                 raise ValueError(
                     f"Embedding count mismatch. Expected {len(chunks_data)} embeddings, "
                     f"but got {len(embeddings)}."
@@ -153,6 +159,8 @@ def ingest_document(
         return db_doc
 
     except Exception as e:
-        logger.error(f"Error during ingestion of '{title}' (file: {file_path}): {str(e)}", exc_info=True)
+        logger.error(
+            f"Error during ingestion of '{title}' (file: {file_path}): {str(e)}", exc_info=True
+        )
         db.rollback()
         raise e

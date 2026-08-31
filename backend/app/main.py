@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import analysis, businesses, finance, health, locations, reports, schemes, users
@@ -32,54 +32,83 @@ setup_exception_handlers(app)
 app.include_router(health.router, prefix="/health", tags=["Health"])
 
 app.include_router(
-    locations.router, prefix="/locations", tags=["Locations"], dependencies=[Depends(default_limiter)]
+    locations.router,
+    prefix="/locations",
+    tags=["Locations"],
+    dependencies=[Depends(default_limiter)],
 )
 app.include_router(
-    locations.router, prefix="/api/v1/locations", tags=["Locations"], include_in_schema=False, dependencies=[Depends(default_limiter)]
+    locations.router,
+    prefix="/api/v1/locations",
+    tags=["Locations"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
 )
 app.include_router(
-    businesses.router, prefix="/business-categories", tags=["Business Categories"], dependencies=[Depends(default_limiter)]
+    businesses.router,
+    prefix="/business-categories",
+    tags=["Business Categories"],
+    dependencies=[Depends(default_limiter)],
 )
 app.include_router(
     businesses.router,
     prefix="/api/v1/business-categories",
     tags=["Business Categories"],
     include_in_schema=False,
-    dependencies=[Depends(default_limiter)]
+    dependencies=[Depends(default_limiter)],
 )
 app.include_router(
     schemes.router, prefix="/schemes", tags=["Schemes"], dependencies=[Depends(default_limiter)]
 )
 app.include_router(
-    schemes.router, prefix="/api/v1/schemes", tags=["Schemes"], include_in_schema=False, dependencies=[Depends(default_limiter)]
+    schemes.router,
+    prefix="/api/v1/schemes",
+    tags=["Schemes"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
 )
 app.include_router(
-    analysis.router, prefix="/analysis", tags=["Feasibility Analysis"], dependencies=[Depends(default_limiter)]
+    analysis.router,
+    prefix="/analysis",
+    tags=["Feasibility Analysis"],
+    dependencies=[Depends(default_limiter)],
 )
 app.include_router(
     analysis.router,
     prefix="/api/v1/analysis",
     tags=["Feasibility Analysis"],
     include_in_schema=False,
-    dependencies=[Depends(default_limiter)]
+    dependencies=[Depends(default_limiter)],
 )
 app.include_router(
     finance.router, prefix="/finance", tags=["Finance"], dependencies=[Depends(default_limiter)]
 )
 app.include_router(
-    finance.router, prefix="/api/v1/finance", tags=["Finance"], include_in_schema=False, dependencies=[Depends(default_limiter)]
+    finance.router,
+    prefix="/api/v1/finance",
+    tags=["Finance"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
 )
 app.include_router(
     reports.router, prefix="/reports", tags=["Reports"], dependencies=[Depends(default_limiter)]
 )
 app.include_router(
-    reports.router, prefix="/api/v1/reports", tags=["Reports"], include_in_schema=False, dependencies=[Depends(default_limiter)]
+    reports.router,
+    prefix="/api/v1/reports",
+    tags=["Reports"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
 )
 app.include_router(
     users.router, prefix="/users", tags=["Users"], dependencies=[Depends(default_limiter)]
 )
 app.include_router(
-    users.router, prefix="/api/v1/users", tags=["Users"], include_in_schema=False, dependencies=[Depends(default_limiter)]
+    users.router,
+    prefix="/api/v1/users",
+    tags=["Users"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
 )
 
 

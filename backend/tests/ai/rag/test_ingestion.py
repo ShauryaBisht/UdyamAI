@@ -2,9 +2,9 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
-from pypdf.errors import PdfReadError
 
 import pytest
+from pypdf.errors import PdfReadError
 from sqlmodel import Session, create_engine, select
 
 from app.config import settings
@@ -18,8 +18,9 @@ from app.rag.document_parser import (
     ScannedPDFError,
     parse_pdf,
 )
-from app.rag.embeddings import generate_embeddings
+from app.rag.embeddings import EmbeddingRateLimiter, generate_embeddings
 from app.rag.knowledge_base import calculate_sha256, ingest_document
+from app.rag.token_counter import count_tokens, count_tokens_batch, estimate_embedding_cost
 
 # Prevent ValueError in embeddings generation
 settings.OPENAI_API_KEY = "mock-openai-key-for-testing"
@@ -409,21 +410,17 @@ def test_ingest_document_retry_no_duplicate_chunks(mock_embed, mock_parse, db_se
 
 # --- 5. New Tests for Rate Limiting, Token Counter, Heading Detection, PDF Integration ---
 
-from app.rag.token_counter import count_tokens, count_tokens_batch, estimate_embedding_cost
-from app.rag.embeddings import EmbeddingRateLimiter
-import io
-
 
 def test_token_counter_basic():
     # Basic token counter verification
     text = "Hello world! This is a test."
     tokens = count_tokens(text)
     assert tokens > 0
-    
+
     batch = ["First text chunk", "Second chunk here"]
     batch_tokens = count_tokens_batch(batch)
     assert batch_tokens == count_tokens(batch[0]) + count_tokens(batch[1])
-    
+
     cost = estimate_embedding_cost(1000000)
     assert abs(cost - 0.02) < 1e-9
 
@@ -433,9 +430,9 @@ def test_rate_limiter_budget_check():
     limiter = EmbeddingRateLimiter(
         max_tokens_per_minute=1000,
         monthly_budget_cents=10,  # $0.10 i.e. 5 million tokens
-        alert_threshold_percent=80
+        alert_threshold_percent=80,
     )
-    
+
     # 6 million tokens = 12 cents cost. This should raise budget exceeded ValueError
     with pytest.raises(ValueError) as excinfo:
         limiter.check_token_budget(6000000)
@@ -446,15 +443,13 @@ def test_rate_limiter_budget_check():
 def test_rate_limiter_minute_window(mock_sleep):
     # Enforces tokens per minute sleep block
     limiter = EmbeddingRateLimiter(
-        max_tokens_per_minute=100,
-        monthly_budget_cents=5000,
-        alert_threshold_percent=80
+        max_tokens_per_minute=100, monthly_budget_cents=5000, alert_threshold_percent=80
     )
-    
+
     # First batch uses 60 tokens (fine, no sleep)
     limiter.wait_for_rate_limit(60)
     assert mock_sleep.call_count == 0
-    
+
     # Second batch tries 50 tokens (total 110, exceeds 100 limit, should sleep)
     limiter.wait_for_rate_limit(50)
     assert mock_sleep.call_count == 1
@@ -463,14 +458,14 @@ def test_rate_limiter_minute_window(mock_sleep):
 def test_heading_heuristic_detection():
     # Verify various heading heuristic formats
     doc_id = uuid4()
-    
+
     # 1. Markdown Heading
     chunks = chunk_document(
         pages=[{"page_number": 1, "text": "# Section Heading 1\nSome details here."}],
         document_id=doc_id,
         source_title="Test Title",
         chunk_size=100,
-        chunk_overlap=10
+        chunk_overlap=10,
     )
     assert chunks[0]["section_heading"] == "# Section Heading 1"
 
@@ -480,7 +475,7 @@ def test_heading_heuristic_detection():
         document_id=doc_id,
         source_title="Test Title",
         chunk_size=100,
-        chunk_overlap=10
+        chunk_overlap=10,
     )
     assert chunks[0]["section_heading"] == "1.2 Introduction"
 
@@ -490,7 +485,7 @@ def test_heading_heuristic_detection():
         document_id=doc_id,
         source_title="Test Title",
         chunk_size=100,
-        chunk_overlap=10
+        chunk_overlap=10,
     )
     assert chunks[0]["section_heading"] == "१. प्रस्तावना"
 
@@ -500,7 +495,7 @@ def test_heading_heuristic_detection():
         document_id=doc_id,
         source_title="Test Title",
         chunk_size=100,
-        chunk_overlap=10
+        chunk_overlap=10,
     )
     assert chunks[0]["section_heading"] == "Chapter Three: Rules"
 
@@ -509,7 +504,7 @@ def test_heading_heuristic_detection():
         document_id=doc_id,
         source_title="Test Title",
         chunk_size=100,
-        chunk_overlap=10
+        chunk_overlap=10,
     )
     assert chunks[0]["section_heading"] == "अध्याय २: पात्रता"
 
@@ -519,7 +514,7 @@ def test_heading_heuristic_detection():
         document_id=doc_id,
         source_title="Test Title",
         chunk_size=100,
-        chunk_overlap=10
+        chunk_overlap=10,
     )
     assert chunks[0]["section_heading"] == "ELIGIBILITY CRITERIA"
 
@@ -529,7 +524,7 @@ def test_heading_heuristic_detection():
         document_id=doc_id,
         source_title="Test Title",
         chunk_size=100,
-        chunk_overlap=10
+        chunk_overlap=10,
     )
     assert chunks[0]["section_heading"] == "Eligibility Guidelines:"
 
@@ -539,7 +534,7 @@ def test_heading_heuristic_detection():
         document_id=doc_id,
         source_title="Test Title",
         chunk_size=100,
-        chunk_overlap=10
+        chunk_overlap=10,
     )
     assert chunks[0]["section_heading"] is None
 
@@ -568,11 +563,11 @@ def test_parse_pdf_real_scanned_file_integration():
         b"282\n"
         b"%%EOF"
     )
-    
+
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(minimal_pdf_bytes)
         tmp_name = tmp.name
-        
+
     try:
         with pytest.raises(ScannedPDFError):
             parse_pdf(tmp_name)
@@ -596,16 +591,11 @@ def test_ingest_document_mismatch_exception(mock_embed, mock_parse, db_session, 
     # Mocking parser to return 2 chunks
     mock_parse.return_value = [
         {"page_number": 1, "text": "Page text chunk 1"},
-        {"page_number": 2, "text": "Page text chunk 2"}
+        {"page_number": 2, "text": "Page text chunk 2"},
     ]
     # Mocking embeddings to fail by returning only 1 embedding instead of 2
     mock_embed.return_value = [[0.0] * 1536]
-    
-    with pytest.raises(ValueError) as excinfo:
-        ingest_document(
-            db=db_session,
-            file_path=temp_file,
-            title="Mismatch Test Doc"
-        )
-    assert "Embedding count mismatch" in str(excinfo.value)
 
+    with pytest.raises(ValueError) as excinfo:
+        ingest_document(db=db_session, file_path=temp_file, title="Mismatch Test Doc")
+    assert "Embedding count mismatch" in str(excinfo.value)

@@ -41,7 +41,9 @@ def chunk_document(
     if overlap < 0 or overlap >= size:
         raise ValueError("chunk_overlap must be non-negative and strictly less than chunk_size")
 
-    logger.info(f"Chunking document {document_id} ('{source_title}') with size={size}, overlap={overlap}")
+    logger.info(
+        f"Chunking document {document_id} ('{source_title}') with size={size}, overlap={overlap}"
+    )
 
     chunks = []
     chunk_index = 0
@@ -83,12 +85,16 @@ def chunk_document(
                     # 4. Starts with section-like keywords (English or Hindi)
                     # 5. Is in all uppercase (between 5 and 80 characters, English only)
                     is_heading = (
-                        first_line.startswith("#") or
-                        first_line.endswith(":") or
-                        re.match(r"^(Chapter|Section|Part|Annexure|Appendix|Table|अध्याय|अनुभाग|भाग)\b", first_line, re.IGNORECASE) or
-                        re.match(r"^(\d+|[०-९]+)(\.(\d+|[०-९]+))*\s*[\s:.-]", first_line) or
-                        re.match(r"^([A-Z]|[IVXLCDM]+)\s*\.\s+", first_line) or
-                        (first_line.isupper() and len(first_line) >= 5)
+                        first_line.startswith("#")
+                        or first_line.endswith(":")
+                        or re.match(
+                            r"^(Chapter|Section|Part|Annexure|Appendix|Table|अध्याय|अनुभाग|भाग)\b",
+                            first_line,
+                            re.IGNORECASE,
+                        )
+                        or re.match(r"^(\d+|[०-९]+)(\.(\d+|[०-९]+))*\s*[\s:.-]", first_line)
+                        or re.match(r"^([A-Z]|[IVXLCDM]+)\s*\.\s+", first_line)
+                        or (first_line.isupper() and len(first_line) >= 5)
                     )
                     if is_heading:
                         section_heading = first_line
