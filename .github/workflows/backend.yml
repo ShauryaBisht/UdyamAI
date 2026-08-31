@@ -37,10 +37,14 @@ jobs:
         cd backend
         python -c "from app.main import app; print('App imports OK')"
 
-    - name: Validate database migrations
+    - name: Initialize test database and validate migrations
       run: |
         cd backend
-        alembic upgrade head --sql
+        python -c "import sqlite3; sqlite3.connect('./test.db').close()"
+        alembic upgrade head
+        alembic current
+      env:
+        SQLALCHEMY_DATABASE_URL: sqlite:///./test.db
 
     - name: Run Tests
       run: |
