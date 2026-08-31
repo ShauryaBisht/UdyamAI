@@ -25,7 +25,9 @@ def upgrade() -> None:
         op.create_table(
             "scheme_rules",
             sa.Column("id", sa.String(), primary_key=True),
-            sa.Column("payment_frequency", sa.String(), nullable=True, server_default=sa.text("'monthly'")),
+            sa.Column(
+                "payment_frequency", sa.String(), nullable=True, server_default=sa.text("'monthly'")
+            ),
             sa.Column("moratorium_interest_treatment", sa.String(), nullable=True),
             sa.Column("working_capital_percent", sa.Float(), nullable=True),
         )
@@ -35,15 +37,21 @@ def upgrade() -> None:
             op.add_column(
                 "scheme_rules",
                 sa.Column(
-                    "payment_frequency", sa.String(), nullable=True, server_default=sa.text("'monthly'")
+                    "payment_frequency",
+                    sa.String(),
+                    nullable=True,
+                    server_default=sa.text("'monthly'"),
                 ),
             )
         if "moratorium_interest_treatment" not in columns_sr:
             op.add_column(
-                "scheme_rules", sa.Column("moratorium_interest_treatment", sa.String(), nullable=True)
+                "scheme_rules",
+                sa.Column("moratorium_interest_treatment", sa.String(), nullable=True),
             )
         if "working_capital_percent" not in columns_sr:
-            op.add_column("scheme_rules", sa.Column("working_capital_percent", sa.Float(), nullable=True))
+            op.add_column(
+                "scheme_rules", sa.Column("working_capital_percent", sa.Float(), nullable=True)
+            )
 
     if not inspector.has_table("repayment_schedules"):
         op.create_table(
@@ -52,17 +60,27 @@ def upgrade() -> None:
             sa.Column("remaining_principal", sa.Float(), nullable=True),
             sa.Column("principal_amount", sa.Float(), nullable=True),
             sa.Column("opening_balance", sa.Float(), nullable=True),
-            sa.Column("verification_required", sa.Boolean(), nullable=True, server_default=sa.text("false")),
+            sa.Column(
+                "verification_required",
+                sa.Boolean(),
+                nullable=True,
+                server_default=sa.text("false"),
+            ),
         )
     else:
         columns_rs = [c["name"] for c in inspector.get_columns("repayment_schedules")]
         if "opening_balance" not in columns_rs:
-            op.add_column("repayment_schedules", sa.Column("opening_balance", sa.Float(), nullable=True))
+            op.add_column(
+                "repayment_schedules", sa.Column("opening_balance", sa.Float(), nullable=True)
+            )
         if "verification_required" not in columns_rs:
             op.add_column(
                 "repayment_schedules",
                 sa.Column(
-                    "verification_required", sa.Boolean(), nullable=True, server_default=sa.text("false")
+                    "verification_required",
+                    sa.Boolean(),
+                    nullable=True,
+                    server_default=sa.text("false"),
                 ),
             )
 
