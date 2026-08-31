@@ -215,3 +215,58 @@ class LocationMarketAnalysisResponse(BaseModel):
     notes: str = Field(
         default="Population reach indicates total demographic count in radius; target customers are calculated based on economic activity and conversion rates."
     )
+
+
+class RiskIndicatorItem(BaseModel):
+    risk_type: str = Field(
+        ...,
+        description="Deterministic risk category key (e.g. high_competitor_density, seasonal_market, low_market_access, single_market_dependency, limited_infrastructure, price_volatility)",
+    )
+    severity: str = Field(..., description="Risk severity level: 'low', 'medium', or 'high'")
+    evidence: str = Field(..., description="Empirical evidence backing the risk flag")
+    source: str = Field(..., description="Data source origin for the evidence")
+
+
+class MarketRiskAssessmentRequest(BaseModel):
+    village_id: UUID | None = Field(
+        default=None, description="Optional target village location UUID"
+    )
+    latitude: float | None = Field(
+        default=None, ge=-90.0, le=90.0, description="Optional latitude center point"
+    )
+    longitude: float | None = Field(
+        default=None, ge=-180.0, le=180.0, description="Optional longitude center point"
+    )
+    radius_km: float = Field(default=10.0, ge=0.1, le=50.0, description="Analysis radius in km")
+    competition_density: float | None = Field(
+        default=None, description="Optional competitor density override (per km²)"
+    )
+    price_volatility: str | None = Field(
+        default=None,
+        description="Optional price volatility classification ('low', 'medium', 'high')",
+    )
+    is_seasonal: bool = Field(
+        default=False, description="Flag indicating seasonal crop/trade market"
+    )
+
+    @model_validator(mode="after")
+    def validate_location(self) -> "MarketRiskAssessmentRequest":
+        if not self.village_id and (self.latitude is None or self.longitude is None):
+            raise ValueError(
+                "Either village_id or both latitude and longitude coordinates must be provided."
+            )
+        return self
+
+
+class MarketRiskAssessmentResponse(BaseModel):
+    overall_market_risk_level: str = Field(
+        ..., description="Overall risk level: 'low', 'medium', or 'high'"
+    )
+    risk_score: float = Field(..., description="Numerical risk score on 0.0 to 10.0 scale")
+    risks: list[RiskIndicatorItem] = Field(
+        default_factory=list, description="Structured deterministic risk indicators"
+    )
+    identified_risk_flags: list[str] = Field(
+        default_factory=list, description="Summary strings of identified risk flags"
+    )
+    provenance: list[MarketProvenanceInfo] = Field(default_factory=list)

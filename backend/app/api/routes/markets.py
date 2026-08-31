@@ -16,6 +16,8 @@ from app.schemas.market import (
     MarketAnalysisResponse,
     MarketPriceResponse,
     MarketResponse,
+    MarketRiskAssessmentRequest,
+    MarketRiskAssessmentResponse,
 )
 from app.services.market_service import MarketService
 
@@ -199,6 +201,55 @@ def analyze_competition_get(
         radius_km=radius_km,
         business_category_id=business_category_id,
         category_name=category_name,
+    )
+
+
+@router.post("/risks", response_model=MarketRiskAssessmentResponse)
+def assess_market_risks_post(
+    payload: MarketRiskAssessmentRequest,
+    db: Session = Depends(get_session),
+):
+    """Run Phase 8 Risk Indicators assessment for a location."""
+    return MarketService.assess_risks_for_location(
+        db=db,
+        village_id=payload.village_id,
+        lat=payload.latitude,
+        lng=payload.longitude,
+        radius_km=payload.radius_km,
+        competition_density=payload.competition_density,
+        price_volatility=payload.price_volatility,
+        is_seasonal=payload.is_seasonal,
+    )
+
+
+@router.get("/risks/{village_id}", response_model=MarketRiskAssessmentResponse)
+def assess_market_risks_get(
+    village_id: UUID,
+    radius_km: float = Query(default=10.0, ge=0.1, le=50.0, description="Analysis radius in km"),
+    lat: float | None = Query(
+        default=None, ge=-90.0, le=90.0, description="Optional override latitude center point"
+    ),
+    lng: float | None = Query(
+        default=None, ge=-180.0, le=180.0, description="Optional override longitude center point"
+    ),
+    price_volatility: str | None = Query(
+        default=None,
+        description="Optional price volatility classification ('low', 'medium', 'high')",
+    ),
+    is_seasonal: bool = Query(
+        default=False, description="Flag indicating seasonal crop/trade market"
+    ),
+    db: Session = Depends(get_session),
+):
+    """Run Phase 8 Risk Indicators assessment for a village specified by path parameter."""
+    return MarketService.assess_risks_for_location(
+        db=db,
+        village_id=village_id,
+        lat=lat,
+        lng=lng,
+        radius_km=radius_km,
+        price_volatility=price_volatility,
+        is_seasonal=is_seasonal,
     )
 
 

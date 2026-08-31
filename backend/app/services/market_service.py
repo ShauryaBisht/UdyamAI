@@ -36,9 +36,11 @@ from app.schemas.market import (
     CompetitionAnalysisDetailResponse,
     LocationMarketAnalysisResponse,
     MarketProvenanceInfo,
+    MarketRiskAssessmentResponse,
     NearbyInfrastructureSummary,
     NearbyMarketSummary,
     RadiusMarketAnalysisResult,
+    RiskIndicatorItem,
 )
 
 logger = logging.getLogger(__name__)
@@ -458,11 +460,22 @@ class MarketService:
             pp_res = estimate_purchasing_power(
                 pop_reach, hh_reach, pop_res["estimated_working_population"], econ_recs
             )
+            nearest_mkt_dist = (
+                min([m.get("distance_meters", 100000) / 1000.0 for m in nearby_mkts])
+                if nearby_mkts
+                else None
+            )
+            single_mkt_name = nearby_mkts[0].get("name") if len(nearby_mkts) == 1 else None
+
             risk_res = assess_market_risks(
-                comp_res["competition_density_per_km2"],
-                infra_res["facility_counts_by_type"],
-                pricing_res["price_volatility"],
-                pop_reach,
+                competition_density=comp_res["competition_density_per_km2"],
+                facility_counts=infra_res["facility_counts_by_type"],
+                price_volatility=pricing_res["price_volatility"],
+                population_reach=pop_reach,
+                nearby_markets_count=len(nearby_mkts),
+                nearest_market_distance_km=nearest_mkt_dist,
+                single_market_name=single_mkt_name,
+                radius_km=r,
             )
 
             indicators_dict = {
@@ -668,6 +681,114 @@ class MarketService:
             identified_market_gaps=comp_res["identified_market_gaps"],
             quality_indicator=comp_res["quality_indicator"],
             data_confidence=comp_res["data_completeness"],
+            provenance=provenance_objs,
+        )
+
+    @staticmethod
+    def assess_risks_for_location(
+        db: Session,
+        village_id: UUID | None = None,
+        lat: float | None = None,
+        lng: float | None = None,
+        radius_km: float = 10.0,
+        competition_density: float | None = None,
+        price_volatility: str | None = None,
+        is_seasonal: bool = False,
+    ) -> MarketRiskAssessmentResponse:
+        """Perform standalone Phase 8 Risk Indicators assessment for a location."""
+        target_lat = lat
+        target_lng = lng
+
+        if (target_lat is None or target_lng is None) and village_id is not None:
+            village = db.get(Village, village_id)
+            if not village:
+                raise HTTPException(
+                    status_code=404, detail=f"Village with id {village_id} not found"
+                )
+            if village.latitude is None or village.longitude is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Village '{village.name}' (id {village_id}) is missing latitude/longitude coordinates.",
+                )
+            target_lat = village.latitude
+            target_lng = village.longitude
+
+        if target_lat is None or target_lng is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Location coordinates (lat, lng) or a valid village_id are required for risk assessment.",
+            )
+
+        # Retrieve empirical data around coordinates
+        nearby_biz = find_nearby_businesses(
+            db, lat=target_lat, lng=target_lng, radius_km=radius_km, limit=500
+        )
+        nearby_facs = find_nearby_facilities(
+            db, lat=target_lat, lng=target_lng, radius_km=radius_km, limit=500
+        )
+        nearby_mkts = find_nearby_markets(
+            db, lat=target_lat, lng=target_lng, radius_km=radius_km, limit=50
+        )
+        nearby_vils = find_nearby_villages(
+            db, lat=target_lat, lng=target_lng, radius_km=radius_km, limit=500
+        )
+
+        calc_comp_density = competition_density
+        if calc_comp_density is None:
+            comp_analysis = analyze_competition(nearby_biz, radius_km=radius_km)
+            calc_comp_density = comp_analysis.get("competition_density_per_km2", 0.0)
+
+        infra_analysis = analyze_relevant_infrastructure(nearby_facs)
+        facility_counts = infra_analysis.get("facility_counts_by_type", {})
+
+        pop_reach = sum(v.get("population", 0) or 0 for v in nearby_vils)
+
+        nearest_dist = (
+            min([m.get("distance_meters", 100000) / 1000.0 for m in nearby_mkts])
+            if nearby_mkts
+            else None
+        )
+        single_mkt_name = nearby_mkts[0].get("name") if len(nearby_mkts) == 1 else None
+
+        risk_res = assess_market_risks(
+            competition_density=calc_comp_density,
+            facility_counts=facility_counts,
+            price_volatility=price_volatility or "low",
+            population_reach=pop_reach,
+            nearby_markets_count=len(nearby_mkts),
+            nearest_market_distance_km=nearest_dist,
+            single_market_name=single_mkt_name,
+            is_seasonal=is_seasonal,
+            radius_km=radius_km,
+        )
+
+        risk_items = [
+            RiskIndicatorItem(
+                risk_type=r["risk_type"],
+                severity=r["severity"],
+                evidence=r["evidence"],
+                source=r["source"],
+            )
+            for r in risk_res.get("risks", [])
+        ]
+
+        provenance_objs = [
+            MarketProvenanceInfo(
+                dataset_name=p.get("dataset_name", "Risk Indicators Engine"),
+                source=p.get("source"),
+                source_url=p.get("source_url"),
+                data_year=p.get("data_year"),
+                record_count=p.get("record_count", 0),
+                confidence_score=p.get("confidence_score", "high"),
+            )
+            for p in risk_res.get("provenance", [])
+        ]
+
+        return MarketRiskAssessmentResponse(
+            overall_market_risk_level=risk_res["overall_market_risk_level"],
+            risk_score=risk_res["risk_score"],
+            risks=risk_items,
+            identified_risk_flags=risk_res["identified_risk_flags"],
             provenance=provenance_objs,
         )
 
