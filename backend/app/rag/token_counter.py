@@ -1,5 +1,4 @@
 import logging
-from functools import lru_cache
 
 from app.config import settings
 
@@ -17,8 +16,9 @@ def _get_encoding():
     """Get tiktoken encoding for configured model or fallback to cl100k_base."""
     if tiktoken is None:
         return None
+    model_name = getattr(settings, "RAG_EMBEDDING_MODEL", "text-embedding-3-small")
     try:
-        return tiktoken.encoding_for_model(settings.RAG_EMBEDDING_MODEL)
+        return tiktoken.encoding_for_model(model_name)
     except Exception:
         try:
             return tiktoken.get_encoding("cl100k_base")
@@ -26,7 +26,6 @@ def _get_encoding():
             return None
 
 
-@lru_cache(maxsize=10000)
 def count_tokens(text: str) -> int:
     """Count tokens in a string using tiktoken with fallback."""
     if not text:
