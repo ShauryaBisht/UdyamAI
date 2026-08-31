@@ -120,7 +120,9 @@ def run_market_analysis(
 def get_village_market_analysis(
     village_id: UUID,
     radii: list[float] | None = Query(default=None, description="Radii in km (e.g. 5.0, 10.0)"),
-    business_category_id: UUID | None = Query(default=None, description="Optional business category"),
+    business_category_id: UUID | None = Query(
+        default=None, description="Optional business category"
+    ),
     analysis_run_id: UUID | None = Query(default=None, description="Optional analysis run ID"),
     db: Session = Depends(get_session),
 ):

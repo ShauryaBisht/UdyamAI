@@ -52,23 +52,27 @@ def calculate_population_and_household_reach(
     provenance_entries = []
     if sources:
         for s_name, s_url, s_yr in sources:
-            provenance_entries.append({
-                "dataset_name": "Census Population & Households",
-                "source": s_name or "Government Census / Data Pipeline",
-                "source_url": s_url,
-                "data_year": s_yr,
-                "record_count": villages_with_pop_data,
-                "confidence_score": "high" if s_name else "medium",
-            })
+            provenance_entries.append(
+                {
+                    "dataset_name": "Census Population & Households",
+                    "source": s_name or "Government Census / Data Pipeline",
+                    "source_url": s_url,
+                    "data_year": s_yr,
+                    "record_count": villages_with_pop_data,
+                    "confidence_score": "high" if s_name else "medium",
+                }
+            )
     else:
-        provenance_entries.append({
-            "dataset_name": "Census Population & Households",
-            "source": "Normalized Data Pipeline",
-            "source_url": None,
-            "data_year": None,
-            "record_count": len(villages_within_radius),
-            "confidence_score": "medium",
-        })
+        provenance_entries.append(
+            {
+                "dataset_name": "Census Population & Households",
+                "source": "Normalized Data Pipeline",
+                "source_url": None,
+                "data_year": None,
+                "record_count": len(villages_within_radius),
+                "confidence_score": "medium",
+            }
+        )
 
     return {
         "estimated_population_reach": total_population,

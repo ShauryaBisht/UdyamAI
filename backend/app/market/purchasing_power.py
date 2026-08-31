@@ -26,7 +26,11 @@ def estimate_purchasing_power(
     # Extract income per capita if present in economic_indicators
     per_capita_income = None
     for rec in economic_indicators:
-        if rec.get("indicator_name") in ("per_capita_income", "gdpp_per_capita", "avg_monthly_income"):
+        if rec.get("indicator_name") in (
+            "per_capita_income",
+            "gdpp_per_capita",
+            "avg_monthly_income",
+        ):
             per_capita_income = rec.get("indicator_value")
             break
 

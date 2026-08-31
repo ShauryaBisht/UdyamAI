@@ -236,7 +236,9 @@ class MarketService:
         lat = village.latitude if village.latitude is not None else 19.75
         lng = village.longitude if village.longitude is not None else 75.71
 
-        district_name = village.district.name if hasattr(village, "district") and village.district else None
+        district_name = (
+            village.district.name if hasattr(village, "district") and village.district else None
+        )
         taluka_name = village.taluka.name if hasattr(village, "taluka") and village.taluka else None
 
         radius_results: list[RadiusMarketAnalysisResult] = []
@@ -248,13 +250,15 @@ class MarketService:
             village_ids = [UUID(str(v["id"])) for v in nearby_villages if "id" in v and v["id"]]
             if village_id not in village_ids:
                 village_ids.append(village_id)
-                nearby_villages.append({
-                    "id": village.id,
-                    "name": village.name,
-                    "latitude": village.latitude,
-                    "longitude": village.longitude,
-                    "distance_meters": 0.0,
-                })
+                nearby_villages.append(
+                    {
+                        "id": village.id,
+                        "name": village.name,
+                        "latitude": village.latitude,
+                        "longitude": village.longitude,
+                        "distance_meters": 0.0,
+                    }
+                )
 
             # Fetch population records for these villages
             pop_records = []
@@ -343,7 +347,9 @@ class MarketService:
 
             econ_recs = []
             if village_ids:
-                econ_stmt = select(EconomicIndicator).where(EconomicIndicator.location_id.in_(village_ids))
+                econ_stmt = select(EconomicIndicator).where(
+                    EconomicIndicator.location_id.in_(village_ids)
+                )
                 econ_recs = [
                     {k: v for k, v in e.__dict__.items() if not k.startswith("_")}
                     for e in db.exec(econ_stmt).all()

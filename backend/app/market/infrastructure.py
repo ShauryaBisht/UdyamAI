@@ -47,23 +47,27 @@ def analyze_relevant_infrastructure(
     provenance_entries = []
     if sources:
         for s_name, s_url, s_yr in sources:
-            provenance_entries.append({
-                "dataset_name": "Infrastructure & Facilities",
-                "source": s_name or "GIS Infrastructure Registry",
-                "source_url": s_url,
-                "data_year": s_yr,
-                "record_count": len(facilities),
-                "confidence_score": "high",
-            })
+            provenance_entries.append(
+                {
+                    "dataset_name": "Infrastructure & Facilities",
+                    "source": s_name or "GIS Infrastructure Registry",
+                    "source_url": s_url,
+                    "data_year": s_yr,
+                    "record_count": len(facilities),
+                    "confidence_score": "high",
+                }
+            )
     else:
-        provenance_entries.append({
-            "dataset_name": "Infrastructure & Facilities",
-            "source": "Normalized Data Pipeline",
-            "source_url": None,
-            "data_year": None,
-            "record_count": len(facilities),
-            "confidence_score": "medium",
-        })
+        provenance_entries.append(
+            {
+                "dataset_name": "Infrastructure & Facilities",
+                "source": "Normalized Data Pipeline",
+                "source_url": None,
+                "data_year": None,
+                "record_count": len(facilities),
+                "confidence_score": "medium",
+            }
+        )
 
     return {
         "total_facilities": len(facilities),

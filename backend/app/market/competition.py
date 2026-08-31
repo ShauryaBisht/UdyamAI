@@ -29,7 +29,9 @@ def analyze_competition(
     sources: set[tuple[str | None, str | None, int | None]] = set()
 
     for b in businesses:
-        cat_id = str(b.get("business_category_id")) if b.get("business_category_id") else "uncategorized"
+        cat_id = (
+            str(b.get("business_category_id")) if b.get("business_category_id") else "uncategorized"
+        )
         category_counts[cat_id] = category_counts.get(cat_id, 0) + 1
 
         if target_category_id and cat_id == str(target_category_id):
@@ -44,33 +46,43 @@ def analyze_competition(
     # Market gap identification
     market_gaps = []
     if competition_density < 0.5:
-        market_gaps.append("Low commercial saturation: Opportunity for new local retail/service ventures.")
+        market_gaps.append(
+            "Low commercial saturation: Opportunity for new local retail/service ventures."
+        )
     elif competition_density > 5.0:
-        market_gaps.append("High commercial density: Recommended focus on differentiation or specialized niche offerings.")
+        market_gaps.append(
+            "High commercial density: Recommended focus on differentiation or specialized niche offerings."
+        )
 
     if direct_competitors == 0 and target_category_id:
-        market_gaps.append("Zero direct competitors identified in radius: High first-mover advantage potential.")
+        market_gaps.append(
+            "Zero direct competitors identified in radius: High first-mover advantage potential."
+        )
 
     provenance_entries = []
     if sources:
         for s_name, s_url, s_yr in sources:
-            provenance_entries.append({
-                "dataset_name": "Commercial Registry / Businesses",
-                "source": s_name or "Business Directory",
-                "source_url": s_url,
-                "data_year": s_yr,
-                "record_count": total_businesses,
-                "confidence_score": "high",
-            })
+            provenance_entries.append(
+                {
+                    "dataset_name": "Commercial Registry / Businesses",
+                    "source": s_name or "Business Directory",
+                    "source_url": s_url,
+                    "data_year": s_yr,
+                    "record_count": total_businesses,
+                    "confidence_score": "high",
+                }
+            )
     else:
-        provenance_entries.append({
-            "dataset_name": "Commercial Registry / Businesses",
-            "source": "Normalized Data Pipeline",
-            "source_url": None,
-            "data_year": None,
-            "record_count": total_businesses,
-            "confidence_score": "medium",
-        })
+        provenance_entries.append(
+            {
+                "dataset_name": "Commercial Registry / Businesses",
+                "source": "Normalized Data Pipeline",
+                "source_url": None,
+                "data_year": None,
+                "record_count": total_businesses,
+                "confidence_score": "medium",
+            }
+        )
 
     return {
         "total_businesses_in_radius": total_businesses,

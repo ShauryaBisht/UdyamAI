@@ -136,7 +136,8 @@ class RadiusMarketAnalysisResult(BaseModel):
         ..., description="Total households across villages within radius"
     )
     estimated_target_customers: int = Field(
-        ..., description="Estimated addressable customer reach (differentiated from total population)"
+        ...,
+        description="Estimated addressable customer reach (differentiated from total population)",
     )
     nearby_villages_count: int = 0
     nearby_markets_count: int = 0
@@ -160,4 +161,3 @@ class LocationMarketAnalysisResponse(BaseModel):
     notes: str = Field(
         default="Population reach indicates total demographic count in radius; target customers are calculated based on economic activity and conversion rates."
     )
-

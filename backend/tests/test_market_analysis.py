@@ -79,8 +79,22 @@ class TestMarketSizeAndTargeting:
 class TestInfrastructureAndCompetition:
     def test_analyze_relevant_infrastructure(self):
         facilities = [
-            {"id": uuid4(), "name": "Bank of India", "facility_type": "bank", "distance_meters": 1200, "capacity": None, "source": "RBI"},
-            {"id": uuid4(), "name": "Cold Storage Unit", "facility_type": "cold_storage", "distance_meters": 4500, "capacity": 500, "source": "NHB"},
+            {
+                "id": uuid4(),
+                "name": "Bank of India",
+                "facility_type": "bank",
+                "distance_meters": 1200,
+                "capacity": None,
+                "source": "RBI",
+            },
+            {
+                "id": uuid4(),
+                "name": "Cold Storage Unit",
+                "facility_type": "cold_storage",
+                "distance_meters": 4500,
+                "capacity": 500,
+                "source": "NHB",
+            },
         ]
 
         res = analyze_relevant_infrastructure(facilities)
@@ -109,8 +123,18 @@ class TestPricingAndDemand:
     def test_analyze_market_pricing(self):
         markets = [{"id": uuid4(), "name": "Dist Mandi"}]
         prices = [
-            {"market_id": markets[0]["id"], "commodity": "Onion", "modal_price": 2200.0, "source": "Agmarknet"},
-            {"market_id": markets[0]["id"], "commodity": "Tomato", "modal_price": 1800.0, "source": "Agmarknet"},
+            {
+                "market_id": markets[0]["id"],
+                "commodity": "Onion",
+                "modal_price": 2200.0,
+                "source": "Agmarknet",
+            },
+            {
+                "market_id": markets[0]["id"],
+                "commodity": "Tomato",
+                "modal_price": 1800.0,
+                "source": "Agmarknet",
+            },
         ]
 
         res = analyze_market_pricing(markets, prices)
@@ -153,12 +177,15 @@ class TestMarketServiceOrchestrator:
         mock_db.get.return_value = mock_village
         mock_db.exec.return_value.all.return_value = []
 
-        with patch("app.services.market_service.find_nearby_villages") as mock_vils, \
-             patch("app.services.market_service.find_nearby_markets") as mock_mkts, \
-             patch("app.services.market_service.find_nearby_facilities") as mock_facs, \
-             patch("app.services.market_service.find_nearby_businesses") as mock_biz:
-
-            mock_vils.return_value = [{"id": village_id, "name": "Sample Village", "distance_meters": 0}]
+        with (
+            patch("app.services.market_service.find_nearby_villages") as mock_vils,
+            patch("app.services.market_service.find_nearby_markets") as mock_mkts,
+            patch("app.services.market_service.find_nearby_facilities") as mock_facs,
+            patch("app.services.market_service.find_nearby_businesses") as mock_biz,
+        ):
+            mock_vils.return_value = [
+                {"id": village_id, "name": "Sample Village", "distance_meters": 0}
+            ]
             mock_mkts.return_value = []
             mock_facs.return_value = []
             mock_biz.return_value = []

@@ -25,14 +25,16 @@ def analyze_market_pricing(
             "commodity_coverage_count": 0,
             "prices_analyzed_count": 0,
             "price_volatility": "low",
-            "provenance": [{
-                "dataset_name": "Agmarknet / Mandi Prices",
-                "source": "Normalized Data Pipeline",
-                "source_url": None,
-                "data_year": None,
-                "record_count": 0,
-                "confidence_score": "low",
-            }],
+            "provenance": [
+                {
+                    "dataset_name": "Agmarknet / Mandi Prices",
+                    "source": "Normalized Data Pipeline",
+                    "source_url": None,
+                    "data_year": None,
+                    "record_count": 0,
+                    "confidence_score": "low",
+                }
+            ],
         }
 
     modal_prices = [p.get("modal_price") for p in market_prices if p.get("modal_price") is not None]
@@ -62,23 +64,27 @@ def analyze_market_pricing(
     provenance_entries = []
     if sources:
         for s_name, s_url, s_yr in sources:
-            provenance_entries.append({
-                "dataset_name": "Agmarknet / Mandi Prices",
-                "source": s_name or "Agmarknet / Department of Agriculture",
-                "source_url": s_url,
-                "data_year": s_yr,
-                "record_count": len(market_prices),
-                "confidence_score": "high",
-            })
+            provenance_entries.append(
+                {
+                    "dataset_name": "Agmarknet / Mandi Prices",
+                    "source": s_name or "Agmarknet / Department of Agriculture",
+                    "source_url": s_url,
+                    "data_year": s_yr,
+                    "record_count": len(market_prices),
+                    "confidence_score": "high",
+                }
+            )
     else:
-        provenance_entries.append({
-            "dataset_name": "Agmarknet / Mandi Prices",
-            "source": "Normalized Data Pipeline",
-            "source_url": None,
-            "data_year": None,
-            "record_count": len(market_prices),
-            "confidence_score": "medium",
-        })
+        provenance_entries.append(
+            {
+                "dataset_name": "Agmarknet / Mandi Prices",
+                "source": "Normalized Data Pipeline",
+                "source_url": None,
+                "data_year": None,
+                "record_count": len(market_prices),
+                "confidence_score": "medium",
+            }
+        )
 
     return {
         "average_modal_price": avg_modal,

@@ -24,9 +24,7 @@ def calculate_demand_indicators(
     Returns:
         Dict containing calculated demand metrics, purchasing power index, and provenance.
     """
-    working_ratio = (
-        round(working_population / population_reach, 3) if population_reach > 0 else 0.0
-    )
+    working_ratio = round(working_population / population_reach, 3) if population_reach > 0 else 0.0
 
     avg_household_size = (
         round(population_reach / household_reach, 2) if household_reach > 0 else 0.0
@@ -53,24 +51,28 @@ def calculate_demand_indicators(
     # Provenance tracking
     provenance_entries = []
     if economic_records:
-        provenance_entries.append({
-            "dataset_name": "Economic Indicators",
-            "source": economic_records[0].get("source") or "Government Statistics",
-            "source_url": economic_records[0].get("source_url"),
-            "data_year": economic_records[0].get("data_year"),
-            "record_count": len(economic_records),
-            "confidence_score": "high",
-        })
+        provenance_entries.append(
+            {
+                "dataset_name": "Economic Indicators",
+                "source": economic_records[0].get("source") or "Government Statistics",
+                "source_url": economic_records[0].get("source_url"),
+                "data_year": economic_records[0].get("data_year"),
+                "record_count": len(economic_records),
+                "confidence_score": "high",
+            }
+        )
 
     if agriculture_records:
-        provenance_entries.append({
-            "dataset_name": "Agriculture & Crops",
-            "source": agriculture_records[0].get("source") or "Agri Dept",
-            "source_url": agriculture_records[0].get("source_url"),
-            "data_year": agriculture_records[0].get("data_year"),
-            "record_count": len(agriculture_records),
-            "confidence_score": "high",
-        })
+        provenance_entries.append(
+            {
+                "dataset_name": "Agriculture & Crops",
+                "source": agriculture_records[0].get("source") or "Agri Dept",
+                "source_url": agriculture_records[0].get("source_url"),
+                "data_year": agriculture_records[0].get("data_year"),
+                "record_count": len(agriculture_records),
+                "confidence_score": "high",
+            }
+        )
 
     return {
         "demand_score": demand_score,

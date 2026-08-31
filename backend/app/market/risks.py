@@ -32,11 +32,15 @@ def assess_market_risks(
         overall_risk_score += 2.5
 
     if price_volatility == "high":
-        risk_flags.append("High commodity price volatility: Input cost and selling price instability risk.")
+        risk_flags.append(
+            "High commodity price volatility: Input cost and selling price instability risk."
+        )
         overall_risk_score += 2.5
 
     if facility_counts.get("bank", 0) + facility_counts.get("atm", 0) == 0:
-        risk_flags.append("Financial infrastructure gap: Lack of formal banking/ATM access in immediate radius.")
+        risk_flags.append(
+            "Financial infrastructure gap: Lack of formal banking/ATM access in immediate radius."
+        )
         overall_risk_score += 1.5
 
     if facility_counts.get("cold_storage", 0) + facility_counts.get("warehouse", 0) == 0:
