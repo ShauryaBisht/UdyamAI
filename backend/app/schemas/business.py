@@ -15,6 +15,25 @@ class BusinessCategoryResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BusinessResponse(BaseModel):
+    id: UUID
+    name: str | None = None
+    business_category_id: UUID | None = None
+    location_id: UUID | None = None
+    district: str | None = None
+    taluka: str | None = None
+    village: str | None = None
+    address: str | None = None
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    source: str | None = None
+    source_url: str | None = None
+    data_year: int | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class BusinessModelResponse(BaseModel):
     id: UUID
     business_category_id: UUID

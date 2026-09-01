@@ -55,7 +55,6 @@ class Business(SQLModel, table=True):
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     name: str | None = Field(default=None)
-    category: str | None = Field(default=None)
     business_category_id: UUID | None = Field(
         default=None, foreign_key="business_categories.id", nullable=True
     )
