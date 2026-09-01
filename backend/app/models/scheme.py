@@ -99,7 +99,7 @@ class SchemeMatch(SQLModel, table=True):
 
     match_status: str = Field(
         nullable=False
-    )  # potential_match, not_matched, insufficient_information
+    )  # potential_match, not_match, missing_information, verification_required
     match_score: float | None = Field(default=None)
 
     # JSON details

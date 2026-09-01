@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.common import BeneficiaryCategory, SchemeMatchStatus
 
@@ -56,5 +56,21 @@ class SchemeMatchResultResponse(BaseModel):
     estimated_loan_amount: float | None = Field(default=None, ge=0)
     estimated_project_cost: float | None = Field(default=None, ge=0)
     verification_required: bool = True
+    authoritative_approval_status: str | None = Field(
+        default=None,
+        description="Official approval status if provided authoritatively by scheme authority",
+    )
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def validate_no_unauthoritative_guarantees(self) -> "SchemeMatchResultResponse":
+        if not self.authoritative_approval_status:
+            prohibited = ["approved", "guaranteed loan", "guaranteed eligibility"]
+            status_str = str(self.match_status).lower()
+            for term in prohibited:
+                if term in status_str:
+                    raise ValueError(
+                        f"Cannot return '{term}' without an authoritative approval status."
+                    )
+        return self

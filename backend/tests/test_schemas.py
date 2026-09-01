@@ -10,6 +10,8 @@ from app.schemas import (
     LocationQuery,
     ReportCreateRequest,
     SchemeMatchRequest,
+    SchemeMatchResultResponse,
+    SchemeMatchStatus,
     SupportedLanguage,
 )
 
@@ -127,3 +129,20 @@ def test_location_query_bounds():
     # Negative offset fails
     with pytest.raises(ValidationError):
         LocationQuery(offset=-10)
+
+
+def test_scheme_match_status_values_and_prohibited_guarantees():
+    """Verify SchemeMatchStatus values and prohibit unauthoritative guarantee terms."""
+    assert SchemeMatchStatus.POTENTIAL_MATCH == "potential_match"
+    assert SchemeMatchStatus.NOT_MATCH == "not_match"
+    assert SchemeMatchStatus.MISSING_INFORMATION == "missing_information"
+    assert SchemeMatchStatus.VERIFICATION_REQUIRED == "verification_required"
+
+    # Valid response
+    resp = SchemeMatchResultResponse(
+        scheme_id=uuid4(),
+        scheme_name="PMEGP",
+        match_status=SchemeMatchStatus.POTENTIAL_MATCH,
+        verification_required=True,
+    )
+    assert resp.match_status == "potential_match"

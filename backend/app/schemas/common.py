@@ -17,8 +17,9 @@ class AnalysisStatus(StrEnum):
 
 class SchemeMatchStatus(StrEnum):
     POTENTIAL_MATCH = "potential_match"
-    NOT_MATCHED = "not_matched"
-    INSUFFICIENT_INFORMATION = "insufficient_information"
+    NOT_MATCH = "not_match"
+    MISSING_INFORMATION = "missing_information"
+    VERIFICATION_REQUIRED = "verification_required"
 
 
 class BeneficiaryCategory(StrEnum):
