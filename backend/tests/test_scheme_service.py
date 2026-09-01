@@ -397,3 +397,34 @@ class TestSchemeIntegrationRules:
         text_content = f"{sample_output['scheme_name']} {sample_output['justification']}".lower()
         for term in prohibited_terms:
             assert term not in text_content
+
+    def test_validator_rejects_unauthorized_guarantees_in_descriptive_text(self):
+        from uuid import uuid4
+
+        import pytest
+        from pydantic import ValidationError
+
+        from app.schemas.common import SchemeMatchStatus
+        from app.schemas.scheme import SchemeMatchResultResponse
+
+        scheme_id = uuid4()
+
+        # Matched conditions text contains prohibited term 'approved'
+        with pytest.raises(ValidationError) as exc:
+            SchemeMatchResultResponse(
+                scheme_id=scheme_id,
+                scheme_name="Subsidy Scheme",
+                match_status=SchemeMatchStatus.POTENTIAL_MATCH,
+                matched_conditions={"summary": "Approved by board"},
+            )
+        assert "Prohibited term 'approved'" in str(exc.value)
+
+        # Missing information text contains prohibited term 'guaranteed loan'
+        with pytest.raises(ValidationError) as exc:
+            SchemeMatchResultResponse(
+                scheme_id=scheme_id,
+                scheme_name="Subsidy Scheme",
+                match_status=SchemeMatchStatus.MISSING_INFORMATION,
+                missing_information={"details": "Guaranteed loan option pending doc review"},
+            )
+        assert "Prohibited term 'guaranteed loan'" in str(exc.value)

@@ -3,7 +3,10 @@ from typing import TYPE_CHECKING, Any, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import JSON, Column
+from sqlalchemy import Enum as SQLEnum
 from sqlmodel import Field, Relationship, SQLModel
+
+from app.schemas.common import SchemeMatchStatus
 
 if TYPE_CHECKING:
     from app.models.analysis import AnalysisRun
@@ -97,9 +100,12 @@ class SchemeMatch(SQLModel, table=True):
     analysis_run_id: UUID = Field(foreign_key="analysis_runs.id", nullable=False)
     scheme_id: UUID = Field(foreign_key="schemes.id", nullable=False)
 
-    match_status: str = Field(
-        nullable=False
-    )  # potential_match, not_match, missing_information, verification_required
+    match_status: SchemeMatchStatus = Field(
+        sa_column=Column(
+            SQLEnum(SchemeMatchStatus, values_callable=lambda x: [e.value for e in x]),
+            nullable=False,
+        )
+    )
     match_score: float | None = Field(default=None)
 
     # JSON details
