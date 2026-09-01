@@ -222,7 +222,7 @@ def test_scheme_match_financial_upper_bounds():
 
 def test_schema_field_naming_discrepancies_normalization():
     """Verify bidirectional compatibility between old and new property names across schemas."""
-    from datetime import datetime, timezone
+    from datetime import UTC, datetime
 
     from app.schemas.ai import CompetitionContext, MarketContext
     from app.schemas.feasibility import SWOTIndicators
@@ -245,7 +245,7 @@ def test_schema_field_naming_discrepancies_normalization():
     mkt_resp = MarketAnalysisResponse(
         id=uuid4(),
         analysis_run_id=uuid4(),
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         total_population_reach=18000,
         estimated_household_reach=4000,
     )

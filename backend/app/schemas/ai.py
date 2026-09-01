@@ -15,10 +15,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.business import BusinessCategoryResponse, BusinessModelResponse
 from app.schemas.common import SchemeMatchStatus
-from app.schemas.feasibility import (
-    ConsolidatedAnalysisResponse,
-    FeasibilityAnalysisResponse,
-)
+from app.schemas.feasibility import FeasibilityAnalysisResponse
 from app.schemas.finance import FinanceCalculateResponse
 from app.schemas.location import DistrictResponse, TalukaResponse, VillageResponse
 from app.schemas.market import CompetitorAnalysisResponse, MarketAnalysisResponse

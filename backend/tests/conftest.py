@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -26,7 +26,7 @@ def dummy_run():
         business_category_id=uuid4(),
         available_capital=50000.0,
         status="created",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -39,7 +39,7 @@ def dummy_status(dummy_run):
         status="created",
         progress_percentage=10,
         current_step="created",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
