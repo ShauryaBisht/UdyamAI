@@ -83,13 +83,31 @@ export default function OnboardingPage() {
 
   // Start Analysis
   const handleStartAnalysis = () => {
-    console.log("Analysis inputs:", {
+    const analysisData = {
+      districtId,
+      talukaId,
       villageId,
+      district,
+      taluka,
+      village,
       businessCategoryId,
+      business,
       capital,
       desiredProjectCost,
       language,
-    });
+      timestamp: new Date().toISOString(),
+    };
+
+    console.log("Analysis inputs:", analysisData);
+
+    try {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("udyam_analysis_inputs", JSON.stringify(analysisData));
+        localStorage.setItem("udyam_analysis_inputs", JSON.stringify(analysisData));
+      }
+    } catch (e) {
+      console.warn("Could not save analysis state:", e);
+    }
 
     router.push('/dashboard');
   };
