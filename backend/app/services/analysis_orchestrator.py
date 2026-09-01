@@ -25,6 +25,8 @@ from app.ai import advisor
 from app.models.analysis import AIAnalysis, AnalysisRun, FeasibilityAnalysis
 from app.models.business import BusinessCategory
 from app.models.location import District, Taluka, Village
+from app.models.market import CompetitorAnalysis, MarketAnalysis
+from app.models.report import Report
 from app.models.scheme import SchemeMatch
 from app.models.user import Profile
 from app.schemas.ai import (
@@ -381,6 +383,48 @@ class AnalysisOrchestrator:
                 confidence=ai_advice.confidence,
             )
             db.add(db_ai)
+
+            db_market_analysis = MarketAnalysis(
+                analysis_run_id=db_run.id,
+                radius_km=10.0,
+                population_estimate=market_res.market_size.total_population_reach,
+                household_estimate=market_res.market_size.household_reach,
+                market_reach_estimate=market_res.market_size.estimated_target_customers,
+                competitor_count=competition_res.total_competitors_count,
+                demand_indicators={
+                    "score": market_res.demand_score,
+                    "level": market_res.demand_level,
+                },
+                pricing_indicators={"average_price": market_res.pricing.average_market_price},
+                data_confidence=ai_advice.confidence,
+            )
+            db.add(db_market_analysis)
+
+            db_competitor_analysis = CompetitorAnalysis(
+                analysis_run_id=db_run.id,
+                radius_km=10.0,
+                competitor_count=competition_res.total_competitors_count,
+                competition_density=competition_res.competition_density,
+                competitor_distribution={
+                    "direct": competition_res.direct_competitors_count,
+                    "indirect": competition_res.indirect_competitors_count,
+                },
+                data_confidence=ai_advice.confidence,
+            )
+            db.add(db_competitor_analysis)
+
+            db_report = Report(
+                analysis_run_id=db_run.id,
+                user_id=user_id,
+                title=f"Analysis Report - {category.name} ({village.name})",
+                language=lang_str,
+                report_data={
+                    "summary": ai_advice.summary,
+                    "recommendation": ai_advice.recommendation,
+                    "overall_score": feasibility_score_res.overall_score,
+                },
+            )
+            db.add(db_report)
 
             db_run.status = "completed"
             db_run.completed_at = datetime.now(UTC)
