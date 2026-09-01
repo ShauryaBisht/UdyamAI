@@ -24,6 +24,9 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
+    if not inspector.has_table("businesses"):
+        return
+
     columns = [c["name"] for c in inspector.get_columns("businesses")]
     if "category" in columns:
         op.drop_column("businesses", "category")
@@ -32,6 +35,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
+
+    if not inspector.has_table("businesses"):
+        return
 
     columns = [c["name"] for c in inspector.get_columns("businesses")]
     if "category" not in columns:
