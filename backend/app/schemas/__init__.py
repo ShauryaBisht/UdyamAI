@@ -1,4 +1,5 @@
 from app.schemas.base import (
+    LocationValidatedModel,
     ORMBaseModel,
     add_location_validator,
     normalize_competition_dict_keys,
@@ -44,6 +45,7 @@ from app.schemas.scheme import (
 )
 
 __all__ = [
+    "LocationValidatedModel",
     "ORMBaseModel",
     "add_location_validator",
     "normalize_competition_dict_keys",

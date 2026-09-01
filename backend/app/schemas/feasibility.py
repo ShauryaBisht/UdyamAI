@@ -4,7 +4,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.schemas.base import add_location_validator, normalize_swot_dict_keys
+from app.schemas.base import (
+    LocationValidatedModel,
+    normalize_swot_dict_keys,
+)
 from app.schemas.common import AnalysisStatus, SchemeMatchStatus, SupportedLanguage
 
 
@@ -56,8 +59,7 @@ class FeasibilityScoreResult(BaseModel):
     swot: SWOTIndicators = Field(default_factory=SWOTIndicators)
 
 
-@add_location_validator
-class FeasibilityCalculationRequest(BaseModel):
+class FeasibilityCalculationRequest(LocationValidatedModel):
     village_id: UUID | None = Field(default=None, description="Optional target village UUID")
     latitude: float | None = Field(default=None, ge=-90.0, le=90.0)
     longitude: float | None = Field(default=None, ge=-180.0, le=180.0)

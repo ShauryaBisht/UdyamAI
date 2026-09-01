@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.base import (
-    add_location_validator,
+    LocationValidatedModel,
     normalize_competition_dict_keys,
     normalize_market_dict_keys,
 )
@@ -102,8 +102,7 @@ class MarketProvenanceInfo(BaseModel):
     confidence_score: str = "medium"
 
 
-@add_location_validator
-class CompetitionAnalysisRequest(BaseModel):
+class CompetitionAnalysisRequest(LocationValidatedModel):
     village_id: UUID | None = Field(
         default=None, description="Optional target village location UUID"
     )
@@ -239,8 +238,7 @@ class RiskIndicatorItem(BaseModel):
     )
 
 
-@add_location_validator
-class MarketRiskAssessmentRequest(BaseModel):
+class MarketRiskAssessmentRequest(LocationValidatedModel):
     village_id: UUID | None = Field(
         default=None, description="Village UUID to resolve location coordinates"
     )

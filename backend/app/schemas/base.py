@@ -11,6 +11,14 @@ class ORMBaseModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class LocationValidatedModel(BaseModel):
+    """Base model for request schemas requiring either village_id or latitude and longitude."""
+
+    @model_validator(mode="after")
+    def validate_location(self) -> Any:
+        return validate_location_coordinates(self)
+
+
 def normalize_market_dict_keys(data: Any) -> Any:
     """Normalize legacy and alternative market dictionary keys to canonical field names."""
     if isinstance(data, dict):
