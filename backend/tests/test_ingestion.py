@@ -26,7 +26,16 @@ from app.ingestion.validation import (
 )
 
 # Repo-root sample data — exercises the real CSVs end-to-end with a mocked DB.
-SAMPLES = Path(__file__).resolve().parents[2] / "data" / "raw"
+# Walk up from the test file to find the data/raw directory, so this works
+# both locally (backend/tests/ → project root) and inside Docker (/app/tests/ → /).
+_HERE = Path(__file__).resolve().parent
+SAMPLES: Path | None = None
+for _ancestor in [_HERE, *_HERE.parents]:
+    if (_ancestor / "data" / "raw").is_dir():
+        SAMPLES = _ancestor / "data" / "raw"
+        break
+if SAMPLES is None:
+    raise RuntimeError("Cannot locate data/raw sample directory")
 
 
 def write_csv(content: str) -> Path:
