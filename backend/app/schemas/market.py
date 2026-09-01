@@ -13,6 +13,13 @@ except ImportError:
 
     HAS_PYDANTIC_V2 = False
 
+from app.schemas.base import (
+    add_location_validator,
+    normalize_competition_dict_keys,
+    normalize_market_dict_keys,
+    validate_location_coordinates,
+)
+
 
 class MarketResponse(BaseModel):
     id: UUID
@@ -69,20 +76,7 @@ class MarketAnalysisResponse(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _normalize_market_keys(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if "population_estimate" not in data and "total_population_reach" in data:
-                data["population_estimate"] = data.get("total_population_reach")
-            elif "population_estimate" not in data and "estimated_population_reach" in data:
-                data["population_estimate"] = data.get("estimated_population_reach")
-
-            if "household_estimate" not in data and "household_reach" in data:
-                data["household_estimate"] = data.get("household_reach")
-            elif "household_estimate" not in data and "estimated_household_reach" in data:
-                data["household_estimate"] = data.get("estimated_household_reach")
-
-            if "market_reach_estimate" not in data and "estimated_target_customers" in data:
-                data["market_reach_estimate"] = data.get("estimated_target_customers")
-        return data
+        return normalize_market_dict_keys(data)
 
 
 class CompetitorAnalysisResponse(BaseModel):
@@ -104,10 +98,7 @@ class CompetitorAnalysisResponse(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _normalize_competition_keys(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if "competitor_count" not in data and "total_competitors_count" in data:
-                data["competitor_count"] = data.get("total_competitors_count")
-        return data
+        return normalize_competition_dict_keys(data)
 
 
 class MarketProvenanceInfo(BaseModel):
@@ -143,11 +134,7 @@ class CompetitionAnalysisRequest(BaseModel):
 
         @model_validator(mode="after")
         def validate_location(self) -> "CompetitionAnalysisRequest":
-            if not self.village_id and (self.latitude is None or self.longitude is None):
-                raise ValueError(
-                    "Either village_id or both latitude and longitude coordinates must be provided."
-                )
-            return self
+            return validate_location_coordinates(self)
 
     else:
 
@@ -277,35 +264,7 @@ class RiskIndicatorItem(BaseModel):
     )
 
 
-def _add_market_risk_location_validator(cls: type) -> type:
-    if HAS_PYDANTIC_V2:
-
-        @model_validator(mode="after")
-        def validate_location(self: Any) -> Any:
-            if not self.village_id and (self.latitude is None or self.longitude is None):
-                raise ValueError(
-                    "Either village_id or both latitude and longitude coordinates must be provided."
-                )
-            return self
-
-        cls.validate_location = validate_location
-    else:
-
-        @root_validator
-        def validate_location_v1(cls_ref: Any, values: dict[str, Any]) -> dict[str, Any]:
-            if not values.get("village_id") and (
-                values.get("latitude") is None or values.get("longitude") is None
-            ):
-                raise ValueError(
-                    "Either village_id or both latitude and longitude coordinates must be provided."
-                )
-            return values
-
-        cls.validate_location = validate_location_v1
-    return cls
-
-
-@_add_market_risk_location_validator
+@add_location_validator
 class MarketRiskAssessmentRequest(BaseModel):
     village_id: UUID | None = Field(
         default=None, description="Village UUID to resolve location coordinates"

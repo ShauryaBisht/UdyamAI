@@ -13,9 +13,10 @@ logger = logging.getLogger("udyam_ai")
 
 # Regex pattern to catch sensitive secrets, credentials, or tokens
 SENSITIVE_PATTERNS = re.compile(
-    r"(eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*|sb_p_[A-Za-z0-9]+|secret_[A-Za-z0-9]+|password\s*=\s*\S+|key\s*=\s*\S+|token\s*=\s*\S+)",
+    r"(eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*|sb_p_[A-Za-z0-9]+|pk_(?:live|test)_[A-Za-z0-9]+|sk_(?:live|test)_[A-Za-z0-9]+|secret_[A-Za-z0-9]+|password\s*=\s*\S+|key\s*=\s*\S+|token\s*=\s*\S+)",
     re.IGNORECASE,
 )
+SENSITIVE_PATTERN = SENSITIVE_PATTERNS
 
 
 class AppException(StarletteHTTPException):
@@ -45,6 +46,11 @@ def _sanitize_message(msg: str) -> str:
 def _map_status_to_code(status_code: int, detail_str: str) -> tuple[str, str]:
     """Helper mapping standard HTTP status codes and detail strings to structured error codes."""
     detail_lower = detail_str.lower()
+    if "required" in detail_lower or "missing" in detail_lower:
+        return (
+            "MISSING_REQUIRED_FIELD",
+            detail_str or "A required field or parameter is missing.",
+        )
     if "location" in detail_lower or "village" in detail_lower or "taluka" in detail_lower:
         return "LOCATION_NOT_FOUND", detail_str or "The selected village could not be found."
     if "category" in detail_lower or "business" in detail_lower:
@@ -63,7 +69,7 @@ def _map_status_to_code(status_code: int, detail_str: str) -> tuple[str, str]:
         return "CALCULATION_ERROR", detail_str or "Financial or feasibility calculation failed."
     if "ai" in detail_lower or "advisor" in detail_lower or "llm" in detail_lower:
         return "AI_UNAVAILABLE", detail_str or "AI advice service is currently unavailable."
-    if "data" in detail_lower or "missing" in detail_lower:
+    if "data" in detail_lower:
         return "MISSING_DATA", detail_str or "Required analysis data is missing or incomplete."
 
     if status_code == 404:

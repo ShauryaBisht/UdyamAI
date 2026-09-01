@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -278,3 +279,68 @@ def test_schema_field_naming_discrepancies_normalization():
     assert swot.opportunities == ["Govt Subsidies"]
     assert swot.threat_indicators == ["Drought"]
     assert swot.threats == ["Drought"]
+
+
+def test_feasibility_score_bounds():
+    """Verify that feasibility scores enforce explicit lower and upper bounds (ge=0, le=100)."""
+    from app.schemas.feasibility import FeasibilityAnalysisResponse, FeasibilityScoreResult
+
+    # Valid scores within 0-100
+    res = FeasibilityScoreResult(
+        market_score=85.0,
+        financial_score=70.0,
+        competition_score=60.0,
+        infrastructure_score=75.0,
+        risk_score=80.0,
+        overall_score=74.5,
+    )
+    assert res.overall_score == 74.5
+
+    # Out of bounds: negative score fails
+    with pytest.raises(ValidationError):
+        FeasibilityScoreResult(
+            market_score=-5.0,
+            financial_score=70.0,
+            competition_score=60.0,
+            infrastructure_score=75.0,
+            risk_score=80.0,
+            overall_score=74.5,
+        )
+
+    # Out of bounds: score > 100 fails
+    with pytest.raises(ValidationError):
+        FeasibilityScoreResult(
+            market_score=85.0,
+            financial_score=105.0,
+            competition_score=60.0,
+            infrastructure_score=75.0,
+            risk_score=80.0,
+            overall_score=74.5,
+        )
+
+    with pytest.raises(ValidationError):
+        FeasibilityScoreResult(
+            market_score=85.0,
+            financial_score=70.0,
+            competition_score=60.0,
+            infrastructure_score=75.0,
+            risk_score=80.0,
+            overall_score=150.0,
+        )
+
+    # FeasibilityAnalysisResponse bounds
+    with pytest.raises(ValidationError):
+        FeasibilityAnalysisResponse(
+            id=uuid4(),
+            analysis_run_id=uuid4(),
+            created_at=datetime.now(timezone.utc),
+            overall_score=101.0,
+        )
+
+    with pytest.raises(ValidationError):
+        FeasibilityAnalysisResponse(
+            id=uuid4(),
+            analysis_run_id=uuid4(),
+            created_at=datetime.now(timezone.utc),
+            market_score=-1.0,
+        )

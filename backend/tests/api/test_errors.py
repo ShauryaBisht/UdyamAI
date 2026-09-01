@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.utils.errors import AppException, _sanitize_message
+from app.utils.errors import AppException, _map_status_to_code, _sanitize_message
 
 
 def test_sanitize_message():
@@ -9,6 +9,30 @@ def test_sanitize_message():
     assert "super_secret_pass" not in sanitized
     assert "123" not in sanitized
     assert "[REDACTED]" in sanitized
+
+
+def test_sanitize_sensitive_tokens_stripe_and_supabase():
+    # Test Supabase token
+    msg_sb = "Failed connecting to sb_p_secret123456789"
+    assert "sb_p_secret123456789" not in _sanitize_message(msg_sb)
+    assert "[REDACTED]" in _sanitize_message(msg_sb)
+
+    # Test Stripe publishable and secret keys (live and test)
+    msg_stripe = "Keys: pk_live_51ABCxyz123, pk_test_51XYZabc789, sk_live_999secKey, sk_test_888secKey"
+    sanitized_stripe = _sanitize_message(msg_stripe)
+    assert "pk_live_51ABCxyz123" not in sanitized_stripe
+    assert "pk_test_51XYZabc789" not in sanitized_stripe
+    assert "sk_live_999secKey" not in sanitized_stripe
+    assert "sk_test_888secKey" not in sanitized_stripe
+    assert sanitized_stripe.count("[REDACTED]") == 4
+
+
+def test_map_status_to_code_missing_required_field():
+    code1, msg1 = _map_status_to_code(400, "Location ID is required")
+    assert code1 == "MISSING_REQUIRED_FIELD"
+
+    code2, msg2 = _map_status_to_code(422, "Missing parameter user_id")
+    assert code2 == "MISSING_REQUIRED_FIELD"
 
 
 def test_app_exception_structure(client):

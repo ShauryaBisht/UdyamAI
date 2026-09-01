@@ -10,13 +10,13 @@ from app.models.location import District, Taluka, Village
 from app.schemas.feasibility import AnalysisStatusResponse
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def client():
     """Create a test client for the FastAPI app."""
     return TestClient(app)
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def dummy_run():
     """Shared fixture for an AnalysisRun instance."""
     return AnalysisRun(
@@ -30,7 +30,7 @@ def dummy_run():
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def dummy_status(dummy_run):
     """Shared fixture for an AnalysisStatusResponse instance."""
     return AnalysisStatusResponse(
@@ -43,19 +43,19 @@ def dummy_status(dummy_run):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def dummy_district():
     """Shared fixture for a District instance."""
     return District(id=uuid4(), name="Pune", state="Maharashtra", lgd_code="123")
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def dummy_taluka(dummy_district):
     """Shared fixture for a Taluka instance."""
     return Taluka(id=uuid4(), name="Haveli", district_id=dummy_district.id, lgd_code="456")
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def dummy_village(dummy_district, dummy_taluka):
     """Shared fixture for a Village instance."""
     return Village(

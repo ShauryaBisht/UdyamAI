@@ -11,6 +11,7 @@ except ImportError:
 
     HAS_PYDANTIC_V2 = False
 
+from app.schemas.base import add_location_validator, normalize_swot_dict_keys
 from app.schemas.common import AnalysisStatus, SchemeMatchStatus, SupportedLanguage
 
 
@@ -23,16 +24,7 @@ class SWOTIndicators(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _normalize_swot_keys(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            if "strength_indicators" not in data and "strengths" in data:
-                data["strength_indicators"] = data.get("strengths") or []
-            if "weakness_indicators" not in data and "weaknesses" in data:
-                data["weakness_indicators"] = data.get("weaknesses") or []
-            if "opportunity_indicators" not in data and "opportunities" in data:
-                data["opportunity_indicators"] = data.get("opportunities") or []
-            if "threat_indicators" not in data and "threats" in data:
-                data["threat_indicators"] = data.get("threats") or []
-        return data
+        return normalize_swot_dict_keys(data)
 
     @property
     def strengths(self) -> list[str]:
@@ -71,36 +63,7 @@ class FeasibilityScoreResult(BaseModel):
     swot: SWOTIndicators = Field(default_factory=SWOTIndicators)
 
 
-def _add_location_validator(cls: type) -> type:
-    """Adds location validation supporting both Pydantic v1 and v2 without class-body conditional attribute fragility."""
-    if HAS_PYDANTIC_V2:
-
-        @model_validator(mode="after")
-        def validate_location(self: Any) -> Any:
-            if not self.village_id and (self.latitude is None or self.longitude is None):
-                raise ValueError(
-                    "Either village_id or both latitude and longitude coordinates must be provided."
-                )
-            return self
-
-        cls.validate_location = validate_location
-    else:
-
-        @root_validator
-        def validate_location_v1(cls_ref: Any, values: dict[str, Any]) -> dict[str, Any]:
-            if not values.get("village_id") and (
-                values.get("latitude") is None or values.get("longitude") is None
-            ):
-                raise ValueError(
-                    "Either village_id or both latitude and longitude coordinates must be provided."
-                )
-            return values
-
-        cls.validate_location = validate_location_v1
-    return cls
-
-
-@_add_location_validator
+@add_location_validator
 class FeasibilityCalculationRequest(BaseModel):
     village_id: UUID | None = Field(default=None, description="Optional target village UUID")
     latitude: float | None = Field(default=None, ge=-90.0, le=90.0)
