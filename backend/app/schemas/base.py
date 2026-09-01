@@ -1,6 +1,7 @@
 """Shared Pydantic base models, configurations, and reusable validators across schemas."""
 
 from typing import Any
+
 from pydantic import BaseModel, ConfigDict, model_validator
 
 

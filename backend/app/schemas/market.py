@@ -4,20 +4,12 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-try:
-    from pydantic import BaseModel, Field, model_validator
-
-    HAS_PYDANTIC_V2 = True
-except ImportError:
-    from pydantic import BaseModel, Field, root_validator
-
-    HAS_PYDANTIC_V2 = False
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.base import (
     add_location_validator,
     normalize_competition_dict_keys,
     normalize_market_dict_keys,
-    validate_location_coordinates,
 )
 
 
@@ -110,6 +102,7 @@ class MarketProvenanceInfo(BaseModel):
     confidence_score: str = "medium"
 
 
+@add_location_validator
 class CompetitionAnalysisRequest(BaseModel):
     village_id: UUID | None = Field(
         default=None, description="Optional target village location UUID"
@@ -129,24 +122,6 @@ class CompetitionAnalysisRequest(BaseModel):
     category_name: str | None = Field(
         default=None, description="Optional target category name (e.g. Dairy)"
     )
-
-    if HAS_PYDANTIC_V2:
-
-        @model_validator(mode="after")
-        def validate_location(self) -> "CompetitionAnalysisRequest":
-            return validate_location_coordinates(self)
-
-    else:
-
-        @root_validator
-        def validate_location_v1(cls, values):
-            if not values.get("village_id") and (
-                values.get("latitude") is None or values.get("longitude") is None
-            ):
-                raise ValueError(
-                    "Either village_id or both latitude and longitude coordinates must be provided."
-                )
-            return values
 
 
 class CompetitionAnalysisDetailResponse(BaseModel):

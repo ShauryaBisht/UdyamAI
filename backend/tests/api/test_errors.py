@@ -18,7 +18,9 @@ def test_sanitize_sensitive_tokens_stripe_and_supabase():
     assert "[REDACTED]" in _sanitize_message(msg_sb)
 
     # Test Stripe publishable and secret keys (live and test)
-    msg_stripe = "Keys: pk_live_51ABCxyz123, pk_test_51XYZabc789, sk_live_999secKey, sk_test_888secKey"
+    msg_stripe = (
+        "Keys: pk_live_51ABCxyz123, pk_test_51XYZabc789, sk_live_999secKey, sk_test_888secKey"
+    )
     sanitized_stripe = _sanitize_message(msg_stripe)
     assert "pk_live_51ABCxyz123" not in sanitized_stripe
     assert "pk_test_51XYZabc789" not in sanitized_stripe

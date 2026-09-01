@@ -1,3 +1,5 @@
+import json
+import sqlite3
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -8,6 +10,9 @@ from app.main import app
 from app.models.analysis import AnalysisRun
 from app.models.location import District, Taluka, Village
 from app.schemas.feasibility import AnalysisStatusResponse
+
+# Register sqlite3 adapter for list serialization in SQLite in-memory test databases
+sqlite3.register_adapter(list, json.dumps)
 
 
 @pytest.fixture(scope="function")

@@ -2,14 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-try:
-    from pydantic import BaseModel, Field, model_validator
-
-    HAS_PYDANTIC_V2 = True
-except ImportError:
-    from pydantic import BaseModel, Field, root_validator
-
-    HAS_PYDANTIC_V2 = False
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.base import add_location_validator, normalize_swot_dict_keys
 from app.schemas.common import AnalysisStatus, SchemeMatchStatus, SupportedLanguage
