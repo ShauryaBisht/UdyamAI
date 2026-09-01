@@ -2,15 +2,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-try:
-    from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator
 
-    HAS_PYDANTIC_V2 = True
-except ImportError:
-    from pydantic import BaseModel, Field, root_validator
-
-    HAS_PYDANTIC_V2 = False
-
+from app.schemas.base import (
+    LocationValidatedModel,
+    normalize_swot_dict_keys,
+)
 from app.schemas.common import AnalysisStatus, SchemeMatchStatus, SupportedLanguage
 
 
@@ -19,6 +16,27 @@ class SWOTIndicators(BaseModel):
     weakness_indicators: list[str] = Field(default_factory=list)
     opportunity_indicators: list[str] = Field(default_factory=list)
     threat_indicators: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_swot_keys(cls, data: Any) -> Any:
+        return normalize_swot_dict_keys(data)
+
+    @property
+    def strengths(self) -> list[str]:
+        return self.strength_indicators
+
+    @property
+    def weaknesses(self) -> list[str]:
+        return self.weakness_indicators
+
+    @property
+    def opportunities(self) -> list[str]:
+        return self.opportunity_indicators
+
+    @property
+    def threats(self) -> list[str]:
+        return self.threat_indicators
 
 
 class FeasibilityScoreResult(BaseModel):
@@ -41,37 +59,7 @@ class FeasibilityScoreResult(BaseModel):
     swot: SWOTIndicators = Field(default_factory=SWOTIndicators)
 
 
-def _add_location_validator(cls: type) -> type:
-    """Adds location validation supporting both Pydantic v1 and v2 without class-body conditional attribute fragility."""
-    if HAS_PYDANTIC_V2:
-
-        @model_validator(mode="after")
-        def validate_location(self: Any) -> Any:
-            if not self.village_id and (self.latitude is None or self.longitude is None):
-                raise ValueError(
-                    "Either village_id or both latitude and longitude coordinates must be provided."
-                )
-            return self
-
-        cls.validate_location = validate_location
-    else:
-
-        @root_validator
-        def validate_location_v1(cls_ref: Any, values: dict[str, Any]) -> dict[str, Any]:
-            if not values.get("village_id") and (
-                values.get("latitude") is None or values.get("longitude") is None
-            ):
-                raise ValueError(
-                    "Either village_id or both latitude and longitude coordinates must be provided."
-                )
-            return values
-
-        cls.validate_location = validate_location_v1
-    return cls
-
-
-@_add_location_validator
-class FeasibilityCalculationRequest(BaseModel):
+class FeasibilityCalculationRequest(LocationValidatedModel):
     village_id: UUID | None = Field(default=None, description="Optional target village UUID")
     latitude: float | None = Field(default=None, ge=-90.0, le=90.0)
     longitude: float | None = Field(default=None, ge=-180.0, le=180.0)
@@ -212,5 +200,23 @@ class AnalysisFullResponse(BaseModel):
     financial_summary: FinancialSummaryResponse | None = None
     matched_schemes: list[SchemeMatchSummaryResponse] = Field(default_factory=list)
     reports: list[ReportSummaryResponse] = Field(default_factory=list)
+
+    model_config = {"from_attributes": True}
+
+
+class ConsolidatedAnalysisResponse(BaseModel):
+    analysis_id: UUID
+    status: str
+    created_at: datetime | None = None
+    completed_at: datetime | None = None
+    location: dict[str, Any] | None = None
+    business: dict[str, Any] | None = None
+    financial: dict[str, Any] | None = None
+    market: dict[str, Any] | None = None
+    competition: dict[str, Any] | None = None
+    schemes: list[dict[str, Any]] = Field(default_factory=list)
+    feasibility: dict[str, Any] | None = None
+    risks: list[dict[str, Any]] = Field(default_factory=list)
+    ai_advice: dict[str, Any] | None = None
 
     model_config = {"from_attributes": True}

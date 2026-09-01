@@ -11,8 +11,9 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from app.schemas.base import normalize_competition_dict_keys, normalize_market_dict_keys
 from app.schemas.business import BusinessCategoryResponse, BusinessModelResponse
 from app.schemas.common import SchemeMatchStatus
 from app.schemas.feasibility import FeasibilityAnalysisResponse
@@ -24,9 +25,9 @@ from app.schemas.scheme import SchemeResponse
 ConfidenceLevel = Literal["high", "medium", "low", "unverified"]
 
 
-# ---------------------------------------------------------------------------
+# -------------------------------------------------------------
 # AnalysisContext (input)
-# ---------------------------------------------------------------------------
+# -------------------------------------------------------------
 
 
 class LocationContext(BaseModel):
@@ -47,6 +48,23 @@ class MarketContext(MarketAnalysisResponse):
     analysis_run_id: UUID | None = None
     created_at: datetime | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_market_keys(cls, data: Any) -> Any:
+        return normalize_market_dict_keys(data)
+
+    @property
+    def total_population_reach(self) -> int | None:
+        return self.population_estimate
+
+    @property
+    def household_reach(self) -> int | None:
+        return self.household_estimate
+
+    @property
+    def estimated_target_customers(self) -> int | None:
+        return self.market_reach_estimate
+
     model_config = {"from_attributes": True}
 
 
@@ -56,6 +74,17 @@ class CompetitionContext(CompetitorAnalysisResponse):
     id: UUID | None = None
     analysis_run_id: UUID | None = None
     created_at: datetime | None = None
+    total_businesses_in_radius: int | None = None
+    target_category: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_competition_keys(cls, data: Any) -> Any:
+        return normalize_competition_dict_keys(data)
+
+    @property
+    def total_competitors_count(self) -> int | None:
+        return self.competitor_count
 
     model_config = {"from_attributes": True}
 

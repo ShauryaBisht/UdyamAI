@@ -19,6 +19,7 @@ select = [
 ]
 ignore = [
     "E501", # line too long (handled by formatter)
+    "UP017", # allow datetime.timezone.utc
 ]
 
 [tool.ruff.lint.isort]

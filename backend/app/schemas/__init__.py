@@ -1,3 +1,12 @@
+from app.schemas.base import (
+    LocationValidatedModel,
+    ORMBaseModel,
+    add_location_validator,
+    normalize_competition_dict_keys,
+    normalize_market_dict_keys,
+    normalize_swot_dict_keys,
+    validate_location_coordinates,
+)
 from app.schemas.business import BusinessCategoryResponse, BusinessModelResponse
 from app.schemas.common import (
     AnalysisStatus,
@@ -10,6 +19,7 @@ from app.schemas.feasibility import (
     AnalysisRunCreate,
     AnalysisRunResponse,
     AnalysisStatusResponse,
+    ConsolidatedAnalysisResponse,
     FeasibilityAnalysisResponse,
     FinancialSummaryResponse,
     ReportSummaryResponse,
@@ -35,6 +45,13 @@ from app.schemas.scheme import (
 )
 
 __all__ = [
+    "LocationValidatedModel",
+    "ORMBaseModel",
+    "add_location_validator",
+    "normalize_competition_dict_keys",
+    "normalize_market_dict_keys",
+    "normalize_swot_dict_keys",
+    "validate_location_coordinates",
     "SupportedLanguage",
     "AnalysisStatus",
     "SchemeMatchStatus",
@@ -48,6 +65,7 @@ __all__ = [
     "AnalysisRunCreate",
     "AnalysisRunResponse",
     "AnalysisStatusResponse",
+    "ConsolidatedAnalysisResponse",
     "FeasibilityAnalysisResponse",
     "FinancialSummaryResponse",
     "SchemeMatchSummaryResponse",
