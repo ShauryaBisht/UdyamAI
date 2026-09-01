@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import {
   ArrowRight,
   Bot,
@@ -22,7 +23,7 @@ export default function HomePage() {
       <nav className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-[76px] max-w-[1280px] items-center justify-between px-6 lg:px-10">
           {/* Logo */}
-          <a href="/login" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50">
               <Sparkles className="h-5 w-5 text-indigo-600" />
             </div>
@@ -30,7 +31,7 @@ export default function HomePage() {
             <span className="text-2xl font-bold tracking-tight">
               Udyam<span className="text-indigo-500">AI</span>
             </span>
-          </a>
+          </Link>
 
           {/* Links */}
           <div className="hidden items-center gap-10 md:flex">
@@ -55,13 +56,13 @@ export default function HomePage() {
               Why UdyamAI
             </a>
 
-            <a
+            <Link
               href="/login"
               className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 transition hover:bg-indigo-700"
             >
               Get Started
               <ArrowRight className="ml-2 inline h-4 w-4" />
-            </a>
+            </Link>
           </div>
         </div>
       </nav>
@@ -104,13 +105,13 @@ export default function HomePage() {
 
             {/* Buttons */}
           <div className="mt-9">
-  <a
+  <Link
     href="/login"
     className="inline-flex items-center rounded-xl bg-slate-950 px-7 py-4 font-semibold text-white shadow-xl shadow-indigo-900/10 transition hover:-translate-y-0.5 hover:bg-indigo-700"
   >
     Start Analysis
     <ArrowRight className="ml-2 h-5 w-5" />
-  </a>
+  </Link>
 </div>
 
             {/* Benefits */}
@@ -365,13 +366,13 @@ export default function HomePage() {
               </p>
             </div>
 
-            <a
+            <Link
               href="/login"
               className="shrink-0 rounded-xl bg-white px-8 py-4 font-semibold text-slate-900 shadow-xl transition hover:-translate-y-0.5 hover:bg-indigo-50"
             >
               Start Your Analysis
               <ArrowRight className="ml-2 inline h-5 w-5" />
-            </a>
+            </Link>
           </div>
         </div>
       </section>

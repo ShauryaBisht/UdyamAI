@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import Header from '@/components/ui/Header';
 import DashboardNav, { DashboardSection } from '@/components/dashboard/DashboardNav';
 import FinancialSection from '@/components/dashboard/FinancialSection';
-import MapContainer from '@/components/maps/MapContainer';
 import MarketSection from '@/components/dashboard/MarketSection';
 import CompetitionSection from '@/components/dashboard/CompetitionSection';
 import SchemeSection from '@/components/dashboard/SchemeSection';
+import MapContainer from '@/components/maps/MapContainer';
 
 // ---- Mock data (temporary — will move to mocks/dashboard/ later) ----
 const mockAnalysisResult = {
@@ -73,12 +74,14 @@ export default function DashboardPage() {
   const { feasibility, scores, risk } = mockAnalysisResult;
 
   return (
-    <div className="min-h-screen p-6 max-w-5xl mx-auto flex flex-col gap-2">
-      {/* Header */}
-      <div className="mb-2">
-        <h1 className="text-3xl font-bold">Analysis Result</h1>
-        <p className="text-gray-500 mt-1">Overview of your business feasibility</p>
-      </div>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <Header />
+      <main className="p-6 max-w-5xl mx-auto flex flex-col gap-2 w-full flex-1">
+        {/* Header */}
+        <div className="mb-2">
+          <h1 className="text-3xl font-bold text-slate-900">Analysis Result</h1>
+          <p className="text-gray-500 mt-1">Overview of your business feasibility</p>
+        </div>
 
       <DashboardNav activeSection={activeSection} onSectionChange={setActiveSection} />
 
@@ -113,6 +116,7 @@ export default function DashboardPage() {
       {activeSection === 'schemes' && <SchemeSection />}
       {activeSection === 'risks' && <ComingSoon section="Risk Dashboard" />}
       {activeSection === 'report' && <ComingSoon section="AI Report" />}
+      </main>
     </div>
   );
 }

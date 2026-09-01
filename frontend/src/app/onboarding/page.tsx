@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import LocationSelector from "./LocationSelector";
 import BusinessSelector from "./BusinessSelector";
@@ -10,8 +11,11 @@ import WhatYouNeed from "./WhatYouNeed";
 
 import { mockLocations } from "@/mocks/mockLocations";
 import { mockBusinessCategories } from "@/mocks/mockBusinessCategories";
+import Header from "@/components/ui/Header";
 
 export default function OnboardingPage() {
+  const router = useRouter();
+
   // Location
   const [districtId, setDistrictId] = useState("");
   const [talukaId, setTalukaId] = useState("");
@@ -79,8 +83,6 @@ export default function OnboardingPage() {
 
   // Start Analysis
   const handleStartAnalysis = () => {
-    // Backend integration will be added
-    // once the API contract is ready.
     console.log("Analysis inputs:", {
       villageId,
       businessCategoryId,
@@ -89,7 +91,7 @@ export default function OnboardingPage() {
       language,
     });
 
-    alert("Analysis started!");
+    router.push('/dashboard');
   };
 
   // -----------------------------
@@ -98,6 +100,7 @@ export default function OnboardingPage() {
   if (showReview) {
     return (
       <main className="min-h-screen bg-slate-50">
+        <Header />
         <ReviewScreen
           district={district}
           taluka={taluka}
@@ -120,17 +123,7 @@ export default function OnboardingPage() {
     <main className="min-h-screen bg-slate-50 text-slate-900">
 
       {/* Header */}
-      <header className="border-b bg-white">
-        <div className="mx-auto max-w-6xl px-6 py-5">
-          <p className="text-xl font-bold">
-            UdyamAI
-          </p>
-
-          <p className="text-sm text-slate-500">
-            AI-Powered Business Feasibility & Scheme Advisor
-          </p>
-        </div>
-      </header>
+      <Header />
 
       {/* Main content */}
       <section className="mx-auto max-w-6xl px-6 py-12">
