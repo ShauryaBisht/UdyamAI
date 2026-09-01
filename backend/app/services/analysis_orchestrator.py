@@ -298,6 +298,18 @@ class AnalysisOrchestrator:
                 logger.warning("Unsupported language %s, defaulting to 'en'", lang_str)
                 lang_str = "en"
 
+            risks_context = [
+                {
+                    "risk_type": "market_risk",
+                    "score": market_res.risks.overall_market_risk_score,
+                    "level": market_res.risks.risk_level,
+                },
+                {
+                    "risk_type": "competition_threat",
+                    "level": competition_res.threat_level,
+                },
+            ]
+
             analysis_context = AnalysisContext(
                 location=loc_context,
                 business=biz_context,
@@ -306,13 +318,16 @@ class AnalysisOrchestrator:
                 competition=comp_context,
                 schemes=scheme_contexts,
                 feasibility=feasibility_context,
+                risks=risks_context,
                 language=lang_str,
             )
 
             # -------------------------------------------------------------
             # Step 11: Hand context to AI Advisor
             # -------------------------------------------------------------
-            ai_advice = advisor.generate_advice(analysis_context, language=lang_str)
+            ai_advice = advisor.generate_advice(
+                analysis_context=analysis_context, language=lang_str
+            )
 
             # -------------------------------------------------------------
             # Step 12: Save final results

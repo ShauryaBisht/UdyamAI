@@ -104,6 +104,7 @@ class AnalysisContext(BaseModel):
     competition: CompetitionContext
     schemes: list[SchemeMatchContext] = Field(default_factory=list)
     feasibility: FeasibilityContext
+    risks: list[Any] = Field(default_factory=list)
     language: str = "en"
 
 
