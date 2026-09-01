@@ -565,6 +565,7 @@ Run eligibility engine rules against beneficiary profile metrics and return scor
 ```
 
 *Match Status Enum Values:* `potential_match`, `not_match`, `missing_information`, `verification_required`
+*(Note: Legacy payloads using `not_matched` or `insufficient_information` are backward-compatibly mapped to `not_match` and `missing_information` respectively.)*
 
 ---
 
