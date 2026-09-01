@@ -20,6 +20,22 @@ class SWOTIndicators(BaseModel):
     opportunity_indicators: list[str] = Field(default_factory=list)
     threat_indicators: list[str] = Field(default_factory=list)
 
+    @property
+    def strengths(self) -> list[str]:
+        return self.strength_indicators
+
+    @property
+    def weaknesses(self) -> list[str]:
+        return self.weakness_indicators
+
+    @property
+    def opportunities(self) -> list[str]:
+        return self.opportunity_indicators
+
+    @property
+    def threats(self) -> list[str]:
+        return self.threat_indicators
+
 
 class FeasibilityScoreResult(BaseModel):
     market_score: float = Field(

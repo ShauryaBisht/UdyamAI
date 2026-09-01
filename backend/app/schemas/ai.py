@@ -47,6 +47,18 @@ class MarketContext(MarketAnalysisResponse):
     analysis_run_id: UUID | None = None
     created_at: datetime | None = None
 
+    @property
+    def total_population_reach(self) -> int | None:
+        return self.population_estimate
+
+    @property
+    def household_reach(self) -> int | None:
+        return self.household_estimate
+
+    @property
+    def estimated_target_customers(self) -> int | None:
+        return self.market_reach_estimate
+
     model_config = {"from_attributes": True}
 
 
@@ -56,6 +68,10 @@ class CompetitionContext(CompetitorAnalysisResponse):
     id: UUID | None = None
     analysis_run_id: UUID | None = None
     created_at: datetime | None = None
+
+    @property
+    def total_competitors_count(self) -> int | None:
+        return self.competitor_count
 
     model_config = {"from_attributes": True}
 

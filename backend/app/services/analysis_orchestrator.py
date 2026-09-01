@@ -237,33 +237,29 @@ class AnalysisOrchestrator:
             )
 
             mkt_context = MarketContext(
-                total_population_reach=market_res.market_size.total_population_reach,
-                household_reach=market_res.market_size.household_reach,
-                estimated_target_customers=market_res.market_size.estimated_target_customers,
-                demand_indicator_score=market_res.demand_score,
-                demand_level=market_res.demand_level,
-                demand_growth_rate=market_res.demand_growth_rate,
-                estimated_monthly_expenditure=market_res.purchasing_power.estimated_monthly_expenditure,
-                average_household_income=market_res.purchasing_power.average_household_income,
-                purchasing_power_index=market_res.purchasing_power.purchasing_power_index,
-                average_market_price=market_res.pricing.average_market_price,
-                price_range_min=market_res.pricing.price_range_min,
-                price_range_max=market_res.pricing.price_range_max,
-                competition_density=competition_res.competition_density,
-                infrastructure_score=market_res.infrastructure.infrastructure_score,
-                risk_score=market_res.risks.overall_market_risk_score,
-                risk_level=market_res.risks.risk_level,
-                overall_market_score=market_res.overall_market_score,
+                population_estimate=getattr(market_res.market_size, "total_population_reach", None),
+                household_estimate=getattr(market_res.market_size, "household_reach", None),
+                market_reach_estimate=getattr(market_res.market_size, "estimated_target_customers", None),
+                radius_km=10.0,
+                demand_indicators={
+                    "score": getattr(market_res, "demand_score", None),
+                    "level": getattr(market_res, "demand_level", None),
+                    "growth_rate": getattr(market_res, "demand_growth_rate", None),
+                },
+                pricing_indicators={
+                    "average_market_price": getattr(getattr(market_res, "pricing", None), "average_market_price", None),
+                    "price_range_min": getattr(getattr(market_res, "pricing", None), "price_range_min", None),
+                    "price_range_max": getattr(getattr(market_res, "pricing", None), "price_range_max", None),
+                },
             )
 
             comp_context = CompetitionContext(
-                total_competitors_count=competition_res.total_competitors_count,
-                direct_competitors_count=competition_res.direct_competitors_count,
-                indirect_competitors_count=competition_res.indirect_competitors_count,
-                competition_density=competition_res.competition_density,
-                market_saturation_level=competition_res.market_saturation_level,
-                threat_level=competition_res.threat_level,
-                nearest_competitor_distance_km=competition_res.nearest_competitor_distance_km,
+                competitor_count=getattr(competition_res, "total_competitors_count", 0),
+                competitor_density=getattr(competition_res, "competition_density", 0.0),
+                businesses_within_5km=getattr(competition_res, "businesses_within_5km", 0),
+                businesses_within_10km=getattr(competition_res, "businesses_within_10km", 0),
+                total_businesses_in_radius=getattr(competition_res, "total_businesses_in_radius", 0),
+                target_category=getattr(category, "name", None),
             )
 
             scheme_contexts = []
@@ -354,10 +350,34 @@ class AnalysisOrchestrator:
                 risk_score=feasibility_score_res.risk_score,
                 overall_score=feasibility_score_res.overall_score,
                 recommendation=ai_advice.recommendation,
-                strengths={"indicators": feasibility_score_res.swot.strengths},
-                weaknesses={"indicators": feasibility_score_res.swot.weaknesses},
-                opportunities={"indicators": feasibility_score_res.swot.opportunities},
-                threats={"indicators": feasibility_score_res.swot.threats},
+                strengths={
+                    "indicators": getattr(
+                        feasibility_score_res.swot,
+                        "strengths",
+                        getattr(feasibility_score_res.swot, "strength_indicators", []),
+                    )
+                },
+                weaknesses={
+                    "indicators": getattr(
+                        feasibility_score_res.swot,
+                        "weaknesses",
+                        getattr(feasibility_score_res.swot, "weakness_indicators", []),
+                    )
+                },
+                opportunities={
+                    "indicators": getattr(
+                        feasibility_score_res.swot,
+                        "opportunities",
+                        getattr(feasibility_score_res.swot, "opportunity_indicators", []),
+                    )
+                },
+                threats={
+                    "indicators": getattr(
+                        feasibility_score_res.swot,
+                        "threats",
+                        getattr(feasibility_score_res.swot, "threat_indicators", []),
+                    )
+                },
                 confidence=ai_advice.confidence,
                 scoring_version="v1.0",
             )
