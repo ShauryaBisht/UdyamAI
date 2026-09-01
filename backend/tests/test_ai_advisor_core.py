@@ -149,7 +149,9 @@ def test_context_builder_raw_context_options():
     default_payload = context_builder.build(analysis_context)
     assert default_payload["raw_context"] is None
 
-    payload_with_raw = context_builder.build(analysis_context, include_raw_context=True, max_raw_context_length=20)
+    payload_with_raw = context_builder.build(
+        analysis_context, include_raw_context=True, max_raw_context_length=20
+    )
     assert payload_with_raw["raw_context"] is not None
     assert len(payload_with_raw["raw_context"]) <= 35
 
@@ -159,7 +161,11 @@ def test_guardrails_source_backed_claim_allowed():
         "summary": "The scheme offers 35% credit-linked capital subsidy.",
         "recommendation": "Apply for PMFME.",
         "sources": [
-            {"claim": "35% credit-linked capital subsidy under PMFME", "source_type": "scheme_rule", "reference_id": "pmfme_v1"}
+            {
+                "claim": "35% credit-linked capital subsidy under PMFME",
+                "source_type": "scheme_rule",
+                "reference_id": "pmfme_v1",
+            }
         ],
     }
 
@@ -178,4 +184,3 @@ def test_recommendation_explain_handles_normalized_scale():
     explanation = recommendation.explain(fractional_feasibility)
     assert "85" in explanation
     assert "reasonably feasible" in explanation.lower()
-

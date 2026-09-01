@@ -102,7 +102,9 @@ def validate(raw_output: dict, context: dict) -> dict:
         if isinstance(val, str):
             normalized[field] = [val.strip()] if val.strip() else []
         elif isinstance(val, list):
-            normalized[field] = [str(item).strip() for item in val if item is not None and str(item).strip()]
+            normalized[field] = [
+                str(item).strip() for item in val if item is not None and str(item).strip()
+            ]
         else:
             normalized[field] = []
 
@@ -134,7 +136,12 @@ def validate(raw_output: dict, context: dict) -> dict:
     text_items = [
         normalized["summary"],
         normalized["recommendation"],
-        *[item for field in _LIST_FIELDS for item in normalized.get(field, []) if isinstance(item, str)],
+        *[
+            item
+            for field in _LIST_FIELDS
+            for item in normalized.get(field, [])
+            if isinstance(item, str)
+        ],
     ]
     for text in text_items:
         if _contains_invented_financial_claim(text, context, has_verified_sources=has_verified):
