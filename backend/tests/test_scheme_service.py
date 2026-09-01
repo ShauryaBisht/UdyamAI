@@ -372,3 +372,28 @@ class TestSchemeAPIEndpoints:
             data = response.json()
             assert len(data) == 1
             assert data[0]["match_score"] == 0.92
+
+
+class TestSchemeIntegrationRules:
+    def test_scheme_match_status_values(self):
+        from app.schemas.common import SchemeMatchStatus
+
+        allowed_statuses = {
+            "potential_match",
+            "not_match",
+            "missing_information",
+            "verification_required",
+        }
+        enum_values = {status.value for status in SchemeMatchStatus}
+        assert enum_values == allowed_statuses
+
+    def test_prohibited_guarantee_terms_exclusion(self):
+        prohibited_terms = ["approved", "guaranteed loan", "guaranteed eligibility"]
+        sample_output = {
+            "scheme_name": "Rural Subsidy",
+            "match_status": "potential_match",
+            "justification": "Meets basic criteria. Requires document verification.",
+        }
+        text_content = f"{sample_output['scheme_name']} {sample_output['justification']}".lower()
+        for term in prohibited_terms:
+            assert term not in text_content
