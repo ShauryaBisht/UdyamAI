@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -14,7 +14,7 @@ dummy_run = AnalysisRun(
     business_category_id=uuid4(),
     available_capital=50000.0,
     status="created",
-    created_at=datetime.now(UTC),
+    created_at=datetime.now(timezone.utc),
 )
 
 dummy_status = AnalysisStatusResponse(
@@ -23,7 +23,7 @@ dummy_status = AnalysisStatusResponse(
     status="created",
     progress_percentage=10,
     current_step="created",
-    created_at=datetime.now(UTC),
+    created_at=datetime.now(timezone.utc),
 )
 
 
