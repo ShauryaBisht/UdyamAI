@@ -9,6 +9,7 @@ from app.schemas.feasibility import (
     AnalysisRunResponse,
     AnalysisStatusResponse,
 )
+from app.services.analysis_orchestrator import AnalysisOrchestrator
 from app.services.analysis_service import AnalysisService
 
 router = APIRouter()
@@ -17,7 +18,7 @@ router = APIRouter()
 @router.post("", response_model=AnalysisRunResponse, status_code=201)
 @router.post("/", response_model=AnalysisRunResponse, status_code=201, include_in_schema=False)
 def create_analysis(run_data: AnalysisRunCreate, db: Session = Depends(get_session)):
-    return AnalysisService.create_analysis_run(db, run_data)
+    return AnalysisOrchestrator.run_analysis_pipeline(db, run_data)
 
 
 @router.get("/{id}", response_model=AnalysisRunResponse)

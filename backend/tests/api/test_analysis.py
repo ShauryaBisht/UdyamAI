@@ -35,7 +35,7 @@ def test_create_analysis_v1(client):
         "available_capital": 50000.0,
     }
     with patch(
-        "app.api.routes.analysis.AnalysisService.create_analysis_run", return_value=dummy_run
+        "app.api.routes.analysis.AnalysisOrchestrator.run_analysis_pipeline", return_value=dummy_run
     ):
         response = client.post("/api/v1/analysis", json=payload)
         assert response.status_code == 201
@@ -47,11 +47,12 @@ def test_create_analysis_v1(client):
 
 def test_create_analysis_location_not_found(client):
     payload = {
+        "user_id": str(dummy_run.user_id),
         "location_id": str(uuid4()),
         "available_capital": 50000.0,
     }
     with patch(
-        "app.api.routes.analysis.AnalysisService.create_analysis_run",
+        "app.api.routes.analysis.AnalysisOrchestrator.run_analysis_pipeline",
         side_effect=HTTPException(
             status_code=404, detail="Location with identifier 'xyz' not found"
         ),
