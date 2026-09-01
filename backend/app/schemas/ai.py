@@ -20,6 +20,7 @@ from app.schemas.feasibility import FeasibilityAnalysisResponse
 from app.schemas.finance import FinanceCalculateResponse
 from app.schemas.location import DistrictResponse, TalukaResponse, VillageResponse
 from app.schemas.market import CompetitorAnalysisResponse, MarketAnalysisResponse
+from app.schemas.rag import EvidenceItem
 from app.schemas.scheme import SchemeResponse
 
 ConfidenceLevel = Literal["high", "medium", "low", "unverified"]
@@ -173,3 +174,11 @@ class AIAdvice(BaseModel):
     model_name: str
     prompt_version: str
     language: str = "en"
+    rag_status: str | None = Field(
+        default=None,
+        description="RAG retrieval status: success, no_relevant_evidence, or conflicting_sources",
+    )
+    evidence: list[EvidenceItem] = Field(
+        default_factory=list,
+        description="Retrieved RAG evidence items supporting scheme recommendations",
+    )

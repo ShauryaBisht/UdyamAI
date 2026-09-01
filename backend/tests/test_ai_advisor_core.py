@@ -184,3 +184,140 @@ def test_recommendation_explain_handles_normalized_scale():
     explanation = recommendation.explain(fractional_feasibility)
     assert "85" in explanation
     assert "reasonably feasible" in explanation.lower()
+
+
+def test_generate_advice_calls_retrieve_evidence_when_db_provided(monkeypatch):
+    from uuid import uuid4
+
+    from app.ai import advisor
+    from app.schemas.rag import EvidenceItem, RAGQueryResponse, SourceMetadata
+
+    called = {}
+
+    def mock_retrieve_evidence(db, query, scheme_id=None, language=None, **kwargs):
+        called["query"] = query
+        called["scheme_id"] = scheme_id
+        called["language"] = language
+        return RAGQueryResponse(
+            status="success",
+            evidence=[
+                EvidenceItem(
+                    chunk_id=uuid4(),
+                    text="PMFME provides 35% capital subsidy up to 10 lakhs.",
+                    score=0.92,
+                    source=SourceMetadata(
+                        document_id=uuid4(),
+                        title="PMFME Guidelines",
+                        page_number=4,
+                        section_title="Subsidy Rules",
+                        source_name="Ministry of Food Processing",
+                    ),
+                )
+            ],
+        )
+
+    def mock_llm_generate(prompt):
+        assert "35% capital subsidy" in prompt or "PMFME Guidelines" in prompt
+        return '{"summary": "Feasible under PMFME.", "recommendation": "Apply online.", "reasoning": ["Verified by guidelines."]}'
+
+    monkeypatch.setattr("app.rag.retriever.retrieve_evidence", mock_retrieve_evidence)
+    monkeypatch.setattr("app.ai.llm.generate", mock_llm_generate)
+
+    mock_db = object()
+    analysis_context = {
+        "location": {"district": {"name": "Pune"}},
+        "business": {"category": {"name": "Food Processing"}},
+        "schemes": [{"scheme": {"id": uuid4(), "name": "PMFME"}}],
+        "feasibility": {"overall_score": 80},
+    }
+
+    advice = advisor.generate_advice(analysis_context, language="en", db=mock_db)
+
+    assert called["language"] == "en"
+    assert "Food Processing" in called["query"]
+    assert advice.rag_status == "success"
+    assert len(advice.evidence) == 1
+    assert advice.evidence[0].source.title == "PMFME Guidelines"
+
+
+def test_generate_advice_conflicting_sources_warning(monkeypatch):
+    from uuid import uuid4
+
+    from app.ai import advisor
+    from app.schemas.rag import EvidenceItem, RAGQueryResponse, SourceMetadata
+
+    def mock_retrieve_evidence(db, query, **kwargs):
+        return RAGQueryResponse(
+            status="conflicting_sources",
+            evidence=[
+                EvidenceItem(
+                    chunk_id=uuid4(),
+                    text="Subsidy limit is 35%.",
+                    score=0.88,
+                    source=SourceMetadata(
+                        document_id=uuid4(),
+                        title="Doc A",
+                        source_name="Ministry A",
+                    ),
+                ),
+                EvidenceItem(
+                    chunk_id=uuid4(),
+                    text="Subsidy limit is 50%.",
+                    score=0.85,
+                    source=SourceMetadata(
+                        document_id=uuid4(),
+                        title="Doc B",
+                        source_name="Ministry B",
+                    ),
+                ),
+            ],
+        )
+
+    def mock_llm_generate(prompt):
+        assert "CONFLICTING SOURCES DETECTED" in prompt
+        return '{"summary": "Conflicting guidance.", "recommendation": "Verify with department.", "reasoning": ["Docs disagree."]}'
+
+    monkeypatch.setattr("app.rag.retriever.retrieve_evidence", mock_retrieve_evidence)
+    monkeypatch.setattr("app.ai.llm.generate", mock_llm_generate)
+
+    mock_db = object()
+    advice = advisor.generate_advice({"feasibility": {"overall_score": 75}}, db=mock_db)
+
+    assert advice.rag_status == "conflicting_sources"
+    assert "WARNING" in advice.recommendation.upper()
+    assert "conflicting" in advice.recommendation.lower()
+
+
+def test_generate_advice_rag_failure_resilience(monkeypatch):
+    from app.ai import advisor
+
+    def mock_retrieve_evidence(db, query, **kwargs):
+        raise RuntimeError("Vector database connection timed out")
+
+    def mock_llm_generate(prompt):
+        assert "NO RELEVANT EVIDENCE FOUND" in prompt
+        return '{"summary": "Backend fallback advice.", "recommendation": "Proceed using backend data."}'
+
+    monkeypatch.setattr("app.rag.retriever.retrieve_evidence", mock_retrieve_evidence)
+    monkeypatch.setattr("app.ai.llm.generate", mock_llm_generate)
+
+    mock_db = object()
+    advice = advisor.generate_advice({"feasibility": {"overall_score": 70}}, db=mock_db)
+
+    assert advice.rag_status == "no_relevant_evidence"
+    assert advice.summary == "Backend fallback advice."
+
+
+def test_generate_advice_backward_compatibility_without_db(monkeypatch):
+    from app.ai import advisor
+
+    def mock_llm_generate(prompt):
+        return '{"summary": "Standard advice.", "recommendation": "Standard recommendation."}'
+
+    monkeypatch.setattr("app.ai.llm.generate", mock_llm_generate)
+
+    advice = advisor.generate_advice({"feasibility": {"overall_score": 70}})
+
+    assert advice.rag_status == "no_relevant_evidence"
+    assert advice.summary == "Standard advice."
+    assert advice.evidence == []
