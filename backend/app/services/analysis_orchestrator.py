@@ -25,7 +25,7 @@ from app.ai import advisor
 from app.models.analysis import AIAnalysis, AnalysisRun, FeasibilityAnalysis
 from app.models.business import BusinessCategory
 from app.models.location import District, Taluka, Village
-from app.models.scheme import Scheme, SchemeMatch
+from app.models.scheme import SchemeMatch
 from app.models.user import Profile
 from app.schemas.ai import (
     AnalysisContext,
@@ -116,26 +116,20 @@ class AnalysisOrchestrator:
                 )
 
             taluka = db.get(Taluka, village.taluka_id) if village.taluka_id else None
-            if not taluka:
-                taluka = db.exec(select(Taluka)).first()
-                if not taluka:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Taluka entity not found for village {location_id}",
-                    )
+            if not taluka and village.taluka_id:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Taluka with ID {village.taluka_id} not found",
+                )
 
             district = (
-                db.get(District, taluka.district_id)
-                if taluka and taluka.district_id
-                else (db.get(District, village.district_id) if village.district_id else None)
+                db.get(District, taluka.district_id) if taluka and taluka.district_id else None
             )
-            if not district:
-                district = db.exec(select(District)).first()
-                if not district:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"District entity not found for taluka {taluka.id}",
-                    )
+            if not district and taluka and taluka.district_id:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"District associated with Taluka {taluka.id} not found",
+                )
 
             # -------------------------------------------------------------
             # Step 4: Fetch business category
@@ -195,8 +189,7 @@ class AnalysisOrchestrator:
                 active_schemes = SchemeService.get_schemes(db, limit=10)
                 db_scheme_matches = []
                 for sch in active_schemes:
-                    # Guard foreign key relationship to ensure scheme entity is persisted
-                    if sch.id is not None and db.get(Scheme, sch.id) is not None:
+                    if sch.id is not None:
                         match_item = SchemeMatch(
                             analysis_run_id=db_run.id,
                             scheme_id=sch.id,
@@ -228,8 +221,8 @@ class AnalysisOrchestrator:
             # -------------------------------------------------------------
             loc_context = LocationContext(
                 village=VillageResponse.model_validate(village),
-                district=DistrictResponse.model_validate(district),
-                taluka=TalukaResponse.model_validate(taluka),
+                district=DistrictResponse.model_validate(district) if district else None,
+                taluka=TalukaResponse.model_validate(taluka) if taluka else None,
             )
             biz_context = BusinessContext(
                 category=BusinessCategoryResponse.model_validate(category)
@@ -359,17 +352,17 @@ class AnalysisOrchestrator:
 
         except Exception as exc:
             db.rollback()
-            logger.exception("Error executing analysis orchestrator pipeline for run %s", db_run.id)
+            logger.exception(
+                "Error executing analysis orchestrator pipeline for run %s",
+                getattr(db_run, "id", "unknown"),
+            )
             try:
-                failed_run = db.get(AnalysisRun, db_run.id)
-                if failed_run:
-                    failed_run.status = "failed"
-                    failed_run.completed_at = datetime.now(UTC)
-                    db.add(failed_run)
+                if "db_run" in locals() and db_run:
+                    db_run.status = "failed"
+                    db_run.completed_at = datetime.now(UTC)
+                    db.add(db_run)
                     db.commit()
-            except Exception:
-                logger.exception(
-                    "Failed to set 'failed' status for run %s during rollback cleanup",
-                    db_run.id,
-                )
+            except Exception as cleanup_exc:
+                logger.exception("Cleanup failed: %s", cleanup_exc)
+                db.rollback()
             raise exc
