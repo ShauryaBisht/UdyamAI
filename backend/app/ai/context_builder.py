@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from typing import Any
 
@@ -32,7 +34,11 @@ def _as_dict(value: Any) -> dict[str, Any]:
     return {}
 
 
-def build(analysis_context: dict) -> dict:
+def build(
+    analysis_context: dict,
+    include_raw_context: bool = False,
+    max_raw_context_length: int = 2000,
+) -> dict:
     """Turn verified backend AnalysisContext into a compact prompt payload.
 
     This keeps the AI provider grounded in backend calculations and avoids exposing
@@ -78,6 +84,13 @@ def build(analysis_context: dict) -> dict:
                 "verification_required": scheme_obj.get("verification_required", True),
             }
         )
+
+    raw_context_val = None
+    if include_raw_context:
+        dumped = json.dumps(context, default=str, ensure_ascii=False)
+        if len(dumped) > max_raw_context_length:
+            dumped = dumped[:max_raw_context_length] + "...[truncated]"
+        raw_context_val = dumped
 
     return {
         "language": language,
@@ -131,5 +144,5 @@ def build(analysis_context: dict) -> dict:
             "threats": _safe_get(feasibility, "swot", "threats") or [],
         },
         "risks": risks,
-        "raw_context": json.dumps(context, default=str, ensure_ascii=False),
+        "raw_context": raw_context_val,
     }

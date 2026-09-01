@@ -10,30 +10,36 @@ from __future__ import annotations
 def _score_value(value: object) -> float | None:
     if value is None:
         return None
+    val: float | None = None
     if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
+        val = float(value)
+    elif isinstance(value, str):
         stripped = value.strip()
         if not stripped:
             return None
         try:
-            return float(stripped)
+            val = float(stripped)
         except ValueError:
             return None
+    else:
+        return None
+
+    if val is not None:
+        if 0 < val <= 1.0:
+            val = val * 100.0
+        return val
     return None
 
 
 def _format_score(value: float | None) -> str | None:
     if value is None:
         return None
-    if 0 <= value <= 1:
-        return f"{value * 100:.0f}/100"
     return f"{value:.0f}/100"
 
 
 def explain(feasibility: dict) -> str:
     """Return a grounded explanation of the backend feasibility result."""
-    if not isinstance(feasibility, dict):
+    if not isinstance(feasibility, dict) or not feasibility:
         return "The backend did not provide a valid feasibility summary, so no AI recommendation can be generated from unsupported data."
 
     overall = _score_value(feasibility.get("overall_score"))

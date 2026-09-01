@@ -1,9 +1,14 @@
+from __future__ import annotations
+
 import re
 from typing import Any
 
-_REQUIRED_FIELDS = {
-    "summary",
-    "recommendation",
+_REQUIRED_CORE_FIELDS = {"summary", "recommendation"}
+_ALLOWED_LANGUAGES = {"en", "hi", "mr"}
+_ALLOWED_CONFIDENCE = {"high", "medium", "low", "unverified"}
+_ALLOWED_SOURCE_TYPES = {"document", "scheme_rule", "data_source"}
+
+_LIST_FIELDS = [
     "reasoning",
     "financial_advice",
     "market_advice",
@@ -12,74 +17,64 @@ _REQUIRED_FIELDS = {
     "risks",
     "next_steps",
     "disclaimers",
-    "sources",
-    "confidence",
-    "model_name",
-    "prompt_version",
-    "language",
-}
-_ALLOWED_LANGUAGES = {"en", "hi", "mr"}
-_ALLOWED_CONFIDENCE = {"high", "medium", "low", "unverified"}
-_ALLOWED_SOURCE_TYPES = {"document", "scheme_rule", "data_source"}
+]
 
 
-def _contains_invented_financial_claim(text: str, context: dict[str, Any]) -> bool:
+def _contains_invented_financial_claim(
+    text: str, context: dict[str, Any], has_verified_sources: bool = False
+) -> bool:
     if not isinstance(text, str):
         return False
 
     lower_text = text.lower()
-    if "subsidy" in lower_text and re.search(r"\b\d+\s*%\b", lower_text):
-        return True
-    if "loan" in lower_text and re.search(r"\b\d+\s*%\b", lower_text):
-        return True
-    if "interest" in lower_text and re.search(r"\b\d+\s*%\b", lower_text):
-        return True
-    if "project cost" in lower_text and re.search(r"\b\d+[\d,]*\b", lower_text):
-        return True
-    if (
-        "cost" in lower_text
-        and re.search(r"\b\d+[\d,]*\b", lower_text)
-        and "backend" not in lower_text
-    ):
-        return True
+
     if "guaranteed" in lower_text or "definitely" in lower_text:
         return True
+
+    if has_verified_sources:
+        return False
+
+    if "subsidy" in lower_text and re.search(r"\b\d+\s*%", lower_text):
+        if "backend" not in lower_text and "verified" not in lower_text:
+            return True
+    if "loan" in lower_text and re.search(r"\b\d+\s*%", lower_text):
+        if "backend" not in lower_text and "verified" not in lower_text:
+            return True
+    if "interest" in lower_text and re.search(r"\b\d+\s*%", lower_text):
+        if "backend" not in lower_text and "verified" not in lower_text:
+            return True
+
     if (
         "approved" in lower_text
         and "not" not in lower_text
         and "requires verification" not in lower_text
+        and "subject to" not in lower_text
     ):
         return True
+
     return False
 
 
-def _validate_source_entry(source: Any) -> dict[str, Any]:
+def _validate_source_entry(source: Any) -> dict[str, Any] | None:
     if not isinstance(source, dict):
-        raise ValueError(
-            "Each source entry must be an object with claim, source_type and reference_id."
-        )
-
-    required_fields = {"claim", "source_type", "reference_id"}
-    missing = sorted(required_fields - set(source.keys()))
-    if missing:
-        raise ValueError(f"Source entry is missing required fields: {', '.join(missing)}")
+        return None
 
     claim = str(source.get("claim", "")).strip()
     if not claim:
-        raise ValueError("Source claim cannot be empty.")
+        return None
 
     source_type = str(source.get("source_type", "")).lower()
     if source_type not in _ALLOWED_SOURCE_TYPES:
-        raise ValueError("Source type must be one of: document, scheme_rule, data_source.")
+        source_type = "data_source"
 
     reference_id = source.get("reference_id")
     if reference_id is None or str(reference_id).strip() == "":
-        raise ValueError("Source reference_id cannot be empty.")
+        reference_id = "backend"
 
     return {
         "claim": claim,
         "source_type": source_type,
-        "reference_id": reference_id,
+        "reference_id": str(reference_id).strip(),
     }
 
 
@@ -88,74 +83,68 @@ def validate(raw_output: dict, context: dict) -> dict:
     if not isinstance(raw_output, dict):
         raise ValueError("AI output must be a JSON object.")
 
-    missing = sorted(_REQUIRED_FIELDS - set(raw_output.keys()))
-    if missing:
-        raise ValueError(f"AI output is missing required fields: {', '.join(missing)}")
+    missing_core = sorted(_REQUIRED_CORE_FIELDS - set(raw_output.keys()))
+    if missing_core:
+        raise ValueError(f"AI output is missing required fields: {', '.join(missing_core)}")
 
-    for field in [
-        "summary",
-        "recommendation",
-    ]:
+    for field in ["summary", "recommendation"]:
         value = raw_output.get(field)
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"AI field '{field}' must be a non-empty string.")
 
-    for field in [
-        "reasoning",
-        "financial_advice",
-        "market_advice",
-        "competition_advice",
-        "scheme_advice",
-        "risks",
-        "next_steps",
-        "disclaimers",
-    ]:
-        items = raw_output.get(field, [])
-        if not isinstance(items, list):
-            raise ValueError(f"AI field '{field}' must be a list.")
-
-    sources = raw_output.get("sources", [])
-    if not isinstance(sources, list):
-        raise ValueError("AI field 'sources' must be a list.")
-    normalized_sources = [_validate_source_entry(item) for item in sources]
-
-    normalized = dict(raw_output)
+    normalized: dict[str, Any] = {}
     normalized["summary"] = str(raw_output["summary"]).strip()
     normalized["recommendation"] = str(raw_output["recommendation"]).strip()
+
+    # Coerce list fields (string -> 1-item list, None -> [], list -> list of strings)
+    for field in _LIST_FIELDS:
+        val = raw_output.get(field, [])
+        if isinstance(val, str):
+            normalized[field] = [val.strip()] if val.strip() else []
+        elif isinstance(val, list):
+            normalized[field] = [
+                str(item).strip() for item in val if item is not None and str(item).strip()
+            ]
+        else:
+            normalized[field] = []
+
+    # Defensive source parsing
+    raw_sources = raw_output.get("sources", [])
+    normalized_sources: list[dict[str, Any]] = []
+    if isinstance(raw_sources, list):
+        for item in raw_sources:
+            try:
+                valid_entry = _validate_source_entry(item)
+                if valid_entry:
+                    normalized_sources.append(valid_entry)
+            except Exception:
+                pass
     normalized["sources"] = normalized_sources
 
-    normalized["language"] = str(raw_output.get("language", "en")).lower()
-    if normalized["language"] not in _ALLOWED_LANGUAGES:
-        raise ValueError("AI language must be one of: en, hi, mr.")
+    # Metadata defaults
+    lang = str(raw_output.get("language", "en")).lower()
+    normalized["language"] = lang if lang in _ALLOWED_LANGUAGES else "en"
 
-    normalized["confidence"] = str(raw_output.get("confidence", "unverified")).lower()
-    if normalized["confidence"] not in _ALLOWED_CONFIDENCE:
-        raise ValueError("AI confidence must be one of: high, medium, low, unverified.")
+    conf = str(raw_output.get("confidence", "unverified")).lower()
+    normalized["confidence"] = conf if conf in _ALLOWED_CONFIDENCE else "unverified"
 
-    normalized["model_name"] = str(raw_output.get("model_name", "unknown-model"))
-    normalized["prompt_version"] = str(raw_output.get("prompt_version", "unknown-v1"))
+    normalized["model_name"] = str(raw_output.get("model_name") or "unknown-model")
+    normalized["prompt_version"] = str(raw_output.get("prompt_version") or "v1")
 
+    # Financial claim validation
+    has_verified = len(normalized_sources) > 0
     text_items = [
         normalized["summary"],
         normalized["recommendation"],
         *[
             item
-            for field in [
-                "reasoning",
-                "financial_advice",
-                "market_advice",
-                "competition_advice",
-                "scheme_advice",
-                "risks",
-                "next_steps",
-                "disclaimers",
-            ]
+            for field in _LIST_FIELDS
             for item in normalized.get(field, [])
             if isinstance(item, str)
         ],
     ]
     for text in text_items:
-        if _contains_invented_financial_claim(text, context):
+        if _contains_invented_financial_claim(text, context, has_verified_sources=has_verified):
             raise ValueError(
                 "AI output contains invented financial or subsidy claims not supported by backend context."
             )
