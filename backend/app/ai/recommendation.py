@@ -1,2 +1,76 @@
+"""Recommendation explanation utilities for the AI advisor.
+
+These explanations are intentionally grounded in the backend's verified
+feasibility outputs. The AI must not change, estimate, or invent any score.
+"""
+
+from __future__ import annotations
+
+
+def _score_value(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            return float(stripped)
+        except ValueError:
+            return None
+    return None
+
+
+def _format_score(value: float | None) -> str | None:
+    if value is None:
+        return None
+    if 0 <= value <= 1:
+        return f"{value * 100:.0f}/100"
+    return f"{value:.0f}/100"
+
+
 def explain(feasibility: dict) -> str:
-    raise NotImplementedError
+    """Return a grounded explanation of the backend feasibility result."""
+    if not isinstance(feasibility, dict):
+        return "The backend did not provide a valid feasibility summary, so no AI recommendation can be generated from unsupported data."
+
+    overall = _score_value(feasibility.get("overall_score"))
+    market = _score_value(feasibility.get("market_score"))
+    financial = _score_value(feasibility.get("financial_score"))
+    risk = _score_value(feasibility.get("risk_score"))
+    recommendation = feasibility.get("recommendation") or "No recommendation provided by backend"
+
+    summary_parts: list[str] = []
+
+    if overall is not None:
+        summary_parts.append(
+            f"The backend analysis reports an overall feasibility score of {_format_score(overall)}."
+        )
+    else:
+        summary_parts.append("The backend analysis does not provide an overall feasibility score.")
+
+    if market is not None:
+        summary_parts.append(f"The market component is scored at {_format_score(market)}.")
+    if financial is not None:
+        summary_parts.append(f"The financial component is scored at {_format_score(financial)}.")
+    if risk is not None:
+        summary_parts.append(f"The risk indicator is scored at {_format_score(risk)}.")
+
+    summary_parts.append(f"The backend recommendation is: {recommendation}.")
+
+    if overall is not None and overall >= 75:
+        summary_parts.append(
+            "This suggests the business appears reasonably feasible based on the verified backend analysis."
+        )
+    elif overall is not None and overall >= 50:
+        summary_parts.append(
+            "This suggests the business is viable but needs tighter financial or operational controls based on the verified backend analysis."
+        )
+    elif overall is not None:
+        summary_parts.append(
+            "This suggests the business is currently weak on the verified backend indicators and should be reviewed before moving ahead."
+        )
+
+    return " ".join(part for part in summary_parts if part)
