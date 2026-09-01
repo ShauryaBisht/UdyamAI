@@ -85,8 +85,15 @@ class PopulationRow(LocationNamesMixin, _CSVRow):
     working_population: int | None = None
     literacy_rate: float | None = None
 
-    @field_validator("year", "population_total", "male_population", "female_population",
-                     "households", "working_population", mode="before")
+    @field_validator(
+        "year",
+        "population_total",
+        "male_population",
+        "female_population",
+        "households",
+        "working_population",
+        mode="before",
+    )
     @classmethod
     def _ints(cls, value):  # noqa: ANN001
         return to_int(value)

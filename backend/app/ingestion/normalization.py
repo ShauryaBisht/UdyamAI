@@ -85,9 +85,7 @@ def parse_date(value: Any) -> date | None:
             return datetime.strptime(text, fmt).date()
         except ValueError:
             continue
-    raise ValueError(
-        f"cannot parse {value!r} as date (expected YYYY-MM-DD or DD/MM/YYYY)"
-    )
+    raise ValueError(f"cannot parse {value!r} as date (expected YYYY-MM-DD or DD/MM/YYYY)")
 
 
 def to_bool(value: Any) -> bool | None:

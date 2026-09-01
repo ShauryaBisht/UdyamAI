@@ -156,9 +156,7 @@ class TestRowValidation:
 
     def test_market_price_row_needs_market_or_village(self):
         with pytest.raises(ValidationError):
-            MarketPriceRow.model_validate(
-                {"commodity": "Onion", "recorded_date": "2024-06-01"}
-            )
+            MarketPriceRow.model_validate({"commodity": "Onion", "recorded_date": "2024-06-01"})
 
     def test_market_price_row_with_village_only_ok(self):
         row = MarketPriceRow.model_validate(
@@ -297,9 +295,7 @@ class TestRunImport:
 
     def test_market_prices_sample(self):
         mock_db = MagicMock()
-        report = run_import(
-            mock_db, "market_prices", SAMPLES / "market_prices" / "sample.csv"
-        )
+        report = run_import(mock_db, "market_prices", SAMPLES / "market_prices" / "sample.csv")
         assert report.imported == 5
         assert report.rejected == 1  # no market_name or village_name
         rows = mock_db.add_all.call_args[0][0]

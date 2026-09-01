@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -85,8 +85,9 @@ def _optional_village(db: Session, row: Any, report: ImportReport) -> UUID | Non
 # ---------------------------------------------------------------------------
 
 
-def _import_agriculture(db: Session, row: AgricultureRow, prov: Provenance,
-                        report: ImportReport) -> Agriculture:
+def _import_agriculture(
+    db: Session, row: AgricultureRow, prov: Provenance, report: ImportReport
+) -> Agriculture:
     return Agriculture(
         location_id=_require_village(db, row, report),
         crop_name=row.crop_name,
@@ -103,8 +104,9 @@ def _import_agriculture(db: Session, row: AgricultureRow, prov: Provenance,
     )
 
 
-def _import_livestock(db: Session, row: LivestockRow, prov: Provenance,
-                      report: ImportReport) -> Livestock:
+def _import_livestock(
+    db: Session, row: LivestockRow, prov: Provenance, report: ImportReport
+) -> Livestock:
     return Livestock(
         location_id=_require_village(db, row, report),
         animal_type=row.animal_type,
@@ -118,8 +120,9 @@ def _import_livestock(db: Session, row: LivestockRow, prov: Provenance,
     )
 
 
-def _import_population(db: Session, row: PopulationRow, prov: Provenance,
-                       report: ImportReport) -> Population:
+def _import_population(
+    db: Session, row: PopulationRow, prov: Provenance, report: ImportReport
+) -> Population:
     return Population(
         location_id=_require_village(db, row, report),
         year=row.year,
@@ -135,8 +138,9 @@ def _import_population(db: Session, row: PopulationRow, prov: Provenance,
     )
 
 
-def _import_weather(db: Session, row: WeatherRow, prov: Provenance,
-                    report: ImportReport) -> Weather:
+def _import_weather(
+    db: Session, row: WeatherRow, prov: Provenance, report: ImportReport
+) -> Weather:
     return Weather(
         location_id=_optional_village(db, row, report),
         date=row.date,
@@ -150,8 +154,7 @@ def _import_weather(db: Session, row: WeatherRow, prov: Provenance,
     )
 
 
-def _import_market(db: Session, row: MarketRow, prov: Provenance,
-                   report: ImportReport) -> Market:
+def _import_market(db: Session, row: MarketRow, prov: Provenance, report: ImportReport) -> Market:
     return Market(
         name=row.market_name,
         market_type=row.market_type,
@@ -164,8 +167,9 @@ def _import_market(db: Session, row: MarketRow, prov: Provenance,
     )
 
 
-def _resolve_market(db: Session, row: MarketPriceRow, prov: Provenance,
-                    report: ImportReport) -> Market | None:
+def _resolve_market(
+    db: Session, row: MarketPriceRow, prov: Provenance, report: ImportReport
+) -> Market | None:
     """Find a market by name; create it (unless dry-run) when absent."""
     if not row.market_name:
         return None
@@ -192,8 +196,9 @@ def _resolve_market(db: Session, row: MarketPriceRow, prov: Provenance,
     return market
 
 
-def _import_market_price(db: Session, row: MarketPriceRow, prov: Provenance,
-                         report: ImportReport) -> MarketPrice:
+def _import_market_price(
+    db: Session, row: MarketPriceRow, prov: Provenance, report: ImportReport
+) -> MarketPrice:
     market = _resolve_market(db, row, prov, report)
     location_id = market.location_id if market else None
     if row.village_name and (market is None or market.location_id is None):
@@ -216,8 +221,9 @@ def _import_market_price(db: Session, row: MarketPriceRow, prov: Provenance,
     )
 
 
-def _resolve_category(db: Session, row: BusinessRow, prov: Provenance,
-                      report: ImportReport) -> BusinessCategory | None:
+def _resolve_category(
+    db: Session, row: BusinessRow, prov: Provenance, report: ImportReport
+) -> BusinessCategory | None:
     if not row.category_name:
         return None
     category = db.exec(
@@ -237,8 +243,9 @@ def _resolve_category(db: Session, row: BusinessRow, prov: Provenance,
     return category
 
 
-def _import_business(db: Session, row: BusinessRow, prov: Provenance,
-                     report: ImportReport) -> Business:
+def _import_business(
+    db: Session, row: BusinessRow, prov: Provenance, report: ImportReport
+) -> Business:
     category = _resolve_category(db, row, prov, report)
     village_id = _optional_village(db, row, report)
     return Business(
@@ -257,8 +264,7 @@ def _import_business(db: Session, row: BusinessRow, prov: Provenance,
     )
 
 
-def _import_location(db: Session, row: LocationRow, prov: Provenance,
-                     report: ImportReport) -> None:
+def _import_location(db: Session, row: LocationRow, prov: Provenance, report: ImportReport) -> None:
     """Location hierarchy — resolve_location creates records (committed).
 
     Enriches the village with pin code / coordinates after resolution.
@@ -283,7 +289,9 @@ def _import_location(db: Session, row: LocationRow, prov: Provenance,
 
 
 DOMAIN_SPECS: dict[str, DomainSpec] = {
-    "agriculture": DomainSpec("agriculture", AgricultureRow, _import_agriculture, "Government Data"),
+    "agriculture": DomainSpec(
+        "agriculture", AgricultureRow, _import_agriculture, "Government Data"
+    ),
     "livestock": DomainSpec("livestock", LivestockRow, _import_livestock, "Government Data"),
     "population": DomainSpec("population", PopulationRow, _import_population, "Census of India"),
     "weather": DomainSpec("weather", WeatherRow, _import_weather, "IMD"),
@@ -301,7 +309,7 @@ def _record_data_source(db: Session, spec: DomainSpec, prov: Provenance) -> None
             DataSource.name == prov.source, DataSource.dataset_name == spec.name
         )
     ).first()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if existing:
         existing.last_updated_at = now
         if prov.source_url:
