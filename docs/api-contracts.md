@@ -66,6 +66,9 @@ All non-`2xx` HTTP response bodies follow the standard error structure:
 | `/api/v1/locations/talukas` | `GET` | List administrative talukas filtered by district |
 | `/api/v1/locations/villages` | `GET` | List administrative villages filtered by taluka/district |
 | `/api/v1/business-categories` | `GET` | List available business categories and sectors |
+| `/api/v1/business-categories/models` | `GET` | List business model reference data (startup costs, assumptions) |
+| `/api/v1/businesses` | `GET` | List business establishments with optional filters |
+| `/api/v1/businesses/{business_id}` | `GET` | Get a single business establishment by ID |
 | `/api/v1/finance/calculate` | `POST` | Calculate project funding, loan EMI, and repayment schedule |
 | `/api/v1/schemes` | `GET` | List government schemes filtered by state/agency |
 | `/api/v1/schemes/states` | `GET` | Get distinct states with schemes |
@@ -650,7 +653,6 @@ Find businesses within a radius using PostGIS.
   {
     "id": "b1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
     "name": "Shivapur Dairy Center",
-    "category": "Dairy Farming",
     "business_category_id": "e2a85f64-5717-4562-b3fc-2c963f66afa7",
     "address": "Khed Shivapur, Pune",
     "latitude": 18.35,
@@ -1289,6 +1291,86 @@ Get a single economic indicator record by ID.
 
 - **`200 OK`** — Economic indicator record.
 - **`404 Not Found`** — Record not found.
+
+---
+
+### 41. `GET /api/v1/businesses`
+
+List business establishment records with optional filters.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/businesses`
+- **Query Parameters**:
+  - `business_category_id` (`UUID`, optional): Filter by business category (`business_categories.id`).
+  - `location_id` (`UUID`, optional): Filter by village location (`villages.id`).
+  - `limit` (`int`, optional, default `50`, max `200`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "b1a2b3c4-...",
+    "name": "Sharma Kirana Store",
+    "business_category_id": "e2a85f64-...",
+    "location_id": "c7a85f64-...",
+    "district": "Pune",
+    "taluka": "Haveli",
+    "village": "Wagholi",
+    "address": "Main Road, Wagholi",
+    "latitude": 18.5792,
+    "longitude": 73.9502,
+    "source": "udyam_survey_2026",
+    "source_url": "https://...",
+    "data_year": 2026,
+    "created_at": "2026-01-10T12:00:00Z"
+  }
+]
+```
+
+---
+
+### 42. `GET /api/v1/businesses/{business_id}`
+
+Get a single business establishment by ID.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/businesses/{business_id}`
+- **Path Parameters**:
+  - `business_id` (`UUID`, required): Business record ID.
+
+#### Responses
+
+- **`200 OK`** — Business establishment record (same shape as item in section 41).
+- **`404 Not Found`** — Business not found.
+
+---
+
+### 43. `GET /api/v1/business-categories/models`
+
+List business model reference data (startup cost ranges, working capital, revenue/operating-cost assumptions) used by the analysis engine.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/business-categories/models`
+- **Query Parameters**:
+  - `business_category_id` (`UUID`, optional): Filter by business category.
+  - `limit` (`int`, optional, default `100`, max `200`): Max results.
+
+#### Response
+```json
+[
+  {
+    "id": "d1a2b3c4-...",
+    "business_category_id": "e2a85f64-...",
+    "name": "Small Dairy Farm (5 cattle)",
+    "description": "Milk collection and local sale.",
+    "startup_cost_min": 150000.0,
+    "startup_cost_max": 300000.0,
+    "working_capital": 50000.0,
+    "active": true,
+    "created_at": "2026-01-10T12:00:00Z"
+  }
+]
+```
 
 ---
 

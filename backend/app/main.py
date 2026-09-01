@@ -75,6 +75,19 @@ app.include_router(
     dependencies=[Depends(default_limiter)],
 )
 app.include_router(
+    businesses.records_router,
+    prefix="/businesses",
+    tags=["Businesses"],
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    businesses.records_router,
+    prefix="/api/v1/businesses",
+    tags=["Businesses"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
     schemes.router, prefix="/schemes", tags=["Schemes"], dependencies=[Depends(default_limiter)]
 )
 app.include_router(
