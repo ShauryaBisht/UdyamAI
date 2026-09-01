@@ -108,6 +108,10 @@ def normalize_for_match(name: str) -> str:
     text = remove_suffixes(text)
     text = remove_fillers(text)
     text = re.sub(r"\s+", " ", text).strip()
+    # If normalization yields empty string (e.g. input was only a suffix),
+    # fall back to the original stripped/lowercased name.
+    if not text:
+        text = normalize_name(name)
     return text
 
 
@@ -177,22 +181,20 @@ class LocationService:
             if result:
                 return result
 
-        # 2. Exact normalized name
-        all_districts = db.exec(select(District)).all()
-        state_lower = state.lower() if state else None
+        # 2. Exact normalized name — narrow by state in SQL
+        stmt = select(District)
+        if state:
+            stmt = stmt.where(District.state.ilike(state))
+        candidates = db.exec(stmt).all()
 
-        for d in all_districts:
-            if state_lower and (d.state.lower() if d.state else None) != state_lower:
-                continue
+        for d in candidates:
             if normalize_for_match(d.name) == norm:
                 return d
 
         # 3. Fuzzy
         best_match: District | None = None
         best_ratio = 0.0
-        for d in all_districts:
-            if state_lower and (d.state.lower() if d.state else None) != state_lower:
-                continue
+        for d in candidates:
             ratio = _fuzzy_ratio(norm, normalize_for_match(d.name))
             if ratio > best_ratio:
                 best_ratio = ratio
@@ -567,6 +569,9 @@ class LocationService:
         for i, (_norm, rec) in enumerate(norm_map):
             clusters[find(i)].append(rec)
 
+        # Build a lookup from record id → normalized key (reuse norm_map)
+        norm_by_id = {id(rec): norm for norm, rec in norm_map}
+
         result: list[dict] = []
         for members in clusters.values():
             if len(members) < 2:
@@ -577,18 +582,52 @@ class LocationService:
                     {
                         "id": str(m.id),
                         "name": m.name,
-                        "normalized": normalize_for_match(m.name),
+                        "normalized": norm_by_id[id(m)],
                         "lgd_code": getattr(m, "lgd_code", None),
                     }
                 )
+            # Use the normalized key from the first member (deterministic)
             result.append(
                 {
-                    "normalized_name": normalize_for_match(members[0].name),
+                    "normalized_name": norm_by_id[id(members[0])],
                     "count": len(members),
                     "records": group_records,
                 }
             )
         return result
+
+    # Whitelist of valid table names for raw-SQL operations
+    _VALID_TABLE_NAMES: set[str] = {
+        "districts",
+        "talukas",
+        "gram_panchayats",
+        "villages",
+        "agriculture",
+        "analysis_runs",
+        "businesses",
+        "competitor_analyses",
+        "economic_indicators",
+        "infrastructure",
+        "livestock",
+        "market_analyses",
+        "market_prices",
+        "markets",
+        "population",
+        "profiles",
+        "weather",
+    }
+    _VALID_FK_COLUMNS: set[str] = {
+        "location_id",
+        "taluka_id",
+        "district_id",
+        "gram_panchayat_id",
+    }
+
+    @staticmethod
+    def _validate_sql_ident(name: str, allowed: set[str], label: str) -> None:
+        """Raise if *name* is not in the allowed set (SQL safety guard)."""
+        if name not in allowed:
+            raise ValueError(f"Invalid {label}: {name!r}")
 
     @staticmethod
     def merge_duplicates(
@@ -603,15 +642,16 @@ class LocationService:
         2. Delete the merged records.
 
         Returns a summary dict with counts of updated rows per table.
+        All DB changes run in a single transaction — commit on success,
+        rollback on any error.
         """
+        from sqlalchemy import text
+
         # --- Input validation ---
         if not merge_ids:
             raise ValueError("merge_ids must contain at least one id")
         if keep_id in merge_ids:
             raise ValueError("keep_id cannot be in merge_ids")
-
-        # Verify keep record exists (use raw SQL to avoid ORM geo-column issues)
-        from sqlalchemy import text
 
         _TABLE_MAP = {
             "district": "districts",
@@ -622,22 +662,34 @@ class LocationService:
         if level not in _TABLE_MAP:
             raise ValueError(f"Invalid level: {level!r}")
         table = _TABLE_MAP[level]
-        exists = db.execute(
-            text(f"SELECT 1 FROM {table} WHERE id = :id LIMIT 1"),
-            {"id": str(keep_id)},
-        ).first()
-        if not exists:
-            raise ValueError(f"keep_id {keep_id} not found in {level}s")
+        LocationService._validate_sql_ident(table, LocationService._VALID_TABLE_NAMES, "table")
 
-        if level == "district":
-            return LocationService._merge_districts(db, keep_id, merge_ids)
-        if level == "taluka":
-            return LocationService._merge_talukas(db, keep_id, merge_ids)
-        if level == "gram_panchayat":
-            return LocationService._merge_gps(db, keep_id, merge_ids)
-        if level == "village":
-            return LocationService._merge_villages(db, keep_id, merge_ids)
-        raise ValueError(f"Invalid level: {level!r}")
+        try:
+            # Verify keep record exists (inside transaction)
+            exists = db.execute(
+                text(f"SELECT 1 FROM {table} WHERE id = :id LIMIT 1"),
+                {"id": str(keep_id)},
+            ).first()
+            if not exists:
+                raise ValueError(f"keep_id {keep_id} not found in {level}s")
+
+            if level == "district":
+                summary = LocationService._merge_districts(db, keep_id, merge_ids)
+            elif level == "taluka":
+                summary = LocationService._merge_talukas(db, keep_id, merge_ids)
+            elif level == "gram_panchayat":
+                summary = LocationService._merge_gps(db, keep_id, merge_ids)
+            elif level == "village":
+                summary = LocationService._merge_villages(db, keep_id, merge_ids)
+            else:
+                raise ValueError(f"Invalid level: {level!r}")
+
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+        return summary
 
     # --- Village merge (re-parents domain tables) ---
 
@@ -647,27 +699,25 @@ class LocationService:
 
         summary: dict[str, int] = {}
 
-        try:
-            # Re-parent domain tables that reference villages.id
-            for table_name, fk_col in _VILLAGE_FK_TABLES:
-                for mid in merge_ids:
-                    result = db.execute(
-                        text(f"UPDATE {table_name} SET {fk_col} = :keep WHERE {fk_col} = :merge"),
-                        {"keep": str(keep_id), "merge": str(mid)},
-                    )
-                    summary[f"{table_name}.{fk_col}"] = (
-                        summary.get(f"{table_name}.{fk_col}", 0) + result.rowcount
-                    )
-
-            # Delete merged village records
+        # Re-parent domain tables that reference villages.id
+        for table_name, fk_col in _VILLAGE_FK_TABLES:
+            LocationService._validate_sql_ident(
+                table_name, LocationService._VALID_TABLE_NAMES, "table"
+            )
+            LocationService._validate_sql_ident(fk_col, LocationService._VALID_FK_COLUMNS, "column")
             for mid in merge_ids:
-                db.execute(text("DELETE FROM villages WHERE id = :id"), {"id": str(mid)})
-            summary["villages_deleted"] = len(merge_ids)
+                result = db.execute(
+                    text(f"UPDATE {table_name} SET {fk_col} = :keep WHERE {fk_col} = :merge"),
+                    {"keep": str(keep_id), "merge": str(mid)},
+                )
+                summary[f"{table_name}.{fk_col}"] = (
+                    summary.get(f"{table_name}.{fk_col}", 0) + result.rowcount
+                )
 
-            db.commit()
-        except Exception:
-            db.rollback()
-            raise
+        # Delete merged village records
+        for mid in merge_ids:
+            db.execute(text("DELETE FROM villages WHERE id = :id"), {"id": str(mid)})
+        summary["villages_deleted"] = len(merge_ids)
 
         return summary
 
@@ -679,35 +729,27 @@ class LocationService:
 
         summary: dict[str, int] = {}
 
-        try:
-            for mid in merge_ids:
-                # Re-parent gram_panchayats
-                result = db.execute(
-                    text("UPDATE gram_panchayats SET taluka_id = :keep WHERE taluka_id = :merge"),
-                    {"keep": str(keep_id), "merge": str(mid)},
-                )
-                summary["gram_panchayats.taluka_id"] = (
-                    summary.get("gram_panchayats.taluka_id", 0) + result.rowcount
-                )
+        for mid in merge_ids:
+            # Re-parent gram_panchayats
+            result = db.execute(
+                text("UPDATE gram_panchayats SET taluka_id = :keep WHERE taluka_id = :merge"),
+                {"keep": str(keep_id), "merge": str(mid)},
+            )
+            summary["gram_panchayats.taluka_id"] = (
+                summary.get("gram_panchayats.taluka_id", 0) + result.rowcount
+            )
 
-                # Re-parent villages
-                result = db.execute(
-                    text("UPDATE villages SET taluka_id = :keep WHERE taluka_id = :merge"),
-                    {"keep": str(keep_id), "merge": str(mid)},
-                )
-                summary["villages.taluka_id"] = (
-                    summary.get("villages.taluka_id", 0) + result.rowcount
-                )
+            # Re-parent villages
+            result = db.execute(
+                text("UPDATE villages SET taluka_id = :keep WHERE taluka_id = :merge"),
+                {"keep": str(keep_id), "merge": str(mid)},
+            )
+            summary["villages.taluka_id"] = summary.get("villages.taluka_id", 0) + result.rowcount
 
-            # Delete merged taluka records
-            for mid in merge_ids:
-                db.execute(text("DELETE FROM talukas WHERE id = :id"), {"id": str(mid)})
-            summary["talukas_deleted"] = len(merge_ids)
-
-            db.commit()
-        except Exception:
-            db.rollback()
-            raise
+        # Delete merged taluka records
+        for mid in merge_ids:
+            db.execute(text("DELETE FROM talukas WHERE id = :id"), {"id": str(mid)})
+        summary["talukas_deleted"] = len(merge_ids)
 
         return summary
 
@@ -719,46 +761,36 @@ class LocationService:
 
         summary: dict[str, int] = {}
 
-        try:
-            for mid in merge_ids:
-                # Re-parent talukas
-                result = db.execute(
-                    text("UPDATE talukas SET district_id = :keep WHERE district_id = :merge"),
-                    {"keep": str(keep_id), "merge": str(mid)},
-                )
-                summary["talukas.district_id"] = (
-                    summary.get("talukas.district_id", 0) + result.rowcount
-                )
+        for mid in merge_ids:
+            # Re-parent talukas
+            result = db.execute(
+                text("UPDATE talukas SET district_id = :keep WHERE district_id = :merge"),
+                {"keep": str(keep_id), "merge": str(mid)},
+            )
+            summary["talukas.district_id"] = summary.get("talukas.district_id", 0) + result.rowcount
 
-                # Re-parent gram_panchayats
-                result = db.execute(
-                    text(
-                        "UPDATE gram_panchayats SET district_id = :keep WHERE district_id = :merge"
-                    ),
-                    {"keep": str(keep_id), "merge": str(mid)},
-                )
-                summary["gram_panchayats.district_id"] = (
-                    summary.get("gram_panchayats.district_id", 0) + result.rowcount
-                )
+            # Re-parent gram_panchayats
+            result = db.execute(
+                text("UPDATE gram_panchayats SET district_id = :keep WHERE district_id = :merge"),
+                {"keep": str(keep_id), "merge": str(mid)},
+            )
+            summary["gram_panchayats.district_id"] = (
+                summary.get("gram_panchayats.district_id", 0) + result.rowcount
+            )
 
-                # Re-parent villages
-                result = db.execute(
-                    text("UPDATE villages SET district_id = :keep WHERE district_id = :merge"),
-                    {"keep": str(keep_id), "merge": str(mid)},
-                )
-                summary["villages.district_id"] = (
-                    summary.get("villages.district_id", 0) + result.rowcount
-                )
+            # Re-parent villages
+            result = db.execute(
+                text("UPDATE villages SET district_id = :keep WHERE district_id = :merge"),
+                {"keep": str(keep_id), "merge": str(mid)},
+            )
+            summary["villages.district_id"] = (
+                summary.get("villages.district_id", 0) + result.rowcount
+            )
 
-            # Delete merged district records
-            for mid in merge_ids:
-                db.execute(text("DELETE FROM districts WHERE id = :id"), {"id": str(mid)})
-            summary["districts_deleted"] = len(merge_ids)
-
-            db.commit()
-        except Exception:
-            db.rollback()
-            raise
+        # Delete merged district records
+        for mid in merge_ids:
+            db.execute(text("DELETE FROM districts WHERE id = :id"), {"id": str(mid)})
+        summary["districts_deleted"] = len(merge_ids)
 
         return summary
 
@@ -770,26 +802,20 @@ class LocationService:
 
         summary: dict[str, int] = {}
 
-        try:
-            for mid in merge_ids:
-                result = db.execute(
-                    text(
-                        "UPDATE villages SET gram_panchayat_id = :keep WHERE gram_panchayat_id = :merge"
-                    ),
-                    {"keep": str(keep_id), "merge": str(mid)},
-                )
-                summary["villages.gram_panchayat_id"] = (
-                    summary.get("villages.gram_panchayat_id", 0) + result.rowcount
-                )
+        for mid in merge_ids:
+            result = db.execute(
+                text(
+                    "UPDATE villages SET gram_panchayat_id = :keep WHERE gram_panchayat_id = :merge"
+                ),
+                {"keep": str(keep_id), "merge": str(mid)},
+            )
+            summary["villages.gram_panchayat_id"] = (
+                summary.get("villages.gram_panchayat_id", 0) + result.rowcount
+            )
 
-            # Delete merged GP records
-            for mid in merge_ids:
-                db.execute(text("DELETE FROM gram_panchayats WHERE id = :id"), {"id": str(mid)})
-            summary["gram_panchayats_deleted"] = len(merge_ids)
-
-            db.commit()
-        except Exception:
-            db.rollback()
-            raise
+        # Delete merged GP records
+        for mid in merge_ids:
+            db.execute(text("DELETE FROM gram_panchayats WHERE id = :id"), {"id": str(mid)})
+        summary["gram_panchayats_deleted"] = len(merge_ids)
 
         return summary

@@ -120,10 +120,11 @@ class TestNormalizeForMatch:
         assert a == b
 
     def test_suffix_only_input(self):
-        """Edge case: input is just a suffix."""
+        """Edge case: input is just a suffix — falls back to cleaned original."""
         result = normalize_for_match("District")
-        # Should be empty or near-empty after removing suffix
-        assert result == "" or len(result) <= 2
+        # Normalization yields empty after removing suffix, so falls back
+        # to the original stripped/lowercased name
+        assert result == "district"
 
 
 # ---------------------------------------------------------------------------
@@ -192,9 +193,9 @@ class TestFindDistrict:
 
     def test_state_filter(self):
         db = MagicMock()
-        d1 = _make_district(name="Pune", state="Maharashtra")
         d2 = _make_district(name="Pune", state="Karnataka")
-        db.exec.return_value.all.return_value = [d1, d2]
+        # State filtering now happens in SQL, so mock returns pre-filtered results
+        db.exec.return_value.all.return_value = [d2]
         result = LocationService.find_district(db, "Pune", state="Karnataka")
         assert result == d2
 
