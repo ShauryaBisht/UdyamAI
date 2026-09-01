@@ -1,0 +1,7 @@
+district_name,taluka_name,village_name,year,population_total,male_population,female_population,households,working_population,literacy_rate
+Pune,Haveli,Wadgaon Sheri,2021,15234,7921,7313,3412,6890,87.5
+Pune,Haveli,Uruli Kanchan,2021,21340,11012,10328,4670,9450,84.2
+Nashik,Niphad,Ozar,2011,9876,5120,4756,2015,4102,78.9
+Nashik,Niphad,Ozar,2021,11245,5810,5435,2410,4890,81.4
+Satara,Koregaon,Vaduth,2011,4321,2234,2087,932,1820,72.3
+Pune,Haveli,Wadgaon Sheri,2021,not_a_number,7921,7313,3412,6890,87.5

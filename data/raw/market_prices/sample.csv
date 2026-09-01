@@ -1,0 +1,7 @@
+market_name,commodity,commodity_variety,unit,min_price,max_price,modal_price,arrival_quantity,arrival_unit,recorded_date
+Gultekdi APMC,Onion,Lasalgaon Local,quintal,1200,1850,1500,2450,tonnes,2024-06-15
+Gultekdi APMC,Tomato,Hybrid,quintal,800,1400,1100,890,tonnes,2024-06-15
+Pimpalgaon Market,Onion,Bangalore Rose,quintal,1350,1900,1620,1780,tonnes,15/06/2024
+Pimpalgaon Market,Wheat,Lokwan,quintal,2400,2750,2550,1200,tonnes,2024-06-16
+Uruli Kanchan Bazaar,Jowar,Maldandi,quintal,2900,3200,3050,340,tonnes,2024-06-16
+Gultekdi APMC,,Hybrid,quintal,800,1400,1100,890,tonnes,2024-06-15

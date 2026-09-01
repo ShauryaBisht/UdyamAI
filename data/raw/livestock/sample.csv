@@ -1,0 +1,7 @@
+district_name,taluka_name,village_name,year,animal_type,animal_count,milk_production,milk_production_unit
+Pune,Haveli,Wadgaon Sheri,2024,Cattle - Cow,1240,3850.5,thousand litres
+Pune,Haveli,Wadgaon Sheri,2024, Buffalo ,860,2910.0,thousand litres
+Nashik,Niphad,Ozar,2024,Goat,2130,,
+Nashik,Niphad,Ozar,2023,Sheep,1450,,
+Satara,Koregaon,Vaduth,2024,Poultry,9850,,
+Pune,Haveli,Wadgaon Sheri,2024,,1240,3850.5,thousand litres
