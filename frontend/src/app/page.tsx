@@ -22,7 +22,7 @@ export default function HomePage() {
       <nav className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-[76px] max-w-[1280px] items-center justify-between px-6 lg:px-10">
           {/* Logo */}
-          <a href="/onboarding" className="flex items-center gap-2">
+          <a href="/login" className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50">
               <Sparkles className="h-5 w-5 text-indigo-600" />
             </div>
@@ -56,7 +56,7 @@ export default function HomePage() {
             </a>
 
             <a
-              href="/onboarding"
+              href="/login"
               className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 transition hover:bg-indigo-700"
             >
               Get Started
@@ -105,7 +105,7 @@ export default function HomePage() {
             {/* Buttons */}
           <div className="mt-9">
   <a
-    href="/onboarding"
+    href="/login"
     className="inline-flex items-center rounded-xl bg-slate-950 px-7 py-4 font-semibold text-white shadow-xl shadow-indigo-900/10 transition hover:-translate-y-0.5 hover:bg-indigo-700"
   >
     Start Analysis
@@ -366,7 +366,7 @@ export default function HomePage() {
             </div>
 
             <a
-              href="/onboarding"
+              href="/login"
               className="shrink-0 rounded-xl bg-white px-8 py-4 font-semibold text-slate-900 shadow-xl transition hover:-translate-y-0.5 hover:bg-indigo-50"
             >
               Start Your Analysis
