@@ -111,24 +111,23 @@ def db():
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _id() -> str:
     return str(uuid4())
 
 
-def _insert_district(session: Session, name: str, state: str = "Maharashtra", lgd_code: str | None = None) -> str:
+def _insert_district(
+    session: Session, name: str, state: str = "Maharashtra", lgd_code: str | None = None
+) -> str:
     did = _id()
-    session.execute(
-        _districts.insert().values(id=did, name=name, state=state, lgd_code=lgd_code)
-    )
+    session.execute(_districts.insert().values(id=did, name=name, state=state, lgd_code=lgd_code))
     session.commit()
     return did
 
 
 def _insert_taluka(session: Session, name: str, district_id: str) -> str:
     tid = _id()
-    session.execute(
-        _talukas.insert().values(id=tid, name=name, district_id=district_id)
-    )
+    session.execute(_talukas.insert().values(id=tid, name=name, district_id=district_id))
     session.commit()
     return tid
 
@@ -144,12 +143,17 @@ def _insert_gp(session: Session, name: str, taluka_id: str, district_id: str) ->
     return gid
 
 
-def _insert_village(session: Session, name: str, district_id: str, taluka_id: str, gp_id: str) -> str:
+def _insert_village(
+    session: Session, name: str, district_id: str, taluka_id: str, gp_id: str
+) -> str:
     vid = _id()
     session.execute(
         _villages.insert().values(
-            id=vid, name=name, district_id=district_id,
-            taluka_id=taluka_id, gram_panchayat_id=gp_id,
+            id=vid,
+            name=name,
+            district_id=district_id,
+            taluka_id=taluka_id,
+            gram_panchayat_id=gp_id,
         )
     )
     session.commit()
@@ -158,18 +162,14 @@ def _insert_village(session: Session, name: str, district_id: str, taluka_id: st
 
 def _insert_business(session: Session, name: str, location_id: str) -> str:
     bid = _id()
-    session.execute(
-        _businesses.insert().values(id=bid, name=name, location_id=location_id)
-    )
+    session.execute(_businesses.insert().values(id=bid, name=name, location_id=location_id))
     session.commit()
     return bid
 
 
 def _insert_population(session: Session, location_id: str, year: int = 2021) -> str:
     pid = _id()
-    session.execute(
-        _population.insert().values(id=pid, location_id=location_id, year=year)
-    )
+    session.execute(_population.insert().values(id=pid, location_id=location_id, year=year))
     session.commit()
     return pid
 
@@ -193,6 +193,7 @@ class TestMergeVillagesIntegration:
     def test_merge_reparents_domain_tables(self, db: Session):
         """Merging villages moves all FK references to the keep record."""
         import app.services.location_service as svc
+
         original = svc._VILLAGE_FK_TABLES
         svc._VILLAGE_FK_TABLES = _TEST_VILLAGE_FK_TABLES
         try:
@@ -234,6 +235,7 @@ class TestMergeVillagesIntegration:
     def test_merge_keeps_domain_records_intact(self, db: Session):
         """Records already pointing to keep_id are not affected."""
         import app.services.location_service as svc
+
         original = svc._VILLAGE_FK_TABLES
         svc._VILLAGE_FK_TABLES = _TEST_VILLAGE_FK_TABLES
         try:
@@ -249,9 +251,7 @@ class TestMergeVillagesIntegration:
             # Business on merge — should be moved
             bid_merge = _insert_business(db, "Merge Shop", merge_vid)
 
-            LocationService.merge_duplicates(
-                db, UUID(keep_vid), [UUID(merge_vid)], level="village"
-            )
+            LocationService.merge_duplicates(db, UUID(keep_vid), [UUID(merge_vid)], level="village")
 
             # Keep's business unchanged
             row = db.execute(_businesses.select().where(_businesses.c.id == bid_keep)).fetchone()
@@ -266,6 +266,7 @@ class TestMergeVillagesIntegration:
     def test_merge_multiple_villages(self, db: Session):
         """Merging multiple villages at once."""
         import app.services.location_service as svc
+
         original = svc._VILLAGE_FK_TABLES
         svc._VILLAGE_FK_TABLES = _TEST_VILLAGE_FK_TABLES
         try:
@@ -302,6 +303,7 @@ class TestMergeVillagesIntegration:
 # Taluka merge integration tests
 # ---------------------------------------------------------------------------
 
+
 class TestMergeTalukasIntegration:
     def test_merge_reparents_villages_and_gps(self, db: Session):
         """Merging talukas re-parents both GP and villages."""
@@ -327,7 +329,9 @@ class TestMergeTalukasIntegration:
         assert _count_where(db, _talukas, "id", merge_tal) == 0
 
         # GP re-parented
-        gp_row = db.execute(_gram_panchayats.select().where(_gram_panchayats.c.id == gp1)).fetchone()
+        gp_row = db.execute(
+            _gram_panchayats.select().where(_gram_panchayats.c.id == gp1)
+        ).fetchone()
         assert gp_row.taluka_id == keep_tal
 
         # Village re-parented
@@ -344,6 +348,7 @@ class TestMergeTalukasIntegration:
 # ---------------------------------------------------------------------------
 # District merge integration tests
 # ---------------------------------------------------------------------------
+
 
 class TestMergeDistrictsIntegration:
     def test_merge_reparents_talukas_gps_villages(self, db: Session):
@@ -380,6 +385,7 @@ class TestMergeDistrictsIntegration:
 # GP merge integration tests
 # ---------------------------------------------------------------------------
 
+
 class TestMergeGPIntegration:
     def test_merge_reparents_villages(self, db: Session):
         """Merging GPs re-parents villages."""
@@ -407,6 +413,7 @@ class TestMergeGPIntegration:
 # Input validation integration tests
 # ---------------------------------------------------------------------------
 
+
 class TestMergeValidationIntegration:
     def test_empty_merge_ids_raises(self, db: Session):
         dist = _insert_district(db, "Pune")
@@ -432,6 +439,7 @@ class TestMergeValidationIntegration:
 # Transaction rollback integration tests
 # ---------------------------------------------------------------------------
 
+
 class TestMergeTransactionSafety:
     def test_rollback_on_domain_table_error(self, db: Session):
         """If a domain-table UPDATE fails (simulated), the merge village
@@ -448,6 +456,7 @@ class TestMergeTransactionSafety:
         # Monkey-patch _VILLAGE_FK_TABLES to include a bogus table that will
         # cause an SQL error on UPDATE.
         import app.services.location_service as svc
+
         original_tables = svc._VILLAGE_FK_TABLES
         svc._VILLAGE_FK_TABLES = original_tables + [("nonexistent_table_xyz", "location_id")]
 
@@ -472,6 +481,7 @@ class TestMergeTransactionSafety:
 # ---------------------------------------------------------------------------
 # Normalization + detection integration tests
 # ---------------------------------------------------------------------------
+
 
 class TestDetectDuplicatesIntegration:
     def test_detect_finds_duplicates_in_db(self, db: Session):

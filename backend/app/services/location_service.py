@@ -695,7 +695,9 @@ class LocationService:
                     text("UPDATE villages SET taluka_id = :keep WHERE taluka_id = :merge"),
                     {"keep": str(keep_id), "merge": str(mid)},
                 )
-                summary["villages.taluka_id"] = summary.get("villages.taluka_id", 0) + result.rowcount
+                summary["villages.taluka_id"] = (
+                    summary.get("villages.taluka_id", 0) + result.rowcount
+                )
 
             # Delete merged taluka records
             for mid in merge_ids:
@@ -724,11 +726,15 @@ class LocationService:
                     text("UPDATE talukas SET district_id = :keep WHERE district_id = :merge"),
                     {"keep": str(keep_id), "merge": str(mid)},
                 )
-                summary["talukas.district_id"] = summary.get("talukas.district_id", 0) + result.rowcount
+                summary["talukas.district_id"] = (
+                    summary.get("talukas.district_id", 0) + result.rowcount
+                )
 
                 # Re-parent gram_panchayats
                 result = db.execute(
-                    text("UPDATE gram_panchayats SET district_id = :keep WHERE district_id = :merge"),
+                    text(
+                        "UPDATE gram_panchayats SET district_id = :keep WHERE district_id = :merge"
+                    ),
                     {"keep": str(keep_id), "merge": str(mid)},
                 )
                 summary["gram_panchayats.district_id"] = (
