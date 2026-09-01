@@ -82,6 +82,9 @@ All non-`2xx` HTTP response bodies follow the standard error structure:
 | `/api/v1/locations/nearby/businesses` | `GET` | Find businesses within radius of coordinates |
 | `/api/v1/locations/nearby/markets` | `GET` | Find markets within radius of coordinates |
 | `/api/v1/locations/nearby/facilities` | `GET` | Find infrastructure facilities within radius |
+| `/api/v1/locations/normalize` | `POST` | Normalize a raw location name (no DB write) |
+| `/api/v1/locations/dedup/detect` | `GET` | Detect groups of potential duplicate locations |
+| `/api/v1/locations/dedup/merge` | `POST` | Merge duplicate locations into canonical record |
 | `/api/v1/markets` | `GET` | List markets with optional filters |
 | `/api/v1/markets/types` | `GET` | Get distinct market types |
 | `/api/v1/markets/commodities` | `GET` | Get distinct commodity names |
@@ -718,7 +721,117 @@ Find infrastructure facilities within a radius using PostGIS.
 
 ---
 
-### 16. `GET /api/v1/markets`
+### 16. `POST /api/v1/locations/normalize`
+
+Normalize a raw location name without writing to the database. Useful for ingestion pipelines and validation.
+
+- **HTTP Method**: `POST`
+- **Path**: `/api/v1/locations/normalize`
+- **Headers**:
+  - `Content-Type: application/json`
+
+#### Request Body
+```json
+{
+  "name": "Pune District",
+  "level": "district"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | Yes | Raw location name to normalize |
+| `level` | `string` | No | Location hierarchy level: `district`, `taluka`, `gram_panchayat`, `village` (default `village`) |
+
+#### Response
+- **`200 OK`** — Normalized name returned.
+```json
+{
+  "original": "Pune District",
+  "normalized": "pune",
+  "level": "district"
+}
+```
+
+---
+
+### 17. `GET /api/v1/locations/dedup/detect`
+
+Detect groups of potential duplicate locations at a given hierarchy level using fuzzy matching.
+
+- **HTTP Method**: `GET`
+- **Path**: `/api/v1/locations/dedup/detect`
+- **Query Parameters**:
+  - `level` (`string`, optional, default `village`): Hierarchy level (`district`, `taluka`, `gram_panchayat`, `village`).
+  - `state` (`string`, optional): Filter by state (districts only).
+  - `fuzzy_threshold` (`float`, optional, default `0.85`): Fuzzy match threshold (0.5–1.0).
+
+#### Response
+- **`200 OK`** — Groups of potential duplicates.
+```json
+{
+  "level": "district",
+  "total_groups": 1,
+  "groups": [
+    {
+      "normalized_name": "pune",
+      "count": 3,
+      "records": [
+        {"id": "uuid1", "name": "Pune", "normalized": "pune", "lgd_code": "521"},
+        {"id": "uuid2", "name": "PUNE", "normalized": "pune", "lgd_code": null},
+        {"id": "uuid3", "name": "Pune District", "normalized": "pune", "lgd_code": null}
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### 18. `POST /api/v1/locations/dedup/merge`
+
+Merge duplicate locations into a single canonical record. Re-parents all foreign key references from merged records to the kept record, then deletes the merged records.
+
+> ⚠️ **Admin operation** — This modifies data. Use `/dedup/detect` first to preview.
+
+- **HTTP Method**: `POST`
+- **Path**: `/api/v1/locations/dedup/merge`
+- **Headers**:
+  - `Content-Type: application/json`
+
+#### Request Body
+```json
+{
+  "keep_id": "canonical-uuid",
+  "merge_ids": ["duplicate-uuid-1", "duplicate-uuid-2"],
+  "level": "village"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `keep_id` | `UUID` | Yes | UUID of the record to keep (canonical) |
+| `merge_ids` | `array[UUID]` | Yes | UUIDs of duplicate records to merge into `keep_id` (min 1) |
+| `level` | `string` | No | Hierarchy level (default `village`) |
+
+#### Response
+- **`200 OK`** — Merge completed.
+```json
+{
+  "keep_id": "canonical-uuid",
+  "merged_count": 2,
+  "summary": {
+    "villages.taluka_id": 5,
+    "agriculture.location_id": 3,
+    "markets.location_id": 2,
+    "villages_deleted": 2
+  }
+}
+```
+
+---
+
+### 19. `GET /api/v1/markets`
 
 List markets with optional filters.
 

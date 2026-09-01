@@ -9,15 +9,20 @@ from app.geo.nearby_facilities import find_nearby_facilities
 from app.geo.nearby_markets import find_nearby_markets
 from app.geo.nearby_villages import find_nearby_villages
 from app.schemas.location import (
+    DedupDetectResponse,
     DistrictResponse,
+    MergeRequest,
+    MergeResponse,
     NearbyBusinessResponse,
     NearbyFacilityResponse,
     NearbyMarketResponse,
     NearbyVillageResponse,
+    NormalizeRequest,
+    NormalizeResponse,
     TalukaResponse,
     VillageResponse,
 )
-from app.services.location_service import LocationService
+from app.services.location_service import LocationService, normalize_for_match
 
 router = APIRouter()
 
@@ -38,6 +43,60 @@ def get_talukas(district_id: UUID | None = None, db: Session = Depends(get_sessi
 @router.get("/villages", response_model=list[VillageResponse])
 def get_villages(taluka_id: UUID | None = None, db: Session = Depends(get_session)):
     return LocationService.get_villages(db, taluka_id=taluka_id)
+
+
+# --- Normalization & Dedup Endpoints ---
+
+
+@router.post("/normalize", response_model=NormalizeResponse)
+def normalize_location(req: NormalizeRequest):
+    """Normalize a raw location name (no DB write)."""
+    normalized = normalize_for_match(req.name)
+    return NormalizeResponse(
+        original=req.name,
+        normalized=normalized,
+        level=req.level,
+    )
+
+
+@router.get("/dedup/detect", response_model=DedupDetectResponse)
+def detect_duplicates(
+    level: str = Query(
+        default="village",
+        pattern=r"^(district|taluka|gram_panchayat|village)$",
+        description="Location hierarchy level",
+    ),
+    state: str | None = Query(default=None, description="Filter by state (districts only)"),
+    fuzzy_threshold: float = Query(
+        default=0.85, ge=0.5, le=1.0, description="Fuzzy match threshold (0.5–1.0)"
+    ),
+    db: Session = Depends(get_session),
+):
+    """Detect groups of potential duplicate locations at the given level."""
+    groups = LocationService.detect_duplicates(
+        db, level=level, state=state, fuzzy_threshold=fuzzy_threshold
+    )
+    return DedupDetectResponse(
+        level=level,
+        total_groups=len(groups),
+        groups=groups,
+    )
+
+
+@router.post("/dedup/merge", response_model=MergeResponse)
+def merge_duplicates(
+    req: MergeRequest,
+    db: Session = Depends(get_session),
+):
+    """Merge duplicate locations into a single canonical record."""
+    summary = LocationService.merge_duplicates(
+        db, keep_id=req.keep_id, merge_ids=req.merge_ids, level=req.level
+    )
+    return MergeResponse(
+        keep_id=req.keep_id,
+        merged_count=len(req.merge_ids),
+        summary=summary,
+    )
 
 
 # --- Nearby / Geo-Query Endpoints ---
