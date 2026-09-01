@@ -172,4 +172,37 @@ class TestAnalysisOrchestrator:
         assert db_run is not None
         assert db_run.status == "completed"
         assert db_run.completed_at is not None
+        assert mock_db.add.called
         assert mock_db.commit.called
+        assert mock_db.refresh.called
+
+    @patch("app.services.analysis_orchestrator.AnalysisService.verify_business_category")
+    @patch("app.services.analysis_orchestrator.AnalysisService.verify_location")
+    def test_run_analysis_pipeline_rollback_on_failure(self, mock_verify_loc, mock_verify_cat):
+        loc_id = uuid4()
+        user_id = uuid4()
+        mock_verify_loc.return_value = loc_id
+        mock_verify_cat.return_value = None
+
+        mock_db = MagicMock()
+        mock_profile = Profile(id=user_id, email="user@test.com")
+
+        # Village get returns None to trigger 404 inside pipeline loop
+        def db_get_side_effect(model_cls, entity_id):
+            if model_cls == Profile:
+                return mock_profile
+            return None
+
+        mock_db.get.side_effect = db_get_side_effect
+
+        payload = AnalysisRunCreate(
+            user_id=user_id,
+            location_id=loc_id,
+            available_capital=50000.0,
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            AnalysisOrchestrator.run_analysis_pipeline(mock_db, payload)
+
+        assert exc.value.status_code == 404
+        assert mock_db.rollback.called

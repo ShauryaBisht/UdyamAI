@@ -16,8 +16,7 @@ Coordinates the end-to-end multi-step analysis pipeline:
 """
 
 import logging
-from datetime import datetime
-from uuid import uuid4
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlmodel import Session, select
@@ -26,7 +25,7 @@ from app.ai import advisor
 from app.models.analysis import AIAnalysis, AnalysisRun, FeasibilityAnalysis
 from app.models.business import BusinessCategory
 from app.models.location import District, Taluka, Village
-from app.models.scheme import SchemeMatch
+from app.models.scheme import Scheme, SchemeMatch
 from app.models.user import Profile
 from app.schemas.ai import (
     AnalysisContext,
@@ -38,6 +37,7 @@ from app.schemas.ai import (
     SchemeMatchContext,
 )
 from app.schemas.business import BusinessCategoryResponse
+from app.schemas.common import SchemeMatchStatus
 from app.schemas.feasibility import AnalysisRunCreate
 from app.schemas.finance import FinanceCalculateRequest
 from app.schemas.location import DistrictResponse, TalukaResponse, VillageResponse
@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 
 
 class AnalysisOrchestrator:
-    """Orchestrates the central 12-step analysis workflow."""
+    """Orchestrates the central 12-step analysis workflow with strict transaction boundaries."""
 
     @staticmethod
     def run_analysis_pipeline(db: Session, run_data: AnalysisRunCreate) -> AnalysisRun:
@@ -75,31 +75,20 @@ class AnalysisOrchestrator:
                 db, run_data.business_category_id
             )
 
-        # Verify or resolve user profile
+        # Require valid user_id (reject missing profile or unauthenticated requests)
         user_id = run_data.user_id
         if user_id is None:
-            profile = db.exec(select(Profile)).first()
-            if not profile:
-                profile = Profile(
-                    id=uuid4(),
-                    email="entrepreneur@udyamai.in",
-                    full_name="Entrepreneur User",
-                )
-                db.add(profile)
-                db.commit()
-                db.refresh(profile)
-            user_id = profile.id
-        else:
-            profile = db.get(Profile, user_id)
-            if not profile:
-                profile = Profile(
-                    id=user_id,
-                    email=f"user_{user_id}@udyamai.in",
-                    full_name="User Profile",
-                )
-                db.add(profile)
-                db.commit()
-                db.refresh(profile)
+            raise HTTPException(
+                status_code=400,
+                detail="User identifier (user_id) is required for analysis run",
+            )
+
+        profile = db.get(Profile, user_id)
+        if not profile:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User profile with ID {user_id} not found",
+            )
 
         # -------------------------------------------------------------
         # Step 2: Create AnalysisRun
@@ -127,14 +116,26 @@ class AnalysisOrchestrator:
                 )
 
             taluka = db.get(Taluka, village.taluka_id) if village.taluka_id else None
-            district = (
-                db.get(District, taluka.district_id) if taluka and taluka.district_id else None
-            )
-
             if not taluka:
-                taluka = Taluka(id=uuid4(), name="Default Taluka", code="TAL_DEF")
+                taluka = db.exec(select(Taluka)).first()
+                if not taluka:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Taluka entity not found for village {location_id}",
+                    )
+
+            district = (
+                db.get(District, taluka.district_id)
+                if taluka and taluka.district_id
+                else (db.get(District, village.district_id) if village.district_id else None)
+            )
             if not district:
-                district = District(id=uuid4(), name="Default District", state="Maharashtra")
+                district = db.exec(select(District)).first()
+                if not district:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"District entity not found for taluka {taluka.id}",
+                    )
 
             # -------------------------------------------------------------
             # Step 4: Fetch business category
@@ -143,10 +144,9 @@ class AnalysisOrchestrator:
             if not category:
                 category = db.exec(select(BusinessCategory)).first()
                 if not category:
-                    category = BusinessCategory(
-                        id=uuid4(),
-                        name="Micro Enterprise",
-                        description="General Micro Enterprise",
+                    raise HTTPException(
+                        status_code=404,
+                        detail="No valid BusinessCategory found in database",
                     )
 
             # -------------------------------------------------------------
@@ -195,19 +195,22 @@ class AnalysisOrchestrator:
                 active_schemes = SchemeService.get_schemes(db, limit=10)
                 db_scheme_matches = []
                 for sch in active_schemes:
-                    match_item = SchemeMatch(
-                        analysis_run_id=db_run.id,
-                        scheme_id=sch.id,
-                        match_status="potential_match",
-                        match_score=0.85,
-                        matched_conditions={"category": True, "location": True},
-                        estimated_loan_amount=desired_cost * 0.75,
-                        estimated_project_cost=desired_cost,
-                        verification_required=True,
-                    )
-                    db.add(match_item)
-                    db_scheme_matches.append(match_item)
-                db.commit()
+                    # Guard foreign key relationship to ensure scheme entity is persisted
+                    if sch.id is not None and db.get(Scheme, sch.id) is not None:
+                        match_item = SchemeMatch(
+                            analysis_run_id=db_run.id,
+                            scheme_id=sch.id,
+                            match_status=SchemeMatchStatus.POTENTIAL_MATCH,
+                            match_score=0.85,
+                            matched_conditions={"category": True, "location": True},
+                            estimated_loan_amount=desired_cost * 0.75,
+                            estimated_project_cost=desired_cost,
+                            verification_required=True,
+                        )
+                        db.add(match_item)
+                        db_scheme_matches.append(match_item)
+                if db_scheme_matches:
+                    db.commit()
 
             # -------------------------------------------------------------
             # Step 9: Run feasibility
@@ -290,11 +293,10 @@ class AnalysisOrchestrator:
                 swot=feasibility_score_res.swot,
             )
 
-            lang_str = str(
-                run_data.language.value
-                if hasattr(run_data.language, "value")
-                else run_data.language
-            )
+            # Safely extract optional language property with default fallback
+            lang_attr = getattr(run_data, "language", None)
+            lang_str = str(getattr(lang_attr, "value", lang_attr)) if lang_attr else "en"
+
             analysis_context = AnalysisContext(
                 location=loc_context,
                 business=biz_context,
@@ -349,16 +351,25 @@ class AnalysisOrchestrator:
             db.add(db_ai)
 
             db_run.status = "completed"
-            db_run.completed_at = datetime.utcnow()
+            db_run.completed_at = datetime.now(UTC)
             db.add(db_run)
             db.commit()
             db.refresh(db_run)
             return db_run
 
         except Exception as exc:
+            db.rollback()
             logger.exception("Error executing analysis orchestrator pipeline for run %s", db_run.id)
-            db_run.status = "failed"
-            db_run.completed_at = datetime.utcnow()
-            db.add(db_run)
-            db.commit()
+            try:
+                failed_run = db.get(AnalysisRun, db_run.id)
+                if failed_run:
+                    failed_run.status = "failed"
+                    failed_run.completed_at = datetime.now(UTC)
+                    db.add(failed_run)
+                    db.commit()
+            except Exception:
+                logger.exception(
+                    "Failed to set 'failed' status for run %s during rollback cleanup",
+                    db_run.id,
+                )
             raise exc

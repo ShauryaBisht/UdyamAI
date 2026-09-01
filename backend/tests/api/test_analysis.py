@@ -47,6 +47,7 @@ def test_create_analysis_v1(client):
 
 def test_create_analysis_location_not_found(client):
     payload = {
+        "user_id": str(dummy_run.user_id),
         "location_id": str(uuid4()),
         "available_capital": 50000.0,
     }
