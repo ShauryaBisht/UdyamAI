@@ -214,3 +214,21 @@ class AnalysisFullResponse(BaseModel):
     reports: list[ReportSummaryResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+
+class ConsolidatedAnalysisResponse(BaseModel):
+    analysis_id: UUID
+    status: str
+    created_at: datetime | None = None
+    completed_at: datetime | None = None
+    location: dict[str, Any] | None = None
+    business: dict[str, Any] | None = None
+    financial: dict[str, Any] | None = None
+    market: dict[str, Any] | None = None
+    competition: dict[str, Any] | None = None
+    schemes: list[dict[str, Any]] = Field(default_factory=list)
+    feasibility: dict[str, Any] | None = None
+    risks: list[dict[str, Any]] = Field(default_factory=list)
+    ai_advice: dict[str, Any] | None = None
+
+    model_config = {"from_attributes": True}

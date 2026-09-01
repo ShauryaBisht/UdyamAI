@@ -104,3 +104,43 @@ def test_get_analysis_status_not_found(client):
         assert response.status_code == 404
         data = response.json()
         assert "not found" in data["detail"]
+
+
+def test_get_consolidated_analysis_success(client):
+    from app.schemas.feasibility import ConsolidatedAnalysisResponse
+
+    dummy_consolidated = ConsolidatedAnalysisResponse(
+        analysis_id=dummy_run.id,
+        status="completed",
+        location={"village_name": "Khed"},
+        business={"category_name": "Dairy Farming"},
+        financial={"available_capital": 50000.0},
+        market={"population_estimate": 10000},
+        competition={"competitor_count": 5},
+        schemes=[],
+        feasibility={"overall_score": 84.0},
+        risks=[],
+        ai_advice={"summary": "Highly feasible"},
+    )
+    with patch(
+        "app.api.routes.analysis.AnalysisService.get_consolidated_analysis",
+        return_value=dummy_consolidated,
+    ):
+        response = client.get(f"/api/v1/analysis/{dummy_run.id}/consolidated")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["analysis_id"] == str(dummy_run.id)
+        assert data["status"] == "completed"
+        assert data["location"]["village_name"] == "Khed"
+        assert data["ai_advice"]["summary"] == "Highly feasible"
+
+
+def test_get_consolidated_analysis_not_found(client):
+    non_existent_id = uuid4()
+    with patch(
+        "app.api.routes.analysis.AnalysisService.get_consolidated_analysis", return_value=None
+    ):
+        response = client.get(f"/api/v1/analysis/{non_existent_id}/consolidated")
+        assert response.status_code == 404
+        data = response.json()
+        assert "not found" in data["detail"]

@@ -8,6 +8,7 @@ from app.schemas.feasibility import (
     AnalysisRunCreate,
     AnalysisRunResponse,
     AnalysisStatusResponse,
+    ConsolidatedAnalysisResponse,
 )
 from app.services.analysis_orchestrator import AnalysisOrchestrator
 from app.services.analysis_service import AnalysisService
@@ -35,3 +36,11 @@ def get_analysis_status(id: UUID, db: Session = Depends(get_session)):
     if not status_response:
         raise HTTPException(status_code=404, detail=f"Analysis run with id {id} not found")
     return status_response
+
+
+@router.get("/{id}/consolidated", response_model=ConsolidatedAnalysisResponse)
+def get_consolidated_analysis(id: UUID, db: Session = Depends(get_session)):
+    res = AnalysisService.get_consolidated_analysis(db, id)
+    if not res:
+        raise HTTPException(status_code=404, detail=f"Analysis run with id {id} not found")
+    return res
