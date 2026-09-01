@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 
 
@@ -33,6 +35,27 @@ OUTPUT REQUIREMENTS:
 - model_name: string
 - prompt_version: string
 - language: {normalized_language}
+
+JSON FORMAT EXAMPLE:
+```json
+{{
+  "summary": "The dairy business is moderately feasible with required capital contribution.",
+  "recommendation": "Proceed conditionally while maintaining financial controls.",
+  "reasoning": ["Market demand is strong.", "Financial contribution is adequate."],
+  "financial_advice": ["Maintain reserve capital for feed costs."],
+  "market_advice": ["Target local households in the taluka."],
+  "competition_advice": ["Compete on quality and direct delivery."],
+  "scheme_advice": ["Explore PMFME scheme for credit-linked subsidy."],
+  "risks": ["Price fluctuations in animal feed."],
+  "next_steps": ["Register business and arrange initial contribution."],
+  "disclaimers": ["Advice is based on verified backend input data."],
+  "sources": [{{"claim": "PMFME eligibility", "source_type": "scheme_rule", "reference_id": "pmfme_v1"}}],
+  "confidence": "high",
+  "model_name": "gemini-1.5-pro",
+  "prompt_version": "v1",
+  "language": "{normalized_language}"
+}}
+```
 
 Use the backend data to explain:
 1. whether the business appears feasible
