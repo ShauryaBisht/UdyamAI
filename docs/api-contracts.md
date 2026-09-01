@@ -653,7 +653,6 @@ Find businesses within a radius using PostGIS.
   {
     "id": "b1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
     "name": "Shivapur Dairy Center",
-    "category": "Dairy Farming",
     "business_category_id": "e2a85f64-5717-4562-b3fc-2c963f66afa7",
     "address": "Khed Shivapur, Pune",
     "latitude": 18.35,
@@ -1312,7 +1311,6 @@ List business establishment records with optional filters.
   {
     "id": "b1a2b3c4-...",
     "name": "Sharma Kirana Store",
-    "category": "Retail",
     "business_category_id": "e2a85f64-...",
     "location_id": "c7a85f64-...",
     "district": "Pune",
