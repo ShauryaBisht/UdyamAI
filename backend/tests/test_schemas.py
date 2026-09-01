@@ -10,6 +10,8 @@ from app.schemas import (
     LocationQuery,
     ReportCreateRequest,
     SchemeMatchRequest,
+    SchemeMatchResultResponse,
+    SchemeMatchStatus,
     SupportedLanguage,
 )
 
@@ -127,3 +129,92 @@ def test_location_query_bounds():
     # Negative offset fails
     with pytest.raises(ValidationError):
         LocationQuery(offset=-10)
+
+
+def test_scheme_match_status_values_and_prohibited_guarantees():
+    """Verify SchemeMatchStatus values and prohibit unauthoritative guarantee terms."""
+    assert SchemeMatchStatus.POTENTIAL_MATCH == "potential_match"
+    assert SchemeMatchStatus.NOT_MATCH == "not_match"
+    assert SchemeMatchStatus.MISSING_INFORMATION == "missing_information"
+    assert SchemeMatchStatus.VERIFICATION_REQUIRED == "verification_required"
+
+    # Valid response
+    resp = SchemeMatchResultResponse(
+        scheme_id=uuid4(),
+        scheme_name="PMEGP",
+        match_status=SchemeMatchStatus.POTENTIAL_MATCH,
+        verification_required=True,
+    )
+    assert resp.match_status == "potential_match"
+
+
+def test_scheme_match_status_legacy_enum_compatibility():
+    """Verify legacy enum values deserialize gracefully to canonical SchemeMatchStatus."""
+    # "not_matched" maps to NOT_MATCH ("not_match")
+    status_1 = SchemeMatchStatus("not_matched")
+    assert status_1 == SchemeMatchStatus.NOT_MATCH
+    assert status_1.value == "not_match"
+
+    # "insufficient_information" maps to MISSING_INFORMATION ("missing_information")
+    status_2 = SchemeMatchStatus("insufficient_information")
+    assert status_2 == SchemeMatchStatus.MISSING_INFORMATION
+    assert status_2.value == "missing_information"
+
+
+def test_scheme_match_result_prohibited_terms_negative_cases():
+    """Verify that prohibited terms in text fields fail validation unless authoritative approval exists."""
+    scheme_id = uuid4()
+
+    # Prohibited term 'approved' in matched_conditions text fails
+    with pytest.raises(ValidationError) as exc_info:
+        SchemeMatchResultResponse(
+            scheme_id=scheme_id,
+            scheme_name="PMEGP",
+            match_status=SchemeMatchStatus.POTENTIAL_MATCH,
+            matched_conditions={"status": "Approved for grant"},
+        )
+    assert "Prohibited term 'approved'" in str(exc_info.value)
+
+    # Prohibited term 'guaranteed loan' in scheme_name fails
+    with pytest.raises(ValidationError) as exc_info:
+        SchemeMatchResultResponse(
+            scheme_id=scheme_id,
+            scheme_name="Guaranteed Loan Scheme",
+            match_status=SchemeMatchStatus.POTENTIAL_MATCH,
+        )
+    assert "Prohibited term 'guaranteed loan'" in str(exc_info.value)
+
+    # Prohibited term 'guaranteed eligibility' in missing_information text fails
+    with pytest.raises(ValidationError) as exc_info:
+        SchemeMatchResultResponse(
+            scheme_id=scheme_id,
+            scheme_name="PMEGP",
+            match_status=SchemeMatchStatus.MISSING_INFORMATION,
+            missing_information={"notes": "Provides guaranteed eligibility upon submission"},
+        )
+    assert "Prohibited term 'guaranteed eligibility'" in str(exc_info.value)
+
+    # Authoritative approval allows approved status
+    approved_resp = SchemeMatchResultResponse(
+        scheme_id=scheme_id,
+        scheme_name="PMEGP",
+        match_status=SchemeMatchStatus.POTENTIAL_MATCH,
+        matched_conditions={"status": "Approved by bank"},
+        authoritative_approval_status="SANCTIONED",
+    )
+    assert approved_resp.authoritative_approval_status == "SANCTIONED"
+
+
+def test_scheme_match_financial_upper_bounds():
+    """Verify that financial amounts exceeding upper limits fail validation."""
+    scheme_id = uuid4()
+
+    # Loan amount exceeding 10 Cr (100,000,000) fails
+    with pytest.raises(ValidationError) as exc_info:
+        SchemeMatchResultResponse(
+            scheme_id=scheme_id,
+            scheme_name="PMEGP",
+            match_status=SchemeMatchStatus.POTENTIAL_MATCH,
+            estimated_loan_amount=200_000_000.0,
+        )
+    assert "estimated_loan_amount" in str(exc_info.value)

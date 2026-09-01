@@ -179,10 +179,10 @@ class FeasibilityAnalysisResponse(BaseModel):
 
 
 class FinancialSummaryResponse(BaseModel):
-    estimated_project_cost: float = Field(..., gt=0)
-    recommended_loan: float = Field(..., ge=0)
-    estimated_subsidy: float = Field(default=0.0, ge=0)
-    estimated_monthly_emi: float = Field(default=0.0, ge=0)
+    estimated_project_cost: float = Field(..., gt=0, le=100_000_000.0)
+    recommended_loan: float = Field(..., ge=0, le=100_000_000.0)
+    estimated_subsidy: float = Field(default=0.0, ge=0, le=100_000_000.0)
+    estimated_monthly_emi: float = Field(default=0.0, ge=0, le=10_000_000.0)
 
 
 class SchemeMatchSummaryResponse(BaseModel):
@@ -190,7 +190,7 @@ class SchemeMatchSummaryResponse(BaseModel):
     scheme_name: str
     match_status: SchemeMatchStatus
     match_score: float | None = Field(default=None, ge=0.0, le=1.0)
-    estimated_subsidy_amount: float | None = Field(default=None, ge=0)
+    estimated_subsidy_amount: float | None = Field(default=None, ge=0.0, le=100_000_000.0)
 
 
 class ReportSummaryResponse(BaseModel):

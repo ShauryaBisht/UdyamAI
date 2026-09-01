@@ -17,8 +17,21 @@ class AnalysisStatus(StrEnum):
 
 class SchemeMatchStatus(StrEnum):
     POTENTIAL_MATCH = "potential_match"
-    NOT_MATCHED = "not_matched"
-    INSUFFICIENT_INFORMATION = "insufficient_information"
+    NOT_MATCH = "not_match"
+    MISSING_INFORMATION = "missing_information"
+    VERIFICATION_REQUIRED = "verification_required"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "SchemeMatchStatus | None":
+        if isinstance(value, str):
+            legacy_mapping = {
+                "not_matched": cls.NOT_MATCH,
+                "insufficient_information": cls.MISSING_INFORMATION,
+            }
+            val_lower = value.lower()
+            if val_lower in legacy_mapping:
+                return legacy_mapping[val_lower]
+        return None
 
 
 class BeneficiaryCategory(StrEnum):

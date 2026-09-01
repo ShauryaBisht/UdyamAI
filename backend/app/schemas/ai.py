@@ -14,6 +14,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.schemas.business import BusinessCategoryResponse, BusinessModelResponse
+from app.schemas.common import SchemeMatchStatus
 from app.schemas.feasibility import FeasibilityAnalysisResponse
 from app.schemas.finance import FinanceCalculateResponse
 from app.schemas.location import DistrictResponse, TalukaResponse, VillageResponse
@@ -75,7 +76,7 @@ class SchemeRuleSummary(BaseModel):
 class SchemeMatchContext(BaseModel):
     scheme: SchemeResponse
     rule: SchemeRuleSummary | None = None
-    match_status: Literal["potential_match", "not_matched", "insufficient_information"]
+    match_status: SchemeMatchStatus
     match_score: float | None = None
     matched_conditions: dict[str, Any] | None = None
     failed_conditions: dict[str, Any] | None = None

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.common import BeneficiaryCategory, SchemeMatchStatus
 
@@ -52,9 +52,30 @@ class SchemeMatchResultResponse(BaseModel):
     matched_conditions: dict[str, Any] | None = None
     failed_conditions: dict[str, Any] | None = None
     missing_information: dict[str, Any] | None = None
-    estimated_subsidy_amount: float | None = Field(default=None, ge=0)
-    estimated_loan_amount: float | None = Field(default=None, ge=0)
-    estimated_project_cost: float | None = Field(default=None, ge=0)
+    estimated_subsidy_amount: float | None = Field(default=None, ge=0.0, le=100_000_000.0)
+    estimated_loan_amount: float | None = Field(default=None, ge=0.0, le=100_000_000.0)
+    estimated_project_cost: float | None = Field(default=None, ge=0.0, le=100_000_000.0)
     verification_required: bool = True
+    authoritative_approval_status: str | None = Field(
+        default=None,
+        description="Official approval status if provided authoritatively by scheme authority",
+    )
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def validate_no_unauthoritative_guarantees(self) -> "SchemeMatchResultResponse":
+        if not self.authoritative_approval_status:
+            prohibited = ["approved", "guaranteed loan", "guaranteed eligibility"]
+            text_sources: list[str] = [self.scheme_name]
+            for cond in (self.matched_conditions, self.failed_conditions, self.missing_information):
+                if cond:
+                    text_sources.append(str(cond))
+
+            combined_text = " ".join(text_sources).lower()
+            for term in prohibited:
+                if term in combined_text:
+                    raise ValueError(
+                        f"Prohibited term '{term}' found in scheme match text fields without an authoritative approval status."
+                    )
+        return self
