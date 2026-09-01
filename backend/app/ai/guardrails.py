@@ -70,6 +70,11 @@ def _validate_source_entry(source: Any) -> dict[str, Any] | None:
     reference_id = source.get("reference_id")
     if reference_id is None or str(reference_id).strip() == "":
         reference_id = "backend"
+    elif not isinstance(reference_id, (str, int, float)):
+        try:
+            reference_id = str(reference_id)
+        except Exception:
+            reference_id = "backend"
 
     return {
         "claim": claim,
@@ -120,21 +125,24 @@ def validate(raw_output: dict, context: dict) -> dict:
             except Exception:
                 pass
 
-    # Map RAG evidence sources to SourceReferences if context contains RAG evidence
+    # Map RAG evidence sources to SourceReferences if context contains verified RAG evidence
     rag_evidence = context.get("rag_evidence", []) or []
     for ev in rag_evidence:
-        src = ev.get("source", {})
-        ref_id = src.get("document_id") or ev.get("chunk_id") or "rag_doc"
-        doc_title = src.get("title") or "RAG Document"
-        claim_text = f"Retrieved Document Evidence: {doc_title}"
-        if not any(s.get("reference_id") == str(ref_id) for s in normalized_sources):
-            normalized_sources.append(
-                {
-                    "claim": claim_text,
-                    "source_type": "document",
-                    "reference_id": str(ref_id),
-                }
-            )
+        score = ev.get("score", 0.0)
+        # Filter evidence items that meet a baseline similarity score threshold
+        if score >= 0.50:
+            src = ev.get("source", {})
+            ref_id = src.get("document_id") or ev.get("chunk_id") or "rag_doc"
+            doc_title = src.get("title") or "RAG Document"
+            claim_text = f"Retrieved Document Evidence: {doc_title}"
+            if not any(s.get("reference_id") == str(ref_id) for s in normalized_sources):
+                normalized_sources.append(
+                    {
+                        "claim": claim_text,
+                        "source_type": "document",
+                        "reference_id": str(ref_id),
+                    }
+                )
 
     normalized["sources"] = normalized_sources
 

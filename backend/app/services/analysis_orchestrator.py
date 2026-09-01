@@ -350,7 +350,7 @@ class AnalysisOrchestrator:
             # Step 11: Hand context to AI Advisor
             # -------------------------------------------------------------
             ai_advice = advisor.generate_advice(
-                analysis_context=analysis_context, language=lang_str
+                analysis_context=analysis_context, language=lang_str, db=db
             )
 
             # -------------------------------------------------------------

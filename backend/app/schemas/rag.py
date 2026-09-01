@@ -1,7 +1,17 @@
 from datetime import date, datetime
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+
+class RAGStatus(StrEnum):
+    """Enumeration of standard RAG evidence retrieval status codes."""
+
+    SUCCESS = "success"
+    NO_RELEVANT_EVIDENCE = "no_relevant_evidence"
+    CONFLICTING_SOURCES = "conflicting_sources"
+    EMBEDDING_GENERATION_FAILED = "embedding_generation_failed"
 
 
 class DocumentCreate(BaseModel):
@@ -121,7 +131,7 @@ class EvidenceItem(BaseModel):
 class RAGQueryResponse(BaseModel):
     """Output contract schema for RAG evidence retrieval."""
 
-    status: str = Field(
+    status: RAGStatus | str = Field(
         ...,
         description=(
             "Retrieval status: 'success', 'no_relevant_evidence', 'conflicting_sources', "

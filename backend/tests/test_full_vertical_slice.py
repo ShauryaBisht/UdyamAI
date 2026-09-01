@@ -225,7 +225,9 @@ def test_full_vertical_slice_orchestration_maharashtra():
 
     captured_analysis_context = None
 
-    def fake_generate_advice(analysis_context: AnalysisContext, language: str = "en"):
+    def fake_generate_advice(
+        analysis_context: AnalysisContext, language: str = "en", db=None, **kwargs
+    ):
         nonlocal captured_analysis_context
         captured_analysis_context = analysis_context
         return mock_advice_resp

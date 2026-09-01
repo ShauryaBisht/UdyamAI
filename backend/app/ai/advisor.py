@@ -8,11 +8,13 @@ validation step fails, it returns a degraded AI response instead of crashing
 the rest of the backend analysis flow.
 """
 
+import json
 import logging
 from typing import Any
 
 from app.ai import context_builder, guardrails, llm, prompts, recommendation
 from app.schemas.ai import AIAdvice, AnalysisContext
+from app.schemas.rag import RAGQueryResponse, RAGStatus
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +56,7 @@ def _fallback_ai_advice(language: str = "en") -> AIAdvice:
         model_name="unavailable",
         prompt_version="fallback-v1",
         language=normalized_language,
-        rag_status="no_relevant_evidence",
+        rag_status=RAGStatus.NO_RELEVANT_EVIDENCE.value,
         evidence=[],
     )
 
@@ -121,15 +123,27 @@ def generate_advice(
                     scheme_id=primary_scheme_id,
                     language=language,
                 )
+            except ImportError as exc:
+                logger.error("RAG retriever module import failed: %s", exc)
+                rag_response = RAGQueryResponse(
+                    status=RAGStatus.NO_RELEVANT_EVIDENCE.value, evidence=[]
+                )
+            except (ConnectionError, TimeoutError) as exc:
+                logger.warning("RAG vector store network/timeout issue: %s", exc)
+                rag_response = RAGQueryResponse(
+                    status=RAGStatus.NO_RELEVANT_EVIDENCE.value, evidence=[]
+                )
             except Exception as exc:
-                logger.warning("RAG evidence retrieval failed; using empty fallback: %s", exc)
-                from app.schemas.rag import RAGQueryResponse
-
-                rag_response = RAGQueryResponse(status="no_relevant_evidence", evidence=[])
+                logger.warning(
+                    "RAG evidence retrieval failed; using empty fallback: %s", exc, exc_info=True
+                )
+                rag_response = RAGQueryResponse(
+                    status=RAGStatus.NO_RELEVANT_EVIDENCE.value, evidence=[]
+                )
         else:
-            from app.schemas.rag import RAGQueryResponse
-
-            rag_response = RAGQueryResponse(status="no_relevant_evidence", evidence=[])
+            rag_response = RAGQueryResponse(
+                status=RAGStatus.NO_RELEVANT_EVIDENCE.value, evidence=[]
+            )
 
         # 3. Shape AnalysisContext and RAG evidence into prompt payload.
         prepared_context = context_builder.build(analysis_context, rag_response=rag_response)
@@ -141,8 +155,6 @@ def generate_advice(
         raw_output_str = llm.generate(prompt)
 
         # Parse JSON output if LLM returns a string
-        import json
-
         if isinstance(raw_output_str, str):
             try:
                 cleaned_str = raw_output_str.strip()
@@ -153,15 +165,32 @@ def generate_advice(
                 if cleaned_str.endswith("```"):
                     cleaned_str = cleaned_str[:-3]
                 raw_output = json.loads(cleaned_str.strip())
-            except Exception:
-                raw_output = {"summary": raw_output_str, "recommendation": raw_output_str}
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    "LLM response failed JSON parsing; constructing fallback dict: %s", exc
+                )
+                raw_output = {
+                    "summary": str(raw_output_str)[:500],
+                    "recommendation": "Review verified backend analysis data.",
+                }
+            except Exception as exc:
+                logger.warning("Unexpected error during LLM response parsing: %s", exc)
+                raw_output = {
+                    "summary": str(raw_output_str)[:500],
+                    "recommendation": "Review verified backend analysis data.",
+                }
+        else:
+            raw_output = context_builder._as_dict(raw_output_str)
 
         # 6. Validate output against guardrails & attach RAG evidence/status
         validated_output = guardrails.validate(raw_output, prepared_context)
 
         # 7. Attach deterministic recommendation explanation & conflict warnings
         rec_text = recommendation.explain(prepared_context.get("feasibility", {}))
-        if prepared_context.get("rag_status") == "conflicting_sources":
+        if (
+            prepared_context.get("rag_status") == RAGStatus.CONFLICTING_SOURCES.value
+            or prepared_context.get("rag_status") == RAGStatus.CONFLICTING_SOURCES
+        ):
             rec_text += " WARNING: Official government documents contain conflicting rule metrics. Please verify details directly with the relevant official department."
         validated_output["recommendation"] = rec_text
 
