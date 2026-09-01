@@ -11,11 +11,14 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.business import BusinessCategoryResponse, BusinessModelResponse
 from app.schemas.common import SchemeMatchStatus
-from app.schemas.feasibility import FeasibilityAnalysisResponse
+from app.schemas.feasibility import (
+    ConsolidatedAnalysisResponse,
+    FeasibilityAnalysisResponse,
+)
 from app.schemas.finance import FinanceCalculateResponse
 from app.schemas.location import DistrictResponse, TalukaResponse, VillageResponse
 from app.schemas.market import CompetitorAnalysisResponse, MarketAnalysisResponse
@@ -24,9 +27,9 @@ from app.schemas.scheme import SchemeResponse
 ConfidenceLevel = Literal["high", "medium", "low", "unverified"]
 
 
-# ---------------------------------------------------------------------------
+# -------------------------------------------------------------
 # AnalysisContext (input)
-# ---------------------------------------------------------------------------
+# -------------------------------------------------------------
 
 
 class LocationContext(BaseModel):
@@ -46,6 +49,24 @@ class MarketContext(MarketAnalysisResponse):
     id: UUID | None = None
     analysis_run_id: UUID | None = None
     created_at: datetime | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_market_keys(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "population_estimate" not in data and "total_population_reach" in data:
+                data["population_estimate"] = data.get("total_population_reach")
+            elif "population_estimate" not in data and "estimated_population_reach" in data:
+                data["population_estimate"] = data.get("estimated_population_reach")
+
+            if "household_estimate" not in data and "household_reach" in data:
+                data["household_estimate"] = data.get("household_reach")
+            elif "household_estimate" not in data and "estimated_household_reach" in data:
+                data["household_estimate"] = data.get("estimated_household_reach")
+
+            if "market_reach_estimate" not in data and "estimated_target_customers" in data:
+                data["market_reach_estimate"] = data.get("estimated_target_customers")
+        return data
 
     @property
     def total_population_reach(self) -> int | None:
@@ -68,6 +89,16 @@ class CompetitionContext(CompetitorAnalysisResponse):
     id: UUID | None = None
     analysis_run_id: UUID | None = None
     created_at: datetime | None = None
+    total_businesses_in_radius: int | None = None
+    target_category: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_competition_keys(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "competitor_count" not in data and "total_competitors_count" in data:
+                data["competitor_count"] = data.get("total_competitors_count")
+        return data
 
     @property
     def total_competitors_count(self) -> int | None:

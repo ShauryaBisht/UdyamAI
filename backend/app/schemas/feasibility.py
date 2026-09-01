@@ -20,6 +20,20 @@ class SWOTIndicators(BaseModel):
     opportunity_indicators: list[str] = Field(default_factory=list)
     threat_indicators: list[str] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_swot_keys(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "strength_indicators" not in data and "strengths" in data:
+                data["strength_indicators"] = data.get("strengths") or []
+            if "weakness_indicators" not in data and "weaknesses" in data:
+                data["weakness_indicators"] = data.get("weaknesses") or []
+            if "opportunity_indicators" not in data and "opportunities" in data:
+                data["opportunity_indicators"] = data.get("opportunities") or []
+            if "threat_indicators" not in data and "threats" in data:
+                data["threat_indicators"] = data.get("threats") or []
+        return data
+
     @property
     def strengths(self) -> list[str]:
         return self.strength_indicators

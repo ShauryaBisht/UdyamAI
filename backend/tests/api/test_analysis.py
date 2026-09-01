@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -14,7 +14,7 @@ dummy_run = AnalysisRun(
     business_category_id=uuid4(),
     available_capital=50000.0,
     status="created",
-    created_at=datetime.utcnow(),
+    created_at=datetime.now(timezone.utc),
 )
 
 dummy_status = AnalysisStatusResponse(
@@ -23,11 +23,11 @@ dummy_status = AnalysisStatusResponse(
     status="created",
     progress_percentage=10,
     current_step="created",
-    created_at=datetime.utcnow(),
+    created_at=datetime.now(timezone.utc),
 )
 
 
-def test_create_analysis_v1(client):
+def test_create_analysis_v1(client, dummy_run):
     payload = {
         "user_id": str(dummy_run.user_id),
         "location_id": str(dummy_run.location_id),
@@ -45,7 +45,7 @@ def test_create_analysis_v1(client):
         assert data["status"] == "created"
 
 
-def test_create_analysis_location_not_found(client):
+def test_create_analysis_location_not_found(client, dummy_run):
     payload = {
         "user_id": str(dummy_run.user_id),
         "location_id": str(uuid4()),
@@ -62,7 +62,7 @@ def test_create_analysis_location_not_found(client):
         assert "Location" in response.json()["detail"]
 
 
-def test_get_analysis_success(client):
+def test_get_analysis_success(client, dummy_run):
     with patch("app.api.routes.analysis.AnalysisService.get_analysis_run", return_value=dummy_run):
         response = client.get(f"/api/v1/analysis/{dummy_run.id}")
         assert response.status_code == 200
@@ -81,7 +81,7 @@ def test_get_analysis_not_found(client):
         assert "not found" in data["detail"]
 
 
-def test_get_analysis_status_success(client):
+def test_get_analysis_status_success(client, dummy_run, dummy_status):
     with patch(
         "app.api.routes.analysis.AnalysisService.get_analysis_run_status",
         return_value=dummy_status,
@@ -106,7 +106,7 @@ def test_get_analysis_status_not_found(client):
         assert "not found" in data["detail"]
 
 
-def test_get_consolidated_analysis_success(client):
+def test_get_consolidated_analysis_success(client, dummy_run):
     from app.schemas.feasibility import ConsolidatedAnalysisResponse
 
     dummy_consolidated = ConsolidatedAnalysisResponse(

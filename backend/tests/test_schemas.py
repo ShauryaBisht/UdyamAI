@@ -218,3 +218,64 @@ def test_scheme_match_financial_upper_bounds():
             estimated_loan_amount=200_000_000.0,
         )
     assert "estimated_loan_amount" in str(exc_info.value)
+
+
+def test_schema_field_naming_discrepancies_normalization():
+    """Verify bidirectional compatibility between old and new property names across schemas."""
+    from datetime import datetime, timezone
+
+    from app.schemas.ai import CompetitionContext, MarketContext
+    from app.schemas.feasibility import SWOTIndicators
+    from app.schemas.market import MarketAnalysisResponse
+
+    # 1. MarketContext initialized with total_population_reach and household_reach
+    mkt = MarketContext(
+        total_population_reach=25000,
+        household_reach=5500,
+        estimated_target_customers=3200,
+    )
+    assert mkt.population_estimate == 25000
+    assert mkt.total_population_reach == 25000
+    assert mkt.household_estimate == 5500
+    assert mkt.household_reach == 5500
+    assert mkt.market_reach_estimate == 3200
+    assert mkt.estimated_target_customers == 3200
+
+    # 2. MarketAnalysisResponse initialized with aliases
+    mkt_resp = MarketAnalysisResponse(
+        id=uuid4(),
+        analysis_run_id=uuid4(),
+        created_at=datetime.now(timezone.utc),
+        total_population_reach=18000,
+        estimated_household_reach=4000,
+    )
+    assert mkt_resp.population_estimate == 18000
+    assert mkt_resp.household_estimate == 4000
+
+    # 3. CompetitionContext initialized with total_competitors_count
+    comp = CompetitionContext(
+        total_competitors_count=12,
+        total_businesses_in_radius=30,
+        target_category="Dairy Farming",
+    )
+    assert comp.competitor_count == 12
+    assert comp.total_competitors_count == 12
+    assert comp.total_businesses_in_radius == 30
+    assert comp.target_category == "Dairy Farming"
+
+    # 4. SWOTIndicators initialized with strengths/weaknesses
+    swot = SWOTIndicators(
+        strengths=["High Demand"],
+        weaknesses=["Limited Transport"],
+        opportunities=["Govt Subsidies"],
+        threats=["Drought"],
+    )
+    assert swot.strength_indicators == ["High Demand"]
+    assert swot.strengths == ["High Demand"]
+    assert swot.weakness_indicators == ["Limited Transport"]
+    assert swot.weaknesses == ["Limited Transport"]
+    assert swot.opportunity_indicators == ["Govt Subsidies"]
+    assert swot.opportunities == ["Govt Subsidies"]
+    assert swot.threat_indicators == ["Drought"]
+    assert swot.threats == ["Drought"]
+

@@ -63,6 +63,11 @@ class AnalysisOrchestrator:
     def run_analysis_pipeline(db: Session, run_data: AnalysisRunCreate) -> AnalysisRun:
         logger.info("Starting Analysis Orchestrator pipeline")
 
+        category: BusinessCategory | None = None
+        village: Village | None = None
+        taluka: Taluka | None = None
+        district: District | None = None
+
         # -------------------------------------------------------------
         # Step 1: Validate input
         # -------------------------------------------------------------
@@ -269,7 +274,7 @@ class AnalysisOrchestrator:
                 total_businesses_in_radius=getattr(
                     competition_res, "total_businesses_in_radius", 0
                 ),
-                target_category=getattr(category, "name", None),
+                target_category=getattr(category, "name", None) if category else None,
             )
 
             scheme_contexts = []
@@ -443,10 +448,12 @@ class AnalysisOrchestrator:
             )
             db.add(db_competitor_analysis)
 
+            category_title = category.name if category else "Business"
+            village_title = village.name if village else "Location"
             db_report = Report(
                 analysis_run_id=db_run.id,
                 user_id=user_id,
-                title=f"Analysis Report - {category.name} ({village.name})",
+                title=f"Analysis Report - {category_title} ({village_title})",
                 language=lang_str,
                 report_data={
                     "summary": ai_advice.summary,

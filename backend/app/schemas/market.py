@@ -66,6 +66,24 @@ class MarketAnalysisResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_market_keys(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "population_estimate" not in data and "total_population_reach" in data:
+                data["population_estimate"] = data.get("total_population_reach")
+            elif "population_estimate" not in data and "estimated_population_reach" in data:
+                data["population_estimate"] = data.get("estimated_population_reach")
+
+            if "household_estimate" not in data and "household_reach" in data:
+                data["household_estimate"] = data.get("household_reach")
+            elif "household_estimate" not in data and "estimated_household_reach" in data:
+                data["household_estimate"] = data.get("estimated_household_reach")
+
+            if "market_reach_estimate" not in data and "estimated_target_customers" in data:
+                data["market_reach_estimate"] = data.get("estimated_target_customers")
+        return data
+
 
 class CompetitorAnalysisResponse(BaseModel):
     id: UUID
@@ -82,6 +100,14 @@ class CompetitorAnalysisResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_competition_keys(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "competitor_count" not in data and "total_competitors_count" in data:
+                data["competitor_count"] = data.get("total_competitors_count")
+        return data
 
 
 class MarketProvenanceInfo(BaseModel):

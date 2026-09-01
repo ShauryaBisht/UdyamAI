@@ -6,6 +6,7 @@ from fastapi import Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger("udyam_ai")
@@ -74,6 +75,34 @@ def _map_status_to_code(status_code: int, detail_str: str) -> tuple[str, str]:
     return "HTTP_ERROR", detail_str
 
 
+def _is_database_error(exc: Exception) -> bool:
+    """Determines whether an exception is related to database operations without false positives."""
+    if isinstance(exc, SQLAlchemyError):
+        return True
+
+    exc_module = getattr(exc.__class__, "__module__", "")
+    if exc_module and any(
+        exc_module.startswith(pkg)
+        for pkg in ("sqlalchemy", "psycopg", "asyncpg", "sqlite3", "geoalchemy2")
+    ):
+        return True
+
+    exc_str = str(exc).lower()
+    db_patterns = (
+        r"\bsqlalchemy\b",
+        r"\bpsycopg\b",
+        r"\bpostgres(?:ql)?\b",
+        r"\bsqlite\b",
+        r"\bdatabase\b",
+        r"\boperationalerror\b",
+        r"\bintegrityerror\b",
+        r"\bprogrammingerror\b",
+        r"\binterfaceerror\b",
+        r"\bdataerror\b",
+    )
+    return any(re.search(pat, exc_str) for pat in db_patterns)
+
+
 def setup_exception_handlers(app: Any) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -135,14 +164,8 @@ def setup_exception_handlers(app: Any) -> None:
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
         logger.exception(f"Unhandled error on {request.url.path}: {str(exc)}")
-        exc_str = str(exc).lower()
 
-        if (
-            "sqlalchemy" in exc_str
-            or "psycopg" in exc_str
-            or "database" in exc_str
-            or "db" in exc_str
-        ):
+        if _is_database_error(exc):
             code = "DATABASE_ERROR"
             message = "A database operation failed."
         else:
