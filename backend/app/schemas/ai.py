@@ -96,6 +96,15 @@ class FeasibilityContext(FeasibilityAnalysisResponse):
     model_config = {"from_attributes": True}
 
 
+class RiskContext(BaseModel):
+    """Structured risk metric snapshot for the AI context."""
+
+    risk_type: str = Field(..., description="Category or identifier of risk")
+    score: float | None = Field(default=None, ge=0.0, le=1.0)
+    level: str | None = Field(default=None, description="Risk level (low, medium, high)")
+    details: str | None = Field(default=None)
+
+
 class AnalysisContext(BaseModel):
     location: LocationContext
     business: BusinessContext
@@ -104,7 +113,7 @@ class AnalysisContext(BaseModel):
     competition: CompetitionContext
     schemes: list[SchemeMatchContext] = Field(default_factory=list)
     feasibility: FeasibilityContext
-    risks: list[Any] = Field(default_factory=list)
+    risks: list[RiskContext] = Field(default_factory=list)
     language: str = "en"
 
 
