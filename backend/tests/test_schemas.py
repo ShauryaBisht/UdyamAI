@@ -278,4 +278,3 @@ def test_schema_field_naming_discrepancies_normalization():
     assert swot.opportunities == ["Govt Subsidies"]
     assert swot.threat_indicators == ["Drought"]
     assert swot.threats == ["Drought"]
-
