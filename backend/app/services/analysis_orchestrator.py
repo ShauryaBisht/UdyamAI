@@ -239,7 +239,9 @@ class AnalysisOrchestrator:
             mkt_context = MarketContext(
                 population_estimate=getattr(market_res.market_size, "total_population_reach", None),
                 household_estimate=getattr(market_res.market_size, "household_reach", None),
-                market_reach_estimate=getattr(market_res.market_size, "estimated_target_customers", None),
+                market_reach_estimate=getattr(
+                    market_res.market_size, "estimated_target_customers", None
+                ),
                 radius_km=10.0,
                 demand_indicators={
                     "score": getattr(market_res, "demand_score", None),
@@ -247,9 +249,15 @@ class AnalysisOrchestrator:
                     "growth_rate": getattr(market_res, "demand_growth_rate", None),
                 },
                 pricing_indicators={
-                    "average_market_price": getattr(getattr(market_res, "pricing", None), "average_market_price", None),
-                    "price_range_min": getattr(getattr(market_res, "pricing", None), "price_range_min", None),
-                    "price_range_max": getattr(getattr(market_res, "pricing", None), "price_range_max", None),
+                    "average_market_price": getattr(
+                        getattr(market_res, "pricing", None), "average_market_price", None
+                    ),
+                    "price_range_min": getattr(
+                        getattr(market_res, "pricing", None), "price_range_min", None
+                    ),
+                    "price_range_max": getattr(
+                        getattr(market_res, "pricing", None), "price_range_max", None
+                    ),
                 },
             )
 
@@ -258,7 +266,9 @@ class AnalysisOrchestrator:
                 competitor_density=getattr(competition_res, "competition_density", 0.0),
                 businesses_within_5km=getattr(competition_res, "businesses_within_5km", 0),
                 businesses_within_10km=getattr(competition_res, "businesses_within_10km", 0),
-                total_businesses_in_radius=getattr(competition_res, "total_businesses_in_radius", 0),
+                total_businesses_in_radius=getattr(
+                    competition_res, "total_businesses_in_radius", 0
+                ),
                 target_category=getattr(category, "name", None),
             )
 
