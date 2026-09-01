@@ -19,7 +19,7 @@ import logging
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.ai import advisor
 from app.models.analysis import AIAnalysis, AnalysisRun, FeasibilityAnalysis
@@ -49,6 +49,8 @@ from app.services.market_service import MarketService
 from app.services.scheme_service import SchemeService
 
 logger = logging.getLogger(__name__)
+
+SUPPORTED_LANGUAGES = {"en", "hi", "mr"}
 
 
 class AnalysisOrchestrator:
@@ -136,12 +138,10 @@ class AnalysisOrchestrator:
             # -------------------------------------------------------------
             category = db.get(BusinessCategory, category_id) if category_id else None
             if not category:
-                category = db.exec(select(BusinessCategory)).first()
-                if not category:
-                    raise HTTPException(
-                        status_code=404,
-                        detail="No valid BusinessCategory found in database",
-                    )
+                raise HTTPException(
+                    status_code=400,
+                    detail="Business category is required for analysis. Please specify business_category_id.",
+                )
 
             # -------------------------------------------------------------
             # Step 5: Run finance
@@ -286,9 +286,12 @@ class AnalysisOrchestrator:
                 swot=feasibility_score_res.swot,
             )
 
-            # Safely extract optional language property with default fallback
+            # Safely extract optional language property with default fallback and validation guard
             lang_attr = getattr(run_data, "language", None)
             lang_str = str(getattr(lang_attr, "value", lang_attr)) if lang_attr else "en"
+            if lang_str not in SUPPORTED_LANGUAGES:
+                logger.warning("Unsupported language %s, defaulting to 'en'", lang_str)
+                lang_str = "en"
 
             analysis_context = AnalysisContext(
                 location=loc_context,
