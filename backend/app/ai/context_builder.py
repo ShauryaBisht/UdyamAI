@@ -38,6 +38,7 @@ def build(
     analysis_context: dict,
     include_raw_context: bool = False,
     max_raw_context_length: int = 2000,
+    rag_response: Any | None = None,
 ) -> dict:
     """Turn verified backend AnalysisContext into a compact prompt payload.
 
@@ -84,6 +85,42 @@ def build(
                 "verification_required": scheme_obj.get("verification_required", True),
             }
         )
+
+    # Process RAG evidence response if provided
+    rag_status = None
+    rag_evidence: list[dict[str, Any]] = []
+    if rag_response is not None:
+        if hasattr(rag_response, "status"):
+            rag_status = rag_response.status
+        elif isinstance(rag_response, dict):
+            rag_status = rag_response.get("status")
+
+        raw_evidence = getattr(rag_response, "evidence", []) or []
+        if isinstance(rag_response, dict):
+            raw_evidence = rag_response.get("evidence", []) or []
+
+        for item in raw_evidence:
+            item_dict = _as_dict(item)
+            source_meta = _as_dict(item_dict.get("source"))
+            rag_evidence.append(
+                {
+                    "chunk_id": str(item_dict.get("chunk_id", "")),
+                    "text": item_dict.get("text", ""),
+                    "score": item_dict.get("score", 0.0),
+                    "source": {
+                        "document_id": str(source_meta.get("document_id", "")),
+                        "title": source_meta.get("title", ""),
+                        "page_number": source_meta.get("page_number"),
+                        "section_title": source_meta.get("section_title"),
+                        "source_name": source_meta.get("source_name", ""),
+                        "source_url": source_meta.get("source_url"),
+                        "language": source_meta.get("language", "hi"),
+                        "version": source_meta.get("version"),
+                        "effective_from": source_meta.get("effective_from"),
+                        "effective_until": source_meta.get("effective_until"),
+                    },
+                }
+            )
 
     raw_context_val = None
     if include_raw_context:
@@ -144,5 +181,7 @@ def build(
             "threats": _safe_get(feasibility, "swot", "threats") or [],
         },
         "risks": risks,
+        "rag_status": rag_status,
+        "rag_evidence": rag_evidence,
         "raw_context": raw_context_val,
     }

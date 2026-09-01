@@ -119,7 +119,28 @@ def validate(raw_output: dict, context: dict) -> dict:
                     normalized_sources.append(valid_entry)
             except Exception:
                 pass
+
+    # Map RAG evidence sources to SourceReferences if context contains RAG evidence
+    rag_evidence = context.get("rag_evidence", []) or []
+    for ev in rag_evidence:
+        src = ev.get("source", {})
+        ref_id = src.get("document_id") or ev.get("chunk_id") or "rag_doc"
+        doc_title = src.get("title") or "RAG Document"
+        claim_text = f"Retrieved Document Evidence: {doc_title}"
+        if not any(s.get("reference_id") == str(ref_id) for s in normalized_sources):
+            normalized_sources.append(
+                {
+                    "claim": claim_text,
+                    "source_type": "document",
+                    "reference_id": str(ref_id),
+                }
+            )
+
     normalized["sources"] = normalized_sources
+
+    # Preserve rag_status and evidence
+    normalized["rag_status"] = context.get("rag_status") or raw_output.get("rag_status")
+    normalized["evidence"] = context.get("rag_evidence", []) or raw_output.get("evidence", [])
 
     # Metadata defaults
     lang = str(raw_output.get("language", "en")).lower()
@@ -132,7 +153,7 @@ def validate(raw_output: dict, context: dict) -> dict:
     normalized["prompt_version"] = str(raw_output.get("prompt_version") or "v1")
 
     # Financial claim validation
-    has_verified = len(normalized_sources) > 0
+    has_verified = len(normalized_sources) > 0 or context.get("rag_status") == "success"
     text_items = [
         normalized["summary"],
         normalized["recommendation"],
