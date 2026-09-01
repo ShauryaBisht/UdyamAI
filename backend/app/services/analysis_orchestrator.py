@@ -34,6 +34,7 @@ from app.schemas.ai import (
     FeasibilityContext,
     LocationContext,
     MarketContext,
+    RiskContext,
     SchemeMatchContext,
 )
 from app.schemas.business import BusinessCategoryResponse
@@ -298,6 +299,28 @@ class AnalysisOrchestrator:
                 logger.warning("Unsupported language %s, defaulting to 'en'", lang_str)
                 lang_str = "en"
 
+            mkt_risks = getattr(market_res, "risks", None)
+            mkt_risk_score = (
+                getattr(mkt_risks, "overall_market_risk_score", 0.0) if mkt_risks else 0.0
+            )
+            mkt_risk_level = getattr(mkt_risks, "risk_level", "low") if mkt_risks else "low"
+            comp_threat_level = (
+                getattr(competition_res, "threat_level", "low") if competition_res else "low"
+            )
+
+            risks_context = [
+                RiskContext(
+                    risk_type="market_risk",
+                    score=mkt_risk_score,
+                    level=mkt_risk_level,
+                ),
+                RiskContext(
+                    risk_type="competition_threat",
+                    score=None,
+                    level=comp_threat_level,
+                ),
+            ]
+
             analysis_context = AnalysisContext(
                 location=loc_context,
                 business=biz_context,
@@ -306,13 +329,16 @@ class AnalysisOrchestrator:
                 competition=comp_context,
                 schemes=scheme_contexts,
                 feasibility=feasibility_context,
+                risks=risks_context,
                 language=lang_str,
             )
 
             # -------------------------------------------------------------
             # Step 11: Hand context to AI Advisor
             # -------------------------------------------------------------
-            ai_advice = advisor.generate_advice(analysis_context, language=lang_str)
+            ai_advice = advisor.generate_advice(
+                analysis_context=analysis_context, language=lang_str
+            )
 
             # -------------------------------------------------------------
             # Step 12: Save final results
