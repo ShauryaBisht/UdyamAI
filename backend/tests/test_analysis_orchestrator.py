@@ -176,6 +176,11 @@ class TestAnalysisOrchestrator:
         assert mock_db.commit.called
         assert mock_db.refresh.called
 
+        # Assert FinanceService.calculate_finance call signature shape
+        mock_calc_fin.assert_called_once()
+        fin_call_args, fin_call_kwargs = mock_calc_fin.call_args
+        assert fin_call_kwargs.get("session") == mock_db
+
     @patch("app.services.analysis_orchestrator.AnalysisService.verify_business_category")
     @patch("app.services.analysis_orchestrator.AnalysisService.verify_location")
     def test_run_analysis_pipeline_rollback_on_failure(self, mock_verify_loc, mock_verify_cat):

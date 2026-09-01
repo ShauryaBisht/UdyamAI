@@ -169,6 +169,11 @@ class AnalysisOrchestrator:
                 business_category_id=category.id,
                 radii_km=[10.0],
             )
+            if not getattr(market_location_res, "radius_results", None):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Market analysis returned no radius results for the given location.",
+                )
             market_res = market_location_res.radius_results[0]
 
             # -------------------------------------------------------------
@@ -334,7 +339,12 @@ class AnalysisOrchestrator:
                 analysis_run_id=db_run.id,
                 summary=ai_advice.summary,
                 recommendation=ai_advice.recommendation,
-                swot={"strengths": ai_advice.reasoning},
+                swot={
+                    "strengths": ai_advice.reasoning,
+                    "weaknesses": [],
+                    "opportunities": ai_advice.market_advice,
+                    "threats": ai_advice.risks,
+                },
                 opportunities={"advice": ai_advice.market_advice},
                 threats={"risks": ai_advice.risks},
                 risks={"risks": ai_advice.risks},
@@ -355,17 +365,20 @@ class AnalysisOrchestrator:
 
         except Exception as exc:
             db.rollback()
+            run_id = getattr(db_run, "id", None)
             logger.exception(
                 "Error executing analysis orchestrator pipeline for run %s",
-                getattr(db_run, "id", "unknown"),
+                run_id or "unknown",
             )
             try:
-                if "db_run" in locals() and db_run:
-                    db_run.status = "failed"
-                    db_run.completed_at = datetime.now(UTC)
-                    db.add(db_run)
-                    db.commit()
+                if run_id:
+                    failed_run = db.get(AnalysisRun, run_id)
+                    if failed_run:
+                        failed_run.status = "failed"
+                        failed_run.completed_at = datetime.now(UTC)
+                        db.add(failed_run)
+                        db.commit()
             except Exception as cleanup_exc:
-                logger.exception("Cleanup failed: %s", cleanup_exc)
+                logger.exception("Failed to update run status to failed: %s", cleanup_exc)
                 db.rollback()
             raise exc
