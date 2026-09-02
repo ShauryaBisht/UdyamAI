@@ -17,7 +17,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ValidationError
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlmodel import Session, select
 
 from app.ingestion.csv_reader import read_csv_rows
@@ -190,7 +190,7 @@ def _resolve_market(
         source_url=prov.source_url,
     )
     db.add(market)
-    db.commit()
+    db.flush()  # populate ID without committing — final commit in run_import()
     db.refresh(market)
     report.warnings.append(f"created market: {row.market_name}")
     return market
@@ -237,7 +237,7 @@ def _resolve_category(
         )
     category = BusinessCategory(name=row.category_name)
     db.add(category)
-    db.commit()
+    db.flush()  # populate ID without committing — final commit in run_import()
     db.refresh(category)
     report.warnings.append(f"created business category: {row.category_name}")
     return category
@@ -282,6 +282,8 @@ def _import_location(db: Session, row: LocationRow, prov: Provenance, report: Im
         updates["longitude"] = row.longitude
     if updates:
         village = db.get(Village, village_id)
+        if village is None:
+            raise ValueError(f"village {village_id} not found — cannot apply updates")
         for key, value in updates.items():
             setattr(village, key, value)
         db.add(village)
@@ -373,7 +375,7 @@ def run_import(
             # DB unreachable — a per-row rejection would be misleading; abort.
             db.rollback()
             raise
-        except Exception as exc:  # noqa: BLE001 — one bad row must not stop the import
+        except (ValueError, TypeError, AttributeError, IntegrityError) as exc:
             report.rejected += 1
             report.errors.append(RowError(raw.line_number, str(exc)))
             db.rollback()
