@@ -1,0 +1,7 @@
+district_name,taluka_name,village_name,year,season,crop_name,crop_category,cultivated_area,production,production_unit,irrigated_area
+Pune,Haveli,Wadgaon Sheri,2023,Kharif,Onion,Horticulture,342.5,5137,tonnes,120.0
+Pune,Haveli,Uruli Kanchan,2023,Kharif,Tomato,Horticulture,180.2,2703,tonnes,95.5
+Nashik,Niphad,Ozar,2023,Rabi,Wheat,Cereal,410.0,820,tonnes,310.0
+Nashik,Niphad,Ozar,2023,Kharif, Bajra ,Cereal,225.75,338.6,tonnes,
+Satara,Koregaon,Vaduth,2023,Kharif,Sugarcane,Cash Crop,655.0,42600,tonnes,655.0
+Pune,Haveli,Wadgaon Sheri,2023,Kharif,,Horticulture,50.0,75,tonnes,10.0
