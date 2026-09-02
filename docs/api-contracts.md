@@ -14,44 +14,98 @@
 
 ## 📌 Overview
 
-This document specifies the RESTful API contracts for Phase 2 of the UdyamAI platform. The backend is built with **FastAPI**, **SQLModel / Pydantic v2**, and **PostgreSQL / PostGIS**, serving a **Next.js 14** frontend.
+This document specifies the RESTful API contracts for the UdyamAI platform. The backend is built with **FastAPI**, **SQLModel / Pydantic v2**, and **PostgreSQL / PostGIS**, serving a **Next.js 14** frontend.
 
-### General Conventions
-
-- **Content-Type**: `application/json` for all request bodies and JSON responses.
-- **Date/Time Format**: ISO 8601 extended format (`YYYY-MM-DDTHH:MM:SSZ` or `YYYY-MM-DDTHH:MM:SS.uuuuuuZ`).
-- **Identifier Format**: Standard UUIDv4 strings (e.g., `3fa85f64-5717-4562-b3fc-2c963f66afa6`).
-- **Pagination**: Where applicable, pagination parameters are `limit` (integer, default `20` or `50`) and `offset` (integer, default `0`).
+### 📚 Specialized Architecture & Engine Documents
+For deep-dive technical logic, refer to:
+- **Analysis Workflow & Pipeline**: [analysis-flow.md](file:///d:/UdyamAI/docs/analysis-flow.md)
+- **Finance Engine & Formulas**: [finance-engine.md](file:///d:/UdyamAI/docs/finance-engine.md)
+- **AI Advisor & RAG Integration**: [ai-integration.md](file:///d:/UdyamAI/docs/ai-integration.md)
 
 ---
 
-## ⚠️ Standard Error Response Schema
+## 🏛️ Service Ownership Matrix
+
+| Domain Area | Service Owner / Module | Route File | Primary DB Models |
+|---|---|---|---|
+| **Analysis Pipeline** | `AnalysisOrchestrator` / `AnalysisService` | `app/api/routes/analysis.py` | `AnalysisRun`, `FeasibilityAnalysis`, `AIAnalysis` |
+| **Location & GIS** | `LocationService` | `app/api/routes/locations.py` | `District`, `Taluka`, `GramPanchayat`, `Village` |
+| **Business Categories** | `BusinessService` | `app/api/routes/businesses.py` | `BusinessCategory`, `BusinessModel`, `Business` |
+| **Finance Engine** | `FinanceService` (`app/finance/`) | `app/api/routes/finance.py` | `SchemeRule`, `Scheme` |
+| **Schemes & Matcher** | `SchemeService` (`app/schemes/`) | `app/api/routes/schemes.py` | `Scheme`, `SchemeRule`, `SchemeMatch` |
+| **Market & Competition** | `MarketService` (`app/market/`, `app/geo/`) | `app/api/routes/markets.py` | `Market`, `MarketPrice`, `MarketAnalysis`, `CompetitorAnalysis` |
+| **Infrastructure & Data** | `InfrastructureService` etc. | `app/api/routes/infrastructure.py` | `InfrastructureFacility`, `Agriculture`, `Livestock`, `Population` |
+| **Reports** | `ReportService` | `app/api/routes/reports.py` | `Report` |
+| **AI Advisor Layer** | `advisor` (`app/ai/`, `app/rag/`) | Orchestrated internally | `AIAnalysis`, `RAGChunk`, `Document` |
+
+---
+
+## 🔒 Non-Negotiable AI Boundary
+
+1. **AI Never Computes Numbers**: Financial calculations, EMIs, loan sizing, feasibility sub-scores, and spatial densities are calculated **strictly by deterministic Python services** before AI invocation.
+2. **Immutable Input**: The AI receives an immutable `AnalysisContext` and cannot mutate any numerical figures or eligibility flags.
+3. **No Financial Guarantees**: Phrases promising "guaranteed loans" or unverified subsidy percentages are blocked by guardrails.
+
+---
+
+## 📐 Calculation Rules Summary
+
+- **Project Cost Raw**: $\text{Available Capital} / (\text{Contribution \%} / 100)$
+- **Feasible Cost**: $\min(\max(\text{Target Cost}, \text{Min Project Cost}), \text{Max Project Cost})$
+- **Loan Potential**: $\min(\text{Feasible Cost} \times \text{Loan \%}, \text{Max Loan Amount})$
+- **Amortization EMI**: $P \times \frac{r(1+r)^n}{(1+r)^n - 1}$ (Supports monthly, quarterly, semi-annual, annual cycles)
+- **Feasibility Score**: $(S_{\text{market}} \times 0.25) + (S_{\text{finance}} \times 0.25) + (S_{\text{competition}} \times 0.20) + (S_{\text{infra}} \times 0.15) + (S_{\text{risk}} \times 0.15)$
+- **Scenarios & DSCR**: $\text{DSCR} = \text{Operating Surplus} / \text{Monthly EMI}$. Zero revenue invented when data is missing.
+
+---
+
+## ⚠️ Standard Error Response Schema & Error Codes
 
 All non-`2xx` HTTP response bodies follow the standard error structure:
 
 ```json
 {
   "error": {
-    "code": "RESOURCE_NOT_FOUND",
-    "message": "Detailed error message explanation",
+    "code": "LOCATION_NOT_FOUND",
+    "message": "The selected village could not be found.",
     "details": [
       {
-        "field": "available_capital",
-        "issue": "Value must be greater than or equal to 0"
+        "field": "location_id",
+        "issue": "Village with ID c7a85f64-... not found"
       }
     ]
-  }
+  },
+  "detail": "The selected village could not be found.",
+  "error_code": "LOCATION_NOT_FOUND",
+  "status_code": 404
 }
 ```
 
-### Common HTTP Status Codes
-- `200 OK`: Successful synchronous request execution.
-- `201 Created`: Resource successfully created.
-- `202 Accepted`: Asynchronous processing task successfully queued.
-- `400 Bad Request`: Invalid request data or validation failure.
-- `404 Not Found`: Requested resource does not exist.
-- `422 Unprocessable Entity`: Request body fails JSON/Pydantic validation.
-- `500 Internal Server Error`: Server-side processing failure.
+### Standard Error Codes
+
+| Error Code | HTTP Status | Description |
+|---|---|---|
+| `MISSING_REQUIRED_FIELD` | `400` | Mandatory payload parameter is missing |
+| `LOCATION_NOT_FOUND` | `404` | Specified village or district was not found |
+| `BUSINESS_CATEGORY_NOT_FOUND` | `404` | Specified business category was not found |
+| `USER_NOT_FOUND` | `404` | User profile ID does not exist |
+| `INSUFFICIENT_MARGIN` | `422` | Available capital is lower than required scheme margin |
+| `BELOW_MINIMUM_COST` | `422` | Project cost is below minimum scheme threshold |
+| `INVALID_SCHEME_RULE` | `400` / `422` | Scheme rule contains invalid interest rate or tenure parameters |
+| `CALCULATION_ERROR` | `500` | Financial or feasibility calculation failure |
+| `AI_UNAVAILABLE` | `500` | AI advice layer unavailable (handled via graceful degraded fallback) |
+| `VALIDATION_ERROR` | `422` | Request body failed Pydantic / JSON schema validation |
+| `DATABASE_ERROR` | `500` | PostgreSQL / PostGIS transaction or query execution error |
+| `INTERNAL_SERVER_ERROR` | `500` | Unhandled server exception |
+
+---
+
+## ⚙️ General Architectural Assumptions
+
+1. **Spatial Buffer Default**: Spatial market and competitor queries default to **10.0 km** if radius is not explicitly specified.
+2. **Precision & Rounding**: Currency values are rounded to 2 decimal places (`0.01` precision); scores are rounded to 1 decimal place (`0.1` precision).
+3. **Idempotency**: `POST /api/v1/finance/calculate` is purely stateless and idempotent. `POST /api/v1/analysis` generates a new trackable `AnalysisRun` record.
+4. **Multilingual Fallback**: Supported languages are `"en"` (English), `"hi"` (Hindi), and `"mr"` (Marathi). Any unsupported language code defaults to `"en"`.
 
 ---
 
