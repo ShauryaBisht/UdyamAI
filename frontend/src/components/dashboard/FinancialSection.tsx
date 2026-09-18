@@ -26,10 +26,10 @@ function FinancialMetricCard({
   unit?: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5">
-      <p className="text-sm font-medium text-gray-500">{label}</p>
+    <div className="rounded-card border border-primary/10 bg-white p-5 shadow-card">
+      <p className="text-sm font-medium text-foreground/60">{label}</p>
 
-      <p className="mt-2 text-2xl font-bold text-gray-900">
+      <p className="mt-2 text-metric-lg text-foreground">
         {value != null
           ? isCurrency
             ? formatCurrency(value)
@@ -144,25 +144,25 @@ export default function FinancialSection({ data }: FinancialSectionProps) {
 
       {/* Loan & Repayment details */}
       {(interestRate != null || tenureMonths != null || repaymentCapacity != null) && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5">
-          <p className="text-sm font-bold text-gray-900 mb-3">Loan & Repayment Details</p>
+        <div className="rounded-card border border-primary/10 bg-white p-5 shadow-card">
+          <p className="text-sm font-bold text-foreground mb-3">Loan & Repayment Details</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {interestRate != null && (
               <div>
-                <p className="text-xs font-medium text-gray-500">Interest Rate</p>
-                <p className="text-lg font-bold text-gray-900">{Number(interestRate).toFixed(1)}% p.a.</p>
+                <p className="text-xs font-medium text-foreground/60">Interest Rate</p>
+                <p className="text-lg font-bold text-foreground">{Number(interestRate).toFixed(1)}% p.a.</p>
               </div>
             )}
             {tenureMonths != null && (
               <div>
-                <p className="text-xs font-medium text-gray-500">Loan Tenure</p>
-                <p className="text-lg font-bold text-gray-900">{Number(tenureMonths)} months</p>
+                <p className="text-xs font-medium text-foreground/60">Loan Tenure</p>
+                <p className="text-lg font-bold text-foreground">{Number(tenureMonths)} months</p>
               </div>
             )}
             {repaymentCapacity != null && (
               <div>
-                <p className="text-xs font-medium text-gray-500">Repayment Capacity (DSCR)</p>
-                <p className="text-lg font-bold text-gray-900">{Number(repaymentCapacity).toFixed(2)}x</p>
+                <p className="text-xs font-medium text-foreground/60">Repayment Capacity (DSCR)</p>
+                <p className="text-lg font-bold text-foreground">{Number(repaymentCapacity).toFixed(2)}x</p>
               </div>
             )}
           </div>
@@ -171,14 +171,14 @@ export default function FinancialSection({ data }: FinancialSectionProps) {
 
       {/* AI Financial Guidance (when data is sparse) */}
       {(projectCost == null && monthlyRevenue == null && financialAdviceList.length > 0) && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5">
-          <p className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-2">
+        <div className="rounded-card border border-primary/15 bg-primary/5 p-5 shadow-card">
+          <p className="text-xs font-bold uppercase tracking-wider text-primary mb-2">
             AI Financial Guidance
           </p>
           <ul className="space-y-1.5">
             {financialAdviceList.map((advice: string, i: number) => (
-              <li key={i} className="text-sm text-blue-900 flex items-start gap-1.5">
-                <span className="text-blue-500 font-bold mt-0.5">•</span>
+              <li key={i} className="text-sm text-foreground flex items-start gap-1.5">
+                <span className="text-primary font-bold mt-0.5">•</span>
                 <span>{advice}</span>
               </li>
             ))}
@@ -193,32 +193,32 @@ export default function FinancialSection({ data }: FinancialSectionProps) {
       >
         <div className="flex flex-col gap-5">
           {fundingData.length === 0 ? (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-foreground/60">
               Financial breakdown will appear once the analysis pipeline computes project financing.
             </p>
           ) : (
             fundingData.map((item) => (
               <div key={item.label}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-foreground/70">
                     {item.label}
                   </span>
 
-                  <span className="text-sm font-bold text-gray-900">
+                  <span className="text-sm font-bold text-foreground">
                     {formatCurrency(item.amount)}
                   </span>
                 </div>
 
-                <div className="h-3 w-full overflow-hidden rounded-full bg-gray-100">
+                <div className="h-3 w-full overflow-hidden rounded-full bg-foreground/10">
                   <div
-                    className="h-full rounded-full bg-blue-600 transition-all duration-500"
+                    className="h-full rounded-full bg-primary transition-all duration-500"
                     style={{
                       width: `${Math.min(100, Math.max(5, item.percentage))}%`,
                     }}
                   />
                 </div>
 
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-foreground/50">
                   {item.percentage}% of total funding structure
                 </p>
               </div>

@@ -123,34 +123,34 @@ function DashboardContent() {
     }
   }
 
-  function getScoreColor(score: number) {
-    if (score >= 75) return 'text-green-600 bg-green-50';
-    if (score >= 50) return 'text-amber-600 bg-amber-50';
-    return 'text-red-600 bg-red-50';
-  }
+function getScoreColor(score: number) {
+  if (score >= 75) return 'text-status-verified bg-primary/10';
+  if (score >= 50) return 'text-status-warning bg-accent/15';
+  return 'text-status-risk bg-danger/10';
+}
 
-  function getRiskColor(level: string) {
-    switch (level) {
-      case 'low':
-        return 'text-green-700 bg-green-100';
-      case 'medium':
-        return 'text-amber-700 bg-amber-100';
-      case 'high':
-        return 'text-red-700 bg-red-100';
-      default:
-        return 'text-gray-700 bg-gray-100';
-    }
+ function getRiskColor(level: string) {
+  switch (level) {
+    case 'low':
+      return 'text-status-verified bg-primary/10';
+    case 'medium':
+      return 'text-status-warning bg-accent/15';
+    case 'high':
+      return 'text-status-risk bg-danger/10';
+    default:
+      return 'text-foreground/60 bg-foreground/5';
   }
+}
 
   function ScoreCard({ label, score }: { label: string; score: number }) {
     return (
-      <div className="rounded-xl border border-gray-200 p-4 flex flex-col gap-2 bg-white shadow-sm">
-        <span className="text-sm font-medium text-gray-500">{label}</span>
+      <div className="rounded-card border border-primary/10 p-4 flex flex-col gap-2 bg-white shadow-card">
+        <span className="text-sm font-medium text-foreground/60">{label}</span>
         <div className="flex items-baseline gap-1">
-          <span className={`text-3xl font-bold rounded-md px-2 ${getScoreColor(score)}`}>
+          <span className={`text-metric-lg rounded-md px-2 ${getScoreColor(score)}`}>
             {score}
           </span>
-          <span className="text-sm text-gray-400">/100</span>
+          <span className="text-sm text-foreground/50">/100</span>
         </div>
       </div>
     );
@@ -209,13 +209,13 @@ function DashboardContent() {
         {activeSection === 'overview' && (
           <div className="flex flex-col gap-6">
             {/* Overall feasibility banner */}
-            <div className="rounded-xl border border-gray-200 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white shadow-sm gap-4">
+            <div className="rounded-card border border-primary/10 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white shadow-card gap-4">
               <div>
                 <span className="text-sm font-medium text-gray-500">{t('dash.overall')}</span>
-                <div className="text-4xl font-bold mt-1 text-slate-900">
+                <div className="text-metric-xl mt-1 text-foreground">
                   {overallScore != null ? `${overallScore}/100` : (data?.ai_advice?.confidence ? `AI: ${data.ai_advice.confidence}` : '—')}
                 </div>
-                <span className="text-blue-700 font-semibold">{label}</span>
+                <span className="text-primary font-semibold">{label}</span>
               </div>
               <div className={`px-4 py-2 rounded-lg font-semibold text-sm ${getRiskColor(riskLevelKey)}`}>
                 {riskLevelLabel} {t('dash.riskProfile')}
@@ -256,10 +256,10 @@ function DashboardContent() {
             )}
 
             {/* AI Advisor Recommendations (RAG Evidence Driven) */}
-            <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/70 to-indigo-50/50 p-6 shadow-sm">
+            <div className="rounded-card border border-primary/15 bg-primary/5 p-6 shadow-card">
               <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="h-5 w-5 text-blue-600" />
-                <h3 className="text-lg font-bold text-slate-900">{t('dash.advisorTitle')}</h3>
+                <Sparkles className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-bold text-foreground">{t('dash.advisorTitle')}</h3>
               </div>
               <p className="text-sm leading-relaxed text-slate-700 font-normal">
                 {advisorSummary || t('dash.advisorEmpty')}
@@ -301,7 +301,7 @@ function DashboardContent() {
             <button
               onClick={handleDownloadPdf}
               disabled={!analysisId || pdfLoading}
-              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              className="px-6 py-2.5 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 transition disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               {pdfLoading ? (
                 <>

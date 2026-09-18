@@ -80,7 +80,13 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
-
+const MOBILE_NAV_ITEMS: NavItem[] = [
+  { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { href: '/onboarding', labelKey: 'nav.feasibility', icon: BarChart3 },
+  { href: '/expenses', labelKey: 'nav.expenses', icon: Receipt },
+  { href: '/schemes', labelKey: 'nav.schemes', icon: BadgeCheck },
+  { href: '/profile', labelKey: 'nav.profile', icon: User },
+];
 function NavList({
   pathname,
   onNavigate,
@@ -95,7 +101,7 @@ function NavList({
       {NAV_GROUPS.map((group, groupIdx) => (
         <div key={group.titleKey || `group-${groupIdx}`}>
           {group.titleKey && (
-            <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-foreground/50">
               {t(group.titleKey)}
             </p>
           )}
@@ -110,14 +116,14 @@ function NavList({
                   onClick={onNavigate}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+  ? 'bg-primary/10 text-primary'
+  : 'text-foreground/70 hover:bg-primary/5 hover:text-primary'
                   }`}
                   aria-current={isActive ? 'page' : undefined}
                 >
                   <Icon
                     className={`h-[18px] w-[18px] shrink-0 ${
-                      isActive ? 'text-indigo-600' : 'text-slate-400'
+                      isActive ? 'text-primary' : 'text-foreground/40'
                     }`}
                   />
                   <span className="truncate">{t(item.labelKey)}</span>
@@ -151,14 +157,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const sidebarContent = (
     <div className="flex h-full flex-col">
-      <div className="flex h-16 shrink-0 items-center gap-2 border-b border-slate-200 px-5">
+      <div className="flex h-16 shrink-0 items-center gap-2 border-b border-primary/15 px-5">
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
-            <Sparkles className="h-4 w-4 text-indigo-600" />
-          </div>
-          <span className="text-lg font-bold tracking-tight text-slate-900">
-            Udyam<span className="text-indigo-600">AI</span>
-          </span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+  <Sparkles className="h-4 w-4 text-primary" />
+</div>
+<span className="text-lg font-bold tracking-tight text-foreground">
+  Udyam<span className="text-primary">AI</span>
+</span>
         </Link>
       </div>
 
@@ -166,7 +172,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <NavList pathname={pathname} />
       </div>
 
-      <div className="shrink-0 border-t border-slate-200 p-3">
+      <div className="shrink-0 border-t border-primary/15 p-3">
         <button
           type="button"
           onClick={handleSignOut}
@@ -180,9 +186,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-slate-200 bg-white lg:block">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-primary/15 bg-background lg:block">
         {sidebarContent}
       </aside>
 
@@ -197,7 +203,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
-              className="absolute right-3 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+              className="absolute right-3 top-4 rounded-lg p-2 text-foreground/50 hover:bg-slate-50 hover:text-slate-600"
               aria-label="Close menu"
             >
               <X className="h-5 w-5" />
@@ -208,9 +214,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Content column */}
-      <div className="flex min-h-screen flex-col lg:pl-64">
+      <div className="flex min-h-screen flex-col pb-16 lg:pb-0 lg:pl-64">
         {/* Top utility bar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:justify-end lg:px-8">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-primary/15 bg-white/95 px-4 backdrop-blur lg:justify-end lg:px-8">
           <div className="flex items-center gap-3 lg:hidden">
             <button
               type="button"
@@ -232,9 +238,44 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <LanguageSwitcher compact />
         </header>
 
-        {/* Page content */}
+                {/* Page content */}
         {children}
       </div>
+
+      {/* Mobile bottom navigation */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-primary/15 bg-background/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+        aria-label="Mobile navigation"
+      >
+        <div className="mx-auto flex h-16 max-w-md items-center justify-around">
+          {MOBILE_NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 text-[11px] font-medium transition-colors ${
+                  isActive
+                    ? 'text-primary'
+                    : 'text-foreground/50 hover:text-primary'
+                }`}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <Icon
+                  className={`h-5 w-5 ${
+                    isActive ? 'text-primary' : 'text-foreground/40'
+                  }`}
+                />
+                <span className="max-w-full truncate">
+                  {t(item.labelKey)}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
