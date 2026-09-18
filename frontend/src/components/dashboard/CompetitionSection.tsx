@@ -14,16 +14,16 @@ function MetricCard({
   subtitle: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5">
-      <p className="text-sm font-medium text-gray-500">
+    <div className="rounded-card border border-primary/10 bg-white p-5 shadow-card">
+      <p className="text-sm font-medium text-foreground/60">
         {label}
       </p>
 
-      <h3 className="mt-3 text-3xl font-bold text-gray-900">
+      <h3 className="mt-3 text-metric-lg text-foreground">
         {value}
       </h3>
 
-      <p className="mt-1 text-sm text-gray-500">
+      <p className="mt-1 text-sm text-foreground/60">
         {subtitle}
       </p>
     </div>
@@ -31,9 +31,9 @@ function MetricCard({
 }
 
 function getScoreBarColor(score: number) {
-  if (score >= 75) return 'bg-green-600';
-  if (score >= 50) return 'bg-blue-600';
-  return 'bg-red-600';
+  if (score >= 75) return 'bg-status-verified';
+  if (score >= 50) return 'bg-status-warning';
+  return 'bg-status-risk';
 }
 
 export default function CompetitionSection({ data }: CompetitionSectionProps) {
@@ -97,14 +97,14 @@ export default function CompetitionSection({ data }: CompetitionSectionProps) {
 
       {/* AI Competition Guidance (when data is sparse) */}
       {(score == null && competitorsCount == null && competitionAdviceList.length > 0) && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5">
-          <p className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-2">
+       <div className="rounded-card border border-primary/15 bg-primary/5 p-5 shadow-card">
+          <p className="text-xs font-bold uppercase tracking-wider text-primary mb-2">
             AI Competition Guidance
           </p>
           <ul className="space-y-1.5">
             {competitionAdviceList.map((advice: string, i: number) => (
-              <li key={i} className="text-sm text-blue-900 flex items-start gap-1.5">
-                <span className="text-blue-500 font-bold mt-0.5">•</span>
+              <li key={i} className="text-sm text-foreground flex items-start gap-1.5">
+                <span className="text-primary font-bold mt-0.5">•</span>
                 <span>{advice}</span>
               </li>
             ))}
@@ -140,26 +140,26 @@ export default function CompetitionSection({ data }: CompetitionSectionProps) {
       )}
 
       {/* Competitor Strength */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6">
+      <div className="rounded-card border border-primary/10 bg-white p-6 shadow-card">
         <div className="mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-foreground">
             Competitive Landscape Breakdown
           </h2>
 
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-foreground/60">
             Density of registered MSME clusters in local taluka & district
           </p>
         </div>
 
         <div className="flex flex-col gap-5">
           <div className="mb-2 flex justify-between text-sm">
-            <span className="font-medium text-gray-700">Competitor Safety Margin</span>
-            <span className={`font-semibold ${score != null ? 'text-blue-600' : 'text-gray-400'}`}>
+            <span className="font-medium text-foreground/70">Competitor Safety Margin</span>
+            <span className={`font-semibold ${score != null ? 'text-primary' : 'text-foreground/40'}`}>
               {score != null ? `${score}/100` : '— /100'}
             </span>
           </div>
 
-          <div className="h-3 w-full overflow-hidden rounded-full bg-gray-100">
+          <div className="h-3 w-full overflow-hidden rounded-full bg-foreground/10">
             {score != null ? (
               <div
                 className={`h-full rounded-full ${getScoreBarColor(score)} transition-all duration-500`}
@@ -167,7 +167,7 @@ export default function CompetitionSection({ data }: CompetitionSectionProps) {
               />
             ) : (
               <div
-                className="h-full rounded-full bg-gray-300"
+                className="h-full rounded-full bg-foreground/10"
                 style={{ width: '0%' }}
               />
             )}
@@ -176,15 +176,15 @@ export default function CompetitionSection({ data }: CompetitionSectionProps) {
 
         {/* Competitor Distribution Breakdown */}
         {hasDistribution && (
-          <div className="mt-6 pt-4 border-t border-gray-100">
-            <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
+          <div className="mt-6 pt-4 border-t border-primary/10">
+            <p className="text-xs font-bold uppercase tracking-wider text-foreground/60 mb-3">
               Competitor Category Distribution
             </p>
             <div className="space-y-2">
               {Object.entries(distribution).map(([category, count]) => (
                 <div key={category} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 capitalize">{category.replace(/_/g, ' ')}</span>
-                  <span className="text-sm font-bold text-gray-900">{String(count)}</span>
+                  <span className="text-sm text-foreground/70 capitalize">{category.replace(/_/g, ' ')}</span>
+                  <span className="text-sm font-bold text-foreground">{String(count)}</span>
                 </div>
               ))}
             </div>
@@ -193,15 +193,15 @@ export default function CompetitionSection({ data }: CompetitionSectionProps) {
 
         {/* Market Gaps */}
         {hasGaps && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
+          <div className="mt-4 pt-4 border-t border-primary/10">
+            <p className="text-xs font-bold uppercase tracking-wider text-foreground/60 mb-3">
               Identified Market Gaps
             </p>
             <div className="space-y-1.5">
               {Object.entries(identifiedGaps).map(([gap, detail]) => (
                 <div key={gap} className="flex justify-between text-sm">
-                  <span className="text-gray-600 capitalize">{gap.replace(/_/g, ' ')}</span>
-                  <span className="font-medium text-gray-900">{String(detail)}</span>
+                  <span className="text-foreground/70 capitalize">{gap.replace(/_/g, ' ')}</span>
+                  <span className="font-medium text-foreground">{String(detail)}</span>
                 </div>
               ))}
             </div>

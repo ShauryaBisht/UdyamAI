@@ -4,8 +4,27 @@
 
 @import 'leaflet/dist/leaflet.css';
 
+/* ============================================
+   UdyamAI Design System — Color Tokens
+   ============================================ */
+
+:root {
+  --background: #F7F6F1;
+  --foreground: #17221D;
+
+  --primary: #176B4D;
+  --secondary: #7BAE8A;
+  --accent: #F2B84B;
+  --danger: #D95C5C;
+}
+
+/* Base application styling */
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Leaflet inherits the application's font */
 .leaflet-container {
   font-family: inherit;
 }
-@import 'leaflet/dist/leaflet.css';
-

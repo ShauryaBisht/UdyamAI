@@ -19,26 +19,29 @@ function SummaryCard({
   icon?: any;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-card border border-primary/10 bg-white p-5 shadow-card">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-slate-500">{label}</p>
-        {Icon && <Icon className="h-5 w-5 text-blue-600" />}
+        <p className="text-sm font-semibold text-foreground/60">{label}</p>
+        {Icon && <Icon className="h-5 w-5 text-primary" />}
       </div>
-      <h3 className="mt-2 text-2xl font-extrabold text-slate-900">{value}</h3>
-      <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+      <h3 className="mt-2 text-2xl font-extrabold text-foreground">{value}</h3>
+      <p className="mt-1 text-xs text-foreground/60">{subtitle}</p>
     </div>
   );
 }
 
 function getEligibilityBadge(status: string) {
   const s = String(status || '').toLowerCase();
+
   if (s.includes('high') || s.includes('eligible') || s === 'potential_match') {
-    return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+    return 'bg-primary/10 text-status-verified border-primary/20';
   }
+
   if (s.includes('partial') || s.includes('moderate')) {
-    return 'bg-blue-100 text-blue-800 border-blue-300';
+    return 'bg-accent/15 text-status-warning border-accent/30';
   }
-  return 'bg-amber-100 text-amber-800 border-amber-300';
+
+  return 'bg-danger/10 text-status-risk border-danger/20';
 }
 
 function formatCurrency(amount: number) {
@@ -88,38 +91,38 @@ export default function SchemeSection({ data }: SchemeSectionProps) {
       </div>
 
       {/* Main Scheme List */}
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+      <div className="rounded-card border border-primary/10 bg-white p-6 shadow-card">
+        <div className="flex items-center justify-between mb-4 border-b border-primary/10 pb-3">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">
+            <h3 className="text-lg font-bold text-foreground">
               Government Welfare & Capital Subsidy Schemes
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-foreground/60 mt-0.5">
               Verified eligibility against state & national enterprise guidelines
             </p>
           </div>
-          <span className="text-xs font-semibold px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full flex items-center gap-1">
+          <span className="text-xs font-semibold px-3 py-1 bg-primary/10 text-status-verified border border-primary/20 rounded-full flex items-center gap-1">
             <CheckCircle2 className="h-3.5 w-3.5" /> Direct Govt. Support
           </span>
         </div>
 
         <div className="flex flex-col gap-4">
           {matchedSchemes.length === 0 && schemeAdviceList.length === 0 && (
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-foreground/70">
               No government schemes matched this analysis. Import scheme data and rerun the analysis pipeline.
             </p>
           )}
 
           {/* AI Scheme Guidance (when no schemes matched but AI has advice) */}
           {matchedSchemes.length === 0 && schemeAdviceList.length > 0 && (
-            <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5">
-              <p className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-2">
+            <div className="rounded-card border border-primary/15 bg-primary/5 p-5 shadow-card">
+              <p className="text-xs font-bold uppercase tracking-wider text-primary mb-2">
                 AI Scheme Guidance
               </p>
               <ul className="space-y-1.5">
                 {schemeAdviceList.map((advice: string, i: number) => (
-                  <li key={i} className="text-sm text-blue-900 flex items-start gap-1.5">
-                    <span className="text-blue-500 font-bold mt-0.5">•</span>
+                  <li key={i} className="text-sm text-foreground flex items-start gap-1.5">
+                    <span className="text-primary font-bold mt-0.5">•</span>
                     <span>{advice}</span>
                   </li>
                 ))}
@@ -135,12 +138,12 @@ export default function SchemeSection({ data }: SchemeSectionProps) {
             return (
               <div
                 key={s.scheme_id || idx}
-                className="rounded-xl border border-slate-200 bg-slate-50/50 p-5 hover:bg-slate-50 hover:border-slate-300 transition shadow-2xs flex flex-col gap-3"
+                className="rounded-card border border-primary/10 bg-background p-5 hover:bg-primary/5 hover:border-primary/20 transition shadow-card flex flex-col gap-3"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-primary/10 pb-3">
                   <div className="flex items-center gap-2">
-                    <Building2 className="h-5 w-5 text-blue-600 shrink-0" />
-                    <h4 className="font-bold text-slate-900 text-base">{title}</h4>
+                    <Building2 className="h-5 w-5 text-primary shrink-0" />
+                    <h4 className="font-bold text-foreground text-base">{title}</h4>
                   </div>
                   <span
                     className={`inline-flex items-center px-3 py-1 text-xs font-bold rounded-full border ${getEligibilityBadge(
@@ -152,7 +155,7 @@ export default function SchemeSection({ data }: SchemeSectionProps) {
                 </div>
 
                 {s.description && (
-                  <p className="text-sm text-slate-600 leading-relaxed">
+                  <p className="text-sm text-foreground/70 leading-relaxed">
                     {s.description}
                   </p>
                 )}
@@ -160,18 +163,18 @@ export default function SchemeSection({ data }: SchemeSectionProps) {
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                   <div className="flex flex-wrap items-center gap-3">
                     {subsidy > 0 && (
-                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200">
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary/10 text-status-verified border border-primary/20">
                         Capital Subsidy: {formatCurrency(subsidy)}
                       </span>
                     )}
                     {loan > 0 && (
-                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-800 text-xs font-bold border border-blue-200">
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent/15 text-status-warning text-xs font-bold border border-accent/30">
                         Loan Coverage: {formatCurrency(loan)}
                       </span>
                     )}
                     {s.agency_name && (
-                      <span className="text-xs text-slate-500 font-medium">
-                        Nodal Agency: <strong className="text-slate-700">{s.agency_name}</strong>
+                      <span className="text-xs text-foreground/60 font-medium">
+                        Nodal Agency: <strong className="text-foreground/70">{s.agency_name}</strong>
                       </span>
                     )}
                   </div>
@@ -181,7 +184,7 @@ export default function SchemeSection({ data }: SchemeSectionProps) {
                       href={s.official_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline transition"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary/80 hover:underline transition"
                     >
                       Official Portal <ExternalLink className="h-3.5 w-3.5" />
                     </a>

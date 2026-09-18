@@ -74,6 +74,14 @@ export default function OnboardingPage() {
     setError("");
   };
 
+   // Demo button
+  const handleDemo = () => {
+  setCapital("500000");
+  setDesiredProjectCost("800000");
+  setError("");
+  setShowReview(false);
+};
+
   // Start Analysis via Backend API
   const handleStartAnalysis = async () => {
     setIsSubmitting(true);
@@ -236,14 +244,27 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            {/* Review */}
-            <button
-              type="button"
-              onClick={handleReview}
-              className="mt-8 w-full rounded-xl bg-slate-900 px-6 py-3 font-semibold text-white transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
-            >
-              {t('onboard.reviewCta')}
-            </button>
+            {/* Demo + Review actions */}
+<div className="mt-8 space-y-3">
+  <button
+    type="button"
+    onClick={handleDemo}
+    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-accent/40 bg-accent/15 px-5 py-3 text-sm font-bold text-foreground transition hover:bg-accent/25"
+  >
+    <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-foreground">
+      Demo
+    </span>
+    Try sample financial inputs
+  </button>
+
+  <button
+    type="button"
+    onClick={handleReview}
+    className="w-full rounded-xl bg-primary px-6 py-3 font-semibold text-white transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+  >
+    {t('onboard.reviewCta')}
+  </button>
+</div>
           </div>
         </div>
       </section>
