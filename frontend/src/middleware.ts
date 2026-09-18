@@ -6,8 +6,12 @@ const PUBLIC_PATHS = new Set(['/', '/login']);
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL;
+  const supabaseAnonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY;
 
   // Without Supabase configured we let the request through; the app shows
   // clear errors rather than redirect loops during local development.
