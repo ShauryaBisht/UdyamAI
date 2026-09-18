@@ -63,7 +63,7 @@ export default function HomePage() {
             <LanguageSwitcher compact />
 
             <Link
-              href="/login"
+              href="/onboarding"
               className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 transition hover:bg-indigo-700"
             >
               {t('nav.getStarted')}
@@ -110,7 +110,7 @@ export default function HomePage() {
             {/* Buttons */}
           <div className="mt-9">
   <Link
-    href="/login"
+    href="/onboarding"
     className="inline-flex items-center rounded-xl bg-slate-950 px-7 py-4 font-semibold text-white shadow-xl shadow-indigo-900/10 transition hover:-translate-y-0.5 hover:bg-indigo-700"
   >
     {t('home.startAnalysis')}
@@ -369,7 +369,7 @@ export default function HomePage() {
             </div>
 
             <Link
-              href="/login"
+              href="/onboarding"
               className="shrink-0 rounded-xl bg-white px-8 py-4 font-semibold text-slate-900 shadow-xl transition hover:-translate-y-0.5 hover:bg-indigo-50"
             >
               {t('home.ctaButton')}
