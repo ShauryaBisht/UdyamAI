@@ -14,17 +14,17 @@ interface MarketStatProps {
 
 function MarketStat({ label, value, description }: MarketStatProps) {
   return (
-    <div className="rounded-xl border border-gray-200 p-5 bg-white">
-      <p className="text-sm font-medium text-gray-500">
+    <div className="rounded-card border border-primary/10 bg-white p-5 shadow-card">
+      <p className="text-sm font-medium text-foreground/60">
         {label}
       </p>
 
-      <p className="text-2xl font-bold text-gray-900 mt-2">
+      <p className="text-metric-lg text-foreground mt-2">
         {value}
       </p>
 
       {description && (
-        <p className="text-sm text-gray-500 mt-1">
+       <p className="text-sm text-foreground/60 mt-1">
           {description}
         </p>
       )}
@@ -33,15 +33,15 @@ function MarketStat({ label, value, description }: MarketStatProps) {
 }
 
 function getScoreBarColor(score: number) {
-  if (score >= 75) return 'bg-green-500';
-  if (score >= 50) return 'bg-amber-500';
-  return 'bg-red-500';
+  if (score >= 75) return 'bg-status-verified';
+  if (score >= 50) return 'bg-status-warning';
+  return 'bg-status-risk';
 }
 
 function getScoreTextColor(score: number) {
-  if (score >= 75) return 'text-green-600';
-  if (score >= 50) return 'text-amber-600';
-  return 'text-red-600';
+  if (score >= 75) return 'text-status-verified';
+  if (score >= 50) return 'text-status-warning';
+  return 'text-status-risk';
 }
 
 export default function MarketSection({ data }: MarketSectionProps) {
@@ -134,14 +134,14 @@ export default function MarketSection({ data }: MarketSectionProps) {
 
       {/* AI Market Guidance (when data is sparse) */}
       {(marketScore == null && populationEstimate == null && marketAdviceList.length > 0) && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-5">
-          <p className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-2">
+        <div className="rounded-card border border-primary/15 bg-primary/5 p-5 shadow-card">
+          <p className="text-xs font-bold uppercase tracking-wider text-primary mb-2">
             AI Market Guidance
           </p>
           <ul className="space-y-1.5">
             {marketAdviceList.map((advice: string, i: number) => (
-              <li key={i} className="text-sm text-blue-900 flex items-start gap-1.5">
-                <span className="text-blue-500 font-bold mt-0.5">•</span>
+              <li key={i} className="text-sm text-foreground flex items-start gap-1.5">
+                <span className="text-primary font-bold mt-0.5">•</span>
                 <span>{advice}</span>
               </li>
             ))}
@@ -150,27 +150,27 @@ export default function MarketSection({ data }: MarketSectionProps) {
       )}
 
       {/* Market opportunity */}
-      <div className="rounded-xl border border-gray-200 p-6 bg-white">
-        <h3 className="text-lg font-semibold text-gray-900">
+      <div className="rounded-card border border-primary/10 bg-white p-6 shadow-card">
+        <h3 className="text-lg font-semibold text-foreground">
           Market Opportunity Assessment
         </h3>
 
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-foreground/60 mt-1">
           Real-time market evaluation from AGMARKNET & Census database
         </p>
 
         <div className="mt-6">
           <div className="flex justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">
+            <span className="text-sm font-medium text-foreground/70">
               Opportunity Score
             </span>
 
-            <span className={`text-sm font-semibold ${marketScore != null ? getScoreTextColor(marketScore) : 'text-gray-400'}`}>
+            <span className={`text-sm font-semibold ${marketScore != null ? getScoreTextColor(marketScore) : 'text-foreground/40'}`}>
               {marketScore != null ? `${marketScore} / 100` : '— / 100'}
             </span>
           </div>
 
-          <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+          <div className="w-full h-3 bg-foreground/10 rounded-full overflow-hidden">
             {marketScore != null ? (
               <div
                 className={`h-full ${getScoreBarColor(marketScore)} rounded-full transition-all duration-500`}
@@ -178,7 +178,7 @@ export default function MarketSection({ data }: MarketSectionProps) {
               />
             ) : (
               <div
-                className="h-full bg-gray-300 rounded-full"
+                className="h-full bg-foreground/10 rounded-full"
                 style={{ width: '0%' }}
               />
             )}
@@ -188,21 +188,21 @@ export default function MarketSection({ data }: MarketSectionProps) {
 
       {/* Demand & Pricing Indicators (if data is available) */}
       {(hasDemandData || hasPricingData) && (
-        <div className="rounded-xl border border-gray-200 p-6 bg-white">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="rounded-card border border-primary/10 bg-white p-6 shadow-card">
+          <h3 className="text-lg font-semibold text-foreground mb-4">
             Market Indicators Detail
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {hasDemandData && (
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+                <p className="text-xs font-bold uppercase tracking-wider text-foreground/60 mb-2">
                   Demand Indicators
                 </p>
                 <div className="space-y-1.5">
                   {Object.entries(demandIndicators).map(([key, val]) => (
                     <div key={key} className="flex justify-between text-sm">
-                      <span className="text-gray-600 capitalize">{key.replace(/_/g, ' ')}</span>
-                      <span className="font-medium text-gray-900">{String(val)}</span>
+                      <span className="text-foreground/70 capitalize">{key.replace(/_/g, ' ')}</span>
+                      <span className="font-medium text-foreground">{String(val)}</span>
                     </div>
                   ))}
                 </div>
@@ -210,14 +210,14 @@ export default function MarketSection({ data }: MarketSectionProps) {
             )}
             {hasPricingData && (
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+                <p className="text-xs font-bold uppercase tracking-wider text-foreground/60 mb-2">
                   Pricing Indicators
                 </p>
                 <div className="space-y-1.5">
                   {Object.entries(pricingIndicators).map(([key, val]) => (
                     <div key={key} className="flex justify-between text-sm">
-                      <span className="text-gray-600 capitalize">{key.replace(/_/g, ' ')}</span>
-                      <span className="font-medium text-gray-900">{String(val)}</span>
+                      <span className="text-foreground/70 capitalize">{key.replace(/_/g, ' ')}</span>
+                      <span className="font-medium text-foreground">{String(val)}</span>
                     </div>
                   ))}
                 </div>
