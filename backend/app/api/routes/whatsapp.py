@@ -217,7 +217,9 @@ async def whatsapp_webhook(request: Request) -> Response:
     # gets a 200 with an empty <Response> — already handled, nothing to add.
     message_sid = params.get("MessageSid") or ""
     if message_sid and not _claim_message_sid(message_sid):
-        logger.info("Duplicate WhatsApp MessageSid %s — Twilio retry, not replying again", message_sid)
+        logger.info(
+            "Duplicate WhatsApp MessageSid %s — Twilio retry, not replying again", message_sid
+        )
         return _twiml()
 
     body = (params.get("Body") or "").strip()
