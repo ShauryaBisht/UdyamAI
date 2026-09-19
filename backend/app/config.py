@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
@@ -37,6 +37,17 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
 
+    # WhatsApp / Twilio access channel
+    WHATSAPP_ENABLED: bool = False
+    TWILIO_AUTH_TOKEN: str | None = None
+    WHATSAPP_VERIFY_SIGNATURE: bool = False
+    # Exact public URL Twilio was configured to call, used to reconstruct the signed
+    # URL behind a proxy/load balancer (e.g. https://<host>/webhooks/whatsapp).
+    TWILIO_WEBHOOK_URL: str | None = None
+    # Per-sender throttle for the webhook (keyed on the WhatsApp number, not the IP).
+    WHATSAPP_RATE_LIMIT_REQUESTS: int = 20
+    WHATSAPP_RATE_LIMIT_WINDOW: int = 60
+
     # CORS Configuration
     CORS_ORIGINS: list[str] = ["*"]
 
@@ -70,6 +81,18 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @field_validator("WHATSAPP_ENABLED", "WHATSAPP_VERIFY_SIGNATURE", mode="before")
+    @classmethod
+    def _blank_bool_uses_default(cls, value: object) -> object:
+        """Treat a blank env placeholder (``WHATSAPP_ENABLED=``) as unset.
+
+        A ``mode="after"`` model validator runs too late to help here: an empty string
+        for a ``bool`` field raises during field validation.
+        """
+        if isinstance(value, str) and not value.strip():
+            return False
+        return value
+
     @model_validator(mode="after")
     def validate_secrets(self) -> "Settings":
         if self.ENV == "production" and not self.SECRET_KEY:
@@ -82,6 +105,8 @@ class Settings(BaseSettings):
             "SUPABASE_ANON_KEY",
             "SUPABASE_SERVICE_ROLE_KEY",
             "SUPABASE_JWT_SECRET",
+            "TWILIO_AUTH_TOKEN",
+            "TWILIO_WEBHOOK_URL",
         ):
             value = getattr(self, field)
             if value is not None and not str(value).strip():

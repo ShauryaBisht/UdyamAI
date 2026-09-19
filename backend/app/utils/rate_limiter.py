@@ -32,6 +32,9 @@ def get_client_ip(request: Request) -> str:
 class RateLimiter:
     """
     Thread-safe, in-memory sliding window rate limiter dependency for FastAPI.
+
+    Also usable as a plain ``check(key)`` call for callers that need a key other
+    than the client IP.
     """
 
     def __init__(self, requests_limit: int, window_seconds: int):
@@ -40,20 +43,29 @@ class RateLimiter:
         self.request_history = defaultdict(list)
         self.lock = threading.Lock()
 
-    def __call__(self, request: Request):
-        client_ip = get_client_ip(request)
+    def check(self, key: str) -> None:
+        """Enforce the limit for an arbitrary key (not just a client IP).
+
+        Used directly by callers that need a different identity than the request
+        IP, e.g. the WhatsApp webhook keying on the sender's phone number.
+        """
         now = time.time()
 
         with self.lock:
             # Keep only requests within the active time window
-            self.request_history[client_ip] = [
-                t for t in self.request_history[client_ip] if now - t < self.window_seconds
+            history = [
+                t for t in self.request_history.get(key, ()) if now - t < self.window_seconds
             ]
+            if not history:
+                # Drop the key once its window is empty so keying on high-cardinality
+                # values (e.g. phone numbers) does not grow the dict forever.
+                self.request_history.pop(key, None)
 
-            if len(self.request_history[client_ip]) >= self.requests_limit:
+            if len(history) >= self.requests_limit:
+                self.request_history[key] = history
                 logger.warning(
-                    f"Rate limit exceeded for client {client_ip}. "
-                    f"Requests: {len(self.request_history[client_ip])}/{self.requests_limit} "
+                    f"Rate limit exceeded for {key}. "
+                    f"Requests: {len(history)}/{self.requests_limit} "
                     f"in last {self.window_seconds}s"
                 )
                 raise HTTPException(
@@ -61,7 +73,11 @@ class RateLimiter:
                     detail="Too many requests. Please try again later.",
                 )
 
-            self.request_history[client_ip].append(now)
+            history.append(now)
+            self.request_history[key] = history
+
+    def __call__(self, request: Request):
+        self.check(get_client_ip(request))
 
 
 # Default global rate limiter instance
