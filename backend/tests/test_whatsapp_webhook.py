@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import time
 from unittest.mock import patch
 from xml.etree import ElementTree
 
@@ -46,11 +47,13 @@ def _sign(params: dict[str, str], url: str = SIGNED_URL, token: str = AUTH_TOKEN
 
 
 @pytest.fixture(autouse=True)
-def _reset_sender_limiter():
-    """Keep the module-level throttle from leaking between tests."""
+def _reset_whatsapp_state():
+    """Keep the module-level throttle and SID dedupe from leaking between tests."""
     whatsapp._sender_limiter.request_history.clear()
+    whatsapp._sid_cache.clear()
     yield
     whatsapp._sender_limiter.request_history.clear()
+    whatsapp._sid_cache.clear()
 
 
 @pytest.fixture
@@ -251,6 +254,73 @@ def test_throttle_keys_on_sender_not_ip(client, enabled, monkeypatch):
 
     assert first.status_code == 200
     assert other.status_code == 200
+
+
+# -------------------------------------------------------------- MessageSid dedupe
+
+
+def test_duplicate_message_sid_is_not_replied_twice(client, enabled):
+    with patch(
+        "app.api.routes.whatsapp.generate_chat_reply", return_value=("Hello", True)
+    ) as mock_generate:
+        first = client.post(WEBHOOK_URL, data=SAMPLE_FORM)
+        retry = client.post(WEBHOOK_URL, data=SAMPLE_FORM)
+
+    assert first.status_code == 200
+    assert _message_text(first) == "Hello"
+    # Twilio's retry gets "handled, nothing to send" so it stops retrying.
+    assert retry.status_code == 200
+    assert ElementTree.fromstring(retry.text).find("Message") is None
+    assert mock_generate.call_count == 1
+
+
+def test_sid_claim_happens_before_the_llm_call(client, enabled):
+    """Even a slow generation must have claimed the SID before a retry lands."""
+
+    def _slow_reply(**_kwargs):
+        # A retry arriving while this is running must not re-enter generation.
+        assert "SM1234567890abcdef" in whatsapp._sid_cache
+        return ("Hello", True)
+
+    with patch("app.api.routes.whatsapp.generate_chat_reply", side_effect=_slow_reply):
+        client.post(WEBHOOK_URL, data=SAMPLE_FORM)
+
+
+# The empty-body test below posts a form without MessageSid; that is also the
+# shape of some Twilio status callbacks, which must keep processing normally.
+
+
+def test_missing_message_sid_still_processed(client, enabled):
+    with patch(
+        "app.api.routes.whatsapp.generate_chat_reply", return_value=("Hello", True)
+    ) as mock_generate:
+        response = client.post(WEBHOOK_URL, data={"From": "whatsapp:+919999999999", "Body": "hi"})
+
+    assert response.status_code == 200
+    assert _message_text(response) == "Hello"
+    assert mock_generate.call_count == 1
+
+
+def test_sid_cache_evicts_expired_entries():
+    from app.api.routes import whatsapp as wa
+
+    sid = "SMexpired"
+    assert wa._claim_message_sid(sid) is True
+    # Age the entry past the TTL, with a fresh entry behind it so eviction runs.
+    wa._sid_cache[sid] = time.monotonic() - wa._SID_TTL_SECONDS - 1
+    assert wa._claim_message_sid("SMfresh") is True
+    assert sid not in wa._sid_cache
+    # The expired SID can be claimed again.
+    assert wa._claim_message_sid(sid) is True
+
+
+def test_sid_cache_is_bounded():
+    from app.api.routes import whatsapp as wa
+
+    for index in range(wa._SID_CACHE_MAX + 50):
+        assert wa._claim_message_sid(f"SM{index}") is True
+
+    assert len(wa._sid_cache) <= wa._SID_CACHE_MAX
 
 
 # ---------------------------------------------------------------------- language
