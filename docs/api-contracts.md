@@ -169,6 +169,7 @@ All non-`2xx` HTTP response bodies follow the standard error structure:
 | `/api/v1/economic` | `GET` | List economic indicator records |
 | `/api/v1/economic/indicators` | `GET` | Get distinct indicator names |
 | `/api/v1/economic/{id}` | `GET` | Get economic indicator record by ID |
+| `/api/v1/webhooks/whatsapp` | `POST` | **Inbound third-party (Twilio)** — receives WhatsApp messages, replies with TwiML. Not part of the frozen frontend contract; also served unversioned at `/webhooks/whatsapp` |
 
 ---
 
@@ -1426,6 +1427,44 @@ List business model reference data (startup cost ranges, working capital, revenu
   }
 ]
 ```
+
+---
+
+### 44. `POST /api/v1/webhooks/whatsapp`
+
+Receive a WhatsApp message and reply with TwiML.
+
+> **Inbound third-party contract.** This endpoint is called by **Twilio**, not by the frontend, and is documented here for completeness. It is deliberately *not* part of the frozen `/api/v1` frontend contract described under [Contract Change Management](#-contract-change-management--freeze-policy) — the freeze exists to protect frontend consumers, and this route has none.
+
+The identical handler is also registered **unversioned** at `/webhooks/whatsapp`, which is the path the Twilio console is pointed at. Both must stay working.
+
+- **HTTP Method**: `POST`
+- **Path**: `/api/v1/webhooks/whatsapp` (and `/webhooks/whatsapp`)
+- **Content-Type**: `application/x-www-form-urlencoded` (TwiML response)
+- **Auth**: none by session — Twilio cannot present a Supabase token. When `WHATSAPP_VERIFY_SIGNATURE=true`, the `X-Twilio-Signature` header must be a valid HMAC-SHA1 of the requested URL plus the sorted form fields, keyed on `TWILIO_AUTH_TOKEN`.
+- **Rate limit**: **not** the shared per-IP limiter. Twilio's egress IPs are shared, so an IP-keyed window would throttle every tenant at once; a per-sender window applies instead (`WHATSAPP_RATE_LIMIT_REQUESTS` per `WHATSAPP_RATE_LIMIT_WINDOW` seconds, keyed on `From`).
+
+#### Form Parameters (Twilio → backend)
+
+| Field | Type | Description |
+|---|---|---|
+| `From` | `string` | Sender number, e.g. `whatsapp:+919999999999`. Also the throttle key. |
+| `Body` | `string` | Message text. Selects the reply language: any Devanagari codepoint → Hindi, otherwise English. |
+| `MessageSid` | `string` | Twilio message identifier. Used as the dedupe key: a replayed SID (Twilio retry) gets an empty `<Response>` instead of a second reply. |
+| `NumMedia`, `WaId`, … | `string` | Additional fields Twilio posts. Signature verification covers **every** posted field, not just `From`/`Body`. |
+
+#### Responses
+
+- **`200 OK`** — `application/xml` TwiML:
+  ```xml
+  <?xml version="1.0" encoding="UTF-8"?><Response><Message>…</Message></Response>
+  ```
+  Returned for **anything that was handled**, including an empty body and an unavailable LLM (which falls back to canned per-language copy). A non-2xx makes Twilio retry, which would re-run the LLM call and send the user a duplicate reply — so non-2xx is reserved for rejected requests only. Reply text is XML-escaped and truncated to ~1500 characters on a sentence boundary.
+  A **duplicate `MessageSid`** (a Twilio retry of a message already processed) also returns `200`, but with an **empty `<Response>`** and no `<Message>`: the SID was claimed before generation, so the first reply is never sent twice. The dedupe cache is in-memory and per-process; a DB-backed key is planned with conversation persistence.
+- **`403 Forbidden`** — `X-Twilio-Signature` missing, malformed, or not matching the request.
+- **`404 Not Found`** — `WHATSAPP_ENABLED=false` (the route behaves as if it does not exist).
+- **`429 Too Many Requests`** — the sender exceeded the per-sender window. No TwiML is returned; a retry is the intended behaviour for a throttled sender.
+- **`503 Service Unavailable`** — verification is enabled but `TWILIO_AUTH_TOKEN` is not configured.
 
 ---
 

@@ -25,6 +25,8 @@ import base64
 import hashlib
 import hmac
 import logging
+import time
+from collections import OrderedDict
 from collections.abc import Mapping
 from xml.sax.saxutils import escape
 
@@ -58,6 +60,42 @@ _sender_limiter = RateLimiter(
     requests_limit=settings.WHATSAPP_RATE_LIMIT_REQUESTS,
     window_seconds=settings.WHATSAPP_RATE_LIMIT_WINDOW,
 )
+
+# MessageSid dedupe: Twilio retries the webhook when it does not answer in ~15s
+# (then with backoff), and a retry would re-run the LLM call and send the user a
+# duplicate reply. The SID is claimed *before* generation; a replay gets a 200
+# with an empty <Response>, which Twilio treats as handled and stops retrying.
+#
+# In-memory and per-process, like the throttle: a retry that lands on another
+# worker, or after a restart, can still duplicate. DB-backed dedupe arrives with
+# conversation persistence (the Phase 11 follow-up in my_tasks.md).
+_SID_TTL_SECONDS = 3600  # an hour comfortably covers Twilio's retry backoff
+_SID_CACHE_MAX = 10_000  # bound memory no matter what a sender posts
+_sid_cache: OrderedDict[str, float] = OrderedDict()
+
+
+def _claim_message_sid(sid: str) -> bool:
+    """Claim ``sid``; return ``False`` when it was already claimed (a retry).
+
+    Only ever called from the event-loop coroutine with no ``await`` inside, so
+    no lock is needed within a process.
+    """
+    now = time.monotonic()
+
+    # Expired entries leave from the front (oldest insertion first).
+    while _sid_cache:
+        _, claimed_at = next(iter(_sid_cache.items()))
+        if now - claimed_at <= _SID_TTL_SECONDS:
+            break
+        _sid_cache.popitem(last=False)
+
+    if sid in _sid_cache:
+        return False
+
+    _sid_cache[sid] = now
+    while len(_sid_cache) > _SID_CACHE_MAX:
+        _sid_cache.popitem(last=False)
+    return True
 
 
 def _expected_signature(url: str, params: Mapping[str, str], auth_token: str) -> str:
@@ -134,17 +172,21 @@ def _truncate(message: str, limit: int = _MAX_REPLY_CHARS) -> str:
     return window.rstrip()
 
 
-def _twiml(message: str) -> Response:
+def _twiml(message: str | None = None) -> Response:
     """Build a single-<Message> TwiML response.
 
     ``escape`` matters: the text is LLM output, which is untrusted as far as XML is
     concerned. The bare ``<Response>`` (no namespace) is what Twilio's own examples
-    use.
+    use. ``message=None`` yields an empty ``<Response>`` — the "handled, nothing
+    to send" answer for a duplicated MessageSid.
     """
-    xml = (
-        '<?xml version="1.0" encoding="UTF-8"?>'
-        f"<Response><Message>{escape(message)}</Message></Response>"
-    )
+    if message is None:
+        xml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
+    else:
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            f"<Response><Message>{escape(message)}</Message></Response>"
+        )
     return Response(content=xml, media_type="application/xml")
 
 
@@ -169,6 +211,16 @@ async def whatsapp_webhook(request: Request) -> Response:
 
     # After verification: unauthenticated junk cannot consume a real sender's budget.
     _sender_limiter.check(params.get("From") or "unknown")
+
+    # Twilio retries the webhook on a timeout; claim the MessageSid before
+    # spending an LLM call so a retry cannot send a duplicate reply. A replay
+    # gets a 200 with an empty <Response> — already handled, nothing to add.
+    message_sid = params.get("MessageSid") or ""
+    if message_sid and not _claim_message_sid(message_sid):
+        logger.info(
+            "Duplicate WhatsApp MessageSid %s — Twilio retry, not replying again", message_sid
+        )
+        return _twiml()
 
     body = (params.get("Body") or "").strip()
     language = detect_language(body)
