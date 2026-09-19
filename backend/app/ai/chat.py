@@ -35,6 +35,11 @@ _FALLBACK_REPLIES = {
 }
 
 
+def fallback_reply(language: str) -> str:
+    """Canned per-language reply used when the LLM is unavailable."""
+    return _FALLBACK_REPLIES.get(language, _FALLBACK_REPLIES["en"])
+
+
 def _build_prompt(message: str, history: list[ChatTurn], language: str) -> str:
     history_lines: list[str] = []
     for turn in history[-_MAX_HISTORY:]:
@@ -71,7 +76,7 @@ def generate_chat_reply(
     language: str = "en",
 ) -> tuple[str, bool]:
     """Return (reply_text, provider_available)."""
-    fallback = _FALLBACK_REPLIES.get(language, _FALLBACK_REPLIES["en"])
+    fallback = fallback_reply(language)
     try:
         reply = llm.generate(_build_prompt(message, history or [], language)).strip()
         if reply:
