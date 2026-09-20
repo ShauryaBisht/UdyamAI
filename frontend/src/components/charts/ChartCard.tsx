@@ -1,36 +1,60 @@
 'use client';
 
 import React from 'react';
+import Card, { CardHeader } from '@/components/ui/Card';
+import { Loader2, BarChart2 } from 'lucide-react';
 
 interface ChartCardProps {
   title: string;
   subtitle?: string;
-  /** When real chart content is ready, pass it as children. Until then, shows a skeleton. */
+  action?: React.ReactNode;
+  loading?: boolean;
+  empty?: boolean;
+  hasData?: boolean;
+  emptyMessage?: string;
   children?: React.ReactNode;
+  className?: string;
 }
 
-export default function ChartCard({ title, subtitle, children }: ChartCardProps) {
-  return (
-    <div className="rounded-xl border border-gray-200 p-6 bg-white">
-      <div className="mb-4">
-        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-        {subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
-      </div>
+export default function ChartCard({
+  title,
+  subtitle,
+  action,
+  loading = false,
+  empty = false,
+  hasData,
+  emptyMessage = 'No data available for this analysis period.',
+  children,
+  className = '',
+}: ChartCardProps) {
+  // Determine if we should display empty state
+  const isExplicitlyEmpty = empty || hasData === false;
+  const hasContent = Boolean(children) && !isExplicitlyEmpty;
 
-      {children ? (
-        children
+  return (
+    <Card className={`overflow-hidden ${className}`}>
+      <CardHeader title={title} subtitle={subtitle} action={action} />
+
+      {loading ? (
+        // Real loading state
+        <div className="py-12 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          <p className="text-xs font-medium">Loading visualization data…</p>
+        </div>
+      ) : hasContent ? (
+        // Loaded with data
+        <div className="mt-2">{children}</div>
       ) : (
-        // ---- Skeleton placeholder (no data wired up yet) ----
-        <div className="h-48 flex items-end gap-2 px-2">
-          {[40, 65, 30, 80, 55, 45, 70].map((height, i) => (
-            <div
-              key={i}
-              className="flex-1 bg-gray-100 rounded-t animate-pulse"
-              style={{ height: `${height}%` }}
-            />
-          ))}
+        // Loaded with no data — honest empty state
+        <div className="py-10 px-4 flex flex-col items-center justify-center text-center gap-2 border-t border-border/40 mt-3">
+          <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-[#1F242C] flex items-center justify-center text-slate-400 dark:text-slate-500">
+            <BarChart2 className="h-5 w-5" />
+          </div>
+          <p className="text-xs font-medium text-muted-foreground max-w-xs leading-relaxed">
+            {emptyMessage}
+          </p>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

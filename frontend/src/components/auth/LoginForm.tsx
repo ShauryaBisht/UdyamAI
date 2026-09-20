@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Lock, Mail } from 'lucide-react';
+import { ArrowRight, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useLanguageStore } from '@/stores/languageStore';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
@@ -56,12 +56,10 @@ export default function LoginForm() {
           password,
         });
         if (signInError) {
-          // "Invalid login credentials" etc. -> friendly localized message
           console.error('Sign-in failed:', signInError);
           setError(t('login.authFailed'));
           return;
         }
-        // Session cookies are set by supabase-js; middleware will let us in.
         router.push('/setup');
       } else {
         const { data, error: signUpError } = await supabase.auth.signUp({
@@ -71,10 +69,8 @@ export default function LoginForm() {
         if (signUpError) throw signUpError;
 
         if (data.session) {
-          // Email confirmations are off: session is ready immediately.
           router.push('/setup');
         } else {
-          // Supabase sent a confirmation email; ask the user to confirm first.
           switchMode('signin');
           setInfo(t('login.confirmEmail'));
         }
@@ -90,21 +86,52 @@ export default function LoginForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-2xl border bg-white p-8 shadow-sm"
+      className="rounded-3xl border border-slate-200/80 bg-white p-8 sm:p-10 shadow-2xl"
     >
-      <h2 className="text-2xl font-bold text-slate-900">
-        {mode === 'signin' ? t('login.welcome') : t('login.createAccount')}
-      </h2>
-      <p className="mt-2 text-sm text-slate-500">{t('login.subtitle')}</p>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+          {mode === 'signin' ? t('login.welcome') : t('login.createAccount')}
+        </h2>
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <ShieldCheck className="h-4 w-4" />
+        </div>
+      </div>
+      <p className="text-xs sm:text-sm text-foreground-muted">{t('login.subtitle')}</p>
+
+      {/* Mode switcher pill tabs */}
+      <div className="mt-6 grid grid-cols-2 gap-1 rounded-full bg-slate-100 p-1.5 border border-slate-200/60">
+        <button
+          type="button"
+          onClick={() => switchMode('signin')}
+          className={`py-2 text-xs font-bold uppercase tracking-wider rounded-full transition-all duration-200 ${
+            mode === 'signin'
+              ? 'bg-white text-primary shadow-sm font-black'
+              : 'text-foreground-muted hover:text-foreground'
+          }`}
+        >
+          {t('login.signIn')}
+        </button>
+        <button
+          type="button"
+          onClick={() => switchMode('signup')}
+          className={`py-2 text-xs font-bold uppercase tracking-wider rounded-full transition-all duration-200 ${
+            mode === 'signup'
+              ? 'bg-white text-primary shadow-sm font-black'
+              : 'text-foreground-muted hover:text-foreground'
+          }`}
+        >
+          {t('login.signUp')}
+        </button>
+      </div>
 
       <div className="mt-6 space-y-4">
         <div>
-          <label htmlFor="email" className="mb-2 block text-sm font-medium text-slate-700">
+          <label htmlFor="email" className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-foreground-muted">
             {t('login.email')}
           </label>
           <div className="relative">
             <Mail
-              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted"
               aria-hidden="true"
             />
             <input
@@ -117,18 +144,18 @@ export default function LoginForm() {
                 setError('');
               }}
               placeholder={t('login.placeholder')}
-              className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 text-foreground"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="password" className="mb-2 block text-sm font-medium text-slate-700">
+          <label htmlFor="password" className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-foreground-muted">
             {t('login.password')}
           </label>
           <div className="relative">
             <Lock
-              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground-muted"
               aria-hidden="true"
             />
             <input
@@ -141,38 +168,39 @@ export default function LoginForm() {
                 setError('');
               }}
               placeholder={t('login.passwordPlaceholder')}
-              className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 text-foreground"
             />
           </div>
         </div>
 
-        {info && <p className="text-sm text-emerald-600">{info}</p>}
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {info && (
+          <p className="rounded-2xl border border-blue-200 bg-blue-50 p-3.5 text-xs sm:text-sm font-semibold text-primary">
+            {info}
+          </p>
+        )}
+        {error && (
+          <p className="rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs sm:text-sm font-semibold text-rose-700">
+            {error}
+          </p>
+        )}
       </div>
 
       <button
         type="submit"
         disabled={submitting}
-        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3 font-semibold text-white transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 disabled:opacity-60"
+        className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-4 font-bold text-white shadow-fintech-btn transition-all duration-200 hover:bg-primary-600 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60"
       >
         {submitting ? (
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-        ) : mode === 'signin' ? (
-          t('login.signIn')
         ) : (
-          t('login.signUp')
+          <>
+            {mode === 'signin' ? t('login.signIn') : t('login.signUp')}
+            <ArrowRight className="h-4 w-4" />
+          </>
         )}
       </button>
 
-      <button
-        type="button"
-        onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}
-        className="mt-4 w-full text-center text-sm font-medium text-slate-500 transition hover:text-slate-800"
-      >
-        {mode === 'signin' ? t('login.switchToSignUp') : t('login.switchToSignIn')}
-      </button>
-
-      <p className="mt-4 text-center text-xs text-slate-400">{t('login.authNote')}</p>
+      <p className="mt-5 text-center text-xs text-foreground-subtle">{t('login.authNote')}</p>
     </form>
   );
 }

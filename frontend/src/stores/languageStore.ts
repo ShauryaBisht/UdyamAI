@@ -13,25 +13,32 @@ interface LanguageState {
   hydrated: boolean;
   setLanguage: (language: Language) => void;
   hydrate: () => void;
-  t: (key: string) => string;
+  t: (key: string, fallback?: string) => string;
 }
 
-export const useLanguageStore = create<LanguageState>((set) => ({
+export const useLanguageStore = create<LanguageState>((set, get) => ({
   language: 'en',
   hydrated: false,
-  t: (key: string) => translate('en', key),
+  t: (key: string, fallback?: string) => translate(get ? get().language : 'en', key, fallback),
   setLanguage: (language) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
       document.documentElement.lang = language;
     }
-    set({ language, t: (key: string) => translate(language, key) });
+    set({ language, t: (key: string, fallback?: string) => translate(language, key, fallback) });
   },
   hydrate: () => {
     if (typeof window === 'undefined') return;
     const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
     const language = isLanguage(stored) ? stored : 'en';
     document.documentElement.lang = language;
-    set({ language, hydrated: true, t: (key: string) => translate(language, key) });
+    set({ language, hydrated: true, t: (key: string, fallback?: string) => translate(language, key, fallback) });
   },
 }));
+
+export function useTranslation() {
+  const language = useLanguageStore((s) => s.language);
+  const setLanguage = useLanguageStore((s) => s.setLanguage);
+  const t = (key: string, fallback?: string) => translate(language, key, fallback);
+  return { t, language, setLanguage };
+}

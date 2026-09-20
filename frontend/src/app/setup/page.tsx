@@ -2,23 +2,26 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Loader2, Sparkles, UserRound, Building2, Mail } from 'lucide-react';
+import { ArrowRight, Loader2, UserRound, Building2, Mail } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import LanguageSwitcher from '@/components/ui/LanguageSwitcher';
+import Logo from '@/components/ui/Logo';
 import { createProfile } from '@/lib/api';
 import { storeProfile } from '@/lib/auth';
 import { useLanguageStore } from '@/stores/languageStore';
 
 const BUSINESS_TYPES = [
-  { value: '', label: 'Select type' },
-  { value: 'manufacturing', label: 'Manufacturing' },
-  { value: 'services', label: 'Services' },
-  { value: 'trading', label: 'Trading' },
-  { value: 'agriculture', label: 'Agriculture' },
-  { value: 'dairy', label: 'Dairy' },
-  { value: 'food_processing', label: 'Food Processing' },
-  { value: 'retail', label: 'Retail' },
-  { value: 'other', label: 'Other' },
+  { value: '', label: 'Select business category' },
+  { value: 'agriculture', label: 'Agriculture & Crops (Paddy/Wheat/Cotton)' },
+  { value: 'dairy', label: 'Dairy & Cattle Farming' },
+  { value: 'poultry', label: 'Poultry & Livestock' },
+  { value: 'fisheries', label: 'Fisheries & Aquaculture' },
+  { value: 'food_processing', label: 'Agro / Food Processing & Milling' },
+  { value: 'retail', label: 'Rural Retail & Kirana Store' },
+  { value: 'handloom', label: 'Handloom & Rural Handicrafts' },
+  { value: 'manufacturing', label: 'Small Scale Manufacturing' },
+  { value: 'services', label: 'Rural Services & Transport' },
+  { value: 'other', label: 'Other Enterprise' },
 ];
 
 export default function SetupPage() {
@@ -36,7 +39,6 @@ export default function SetupPage() {
 
   const email = user?.email ?? '';
 
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -48,7 +50,6 @@ export default function SetupPage() {
     setError('');
     setSaving(true);
     try {
-      // Creates/updates the profile linked to the authenticated user.
       const savedProfile = await createProfile(profile?.id ?? null, {
         name: name.trim(),
         business_name: businessName.trim(),
@@ -66,52 +67,51 @@ export default function SetupPage() {
   };
 
   const handleSkip = () => {
-    // Keep whatever profile id AuthProvider already resolved for the user.
     if (profile?.id) storeProfile(profile);
     router.push('/dashboard');
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-blue-50 px-6">
-      <div className="pointer-events-none absolute -left-32 -top-32 h-72 w-72 rounded-full bg-indigo-200/40 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 -right-32 h-80 w-80 rounded-full bg-blue-200/30 blur-3xl" />
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-6 py-12 glow-mesh-hero">
+      {/* Background glow halos */}
+      <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-blue-400/10 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-indigo-400/10 blur-3xl" />
+
       <div className="absolute right-6 top-6">
         <LanguageSwitcher />
       </div>
 
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mb-3 flex items-center justify-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100">
-              <Sparkles className="h-5 w-5 text-indigo-600" />
-            </div>
+          <div className="mb-4 flex justify-center">
+            <Logo variant="icon" size="xl" href="/" />
           </div>
-          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-primary border border-blue-200 text-xs font-bold uppercase tracking-wider">
             {t('setup.eyebrow')}
-          </p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">{t('setup.title')}</h1>
-          <p className="mt-2 text-sm text-slate-500">{t('setup.subtitle')}</p>
+          </span>
+          <h1 className="mt-3 text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{t('setup.title')}</h1>
+          <p className="mt-2 text-xs sm:text-sm text-foreground-muted">{t('setup.subtitle')}</p>
         </div>
 
         <form
           onSubmit={handleSave}
-          className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"
+          className="rounded-3xl border border-slate-200/80 bg-white p-8 sm:p-10 shadow-2xl"
         >
           {/* Email (read only) */}
-          <label className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-foreground-muted">
             {t('login.email')}
           </label>
-          <div className="mb-5 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-            <Mail className="h-4 w-4 text-slate-400" />
-            {email || '—'}
+          <div className="mb-5 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-foreground-muted font-medium">
+            <Mail className="h-4 w-4 text-primary" />
+            <span>{email || '—'}</span>
           </div>
 
           {/* Full name */}
-          <label htmlFor="setup-name" className="mb-1.5 block text-sm font-medium text-slate-700">
+          <label htmlFor="setup-name" className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-foreground-muted">
             {t('setup.nameLabel')}
           </label>
           <div className="relative mb-5">
-            <UserRound className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
+            <UserRound className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground-muted" />
             <input
               id="setup-name"
               type="text"
@@ -121,19 +121,19 @@ export default function SetupPage() {
                 setError('');
               }}
               placeholder={t('setup.namePlaceholder')}
-              className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 text-foreground"
             />
           </div>
 
           {/* Business name */}
           <label
             htmlFor="setup-business"
-            className="mb-1.5 block text-sm font-medium text-slate-700"
+            className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-foreground-muted"
           >
             {t('setup.bizNameLabel')}
           </label>
           <div className="relative mb-5">
-            <Building2 className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
+            <Building2 className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground-muted" />
             <input
               id="setup-business"
               type="text"
@@ -143,14 +143,14 @@ export default function SetupPage() {
                 setError('');
               }}
               placeholder={t('setup.bizNamePlaceholder')}
-              className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-4 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-11 pr-4 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 text-foreground"
             />
           </div>
 
           {/* Business type */}
           <label
             htmlFor="setup-biztype"
-            className="mb-1.5 block text-sm font-medium text-slate-700"
+            className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-foreground-muted"
           >
             {t('setup.bizTypeLabel')}
           </label>
@@ -158,7 +158,7 @@ export default function SetupPage() {
             id="setup-biztype"
             value={businessType}
             onChange={(e) => setBusinessType(e.target.value)}
-            className="mb-5 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            className="mb-5 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 text-foreground"
           >
             {BUSINESS_TYPES.map((bt) => (
               <option key={bt.value} value={bt.value}>
@@ -170,7 +170,7 @@ export default function SetupPage() {
           {/* Preferred language */}
           <label
             htmlFor="setup-language"
-            className="mb-1.5 block text-sm font-medium text-slate-700"
+            className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-foreground-muted"
           >
             {t('setup.langLabel')}
           </label>
@@ -178,15 +178,15 @@ export default function SetupPage() {
             id="setup-language"
             value={language}
             onChange={(e) => setLanguage(e.target.value as 'en' | 'hi' | 'mr')}
-            className="mb-6 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            className="mb-6 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-3.5 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/20 text-foreground"
           >
-            <option value="en">English</option>
-            <option value="hi">हिंदी</option>
-            <option value="mr">मराठी</option>
+            <option value="en">English (English)</option>
+            <option value="hi">हिंदी (Hindi)</option>
+            <option value="mr">मराठी (Marathi)</option>
           </select>
 
           {error && (
-            <p className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <p className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs sm:text-sm font-semibold text-rose-700">
               {error}
             </p>
           )}
@@ -194,10 +194,10 @@ export default function SetupPage() {
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3 font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2 disabled:opacity-60"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-4 font-bold text-white shadow-fintech-btn transition-all duration-200 hover:bg-primary-600 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60"
           >
             {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin" />
             ) : (
               <>
                 {t('setup.save')}
@@ -209,7 +209,7 @@ export default function SetupPage() {
           <button
             type="button"
             onClick={handleSkip}
-            className="mt-4 w-full text-center text-sm font-medium text-slate-400 transition hover:text-slate-600"
+            className="mt-4 w-full text-center text-xs font-bold text-foreground-muted transition hover:text-primary"
           >
             {t('setup.skip')}
           </button>

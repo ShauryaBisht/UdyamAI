@@ -1,6 +1,8 @@
 'use client';
 
 import ChartCard from '@/components/charts/ChartCard';
+import AmortizationChart from '@/components/charts/AmortizationChart';
+import ScenarioComparisonChart from '@/components/charts/ScenarioComparisonChart';
 
 interface FinancialSectionProps {
   data?: any;
@@ -26,10 +28,10 @@ function FinancialMetricCard({
   unit?: string;
 }) {
   return (
-    <div className="rounded-card border border-primary/10 bg-white p-5 shadow-card">
-      <p className="text-sm font-medium text-foreground/60">{label}</p>
+    <div className="rounded-2xl border border-border bg-white dark:bg-[#161B22] p-5 shadow-subtle hover:border-primary/30 transition-all">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
 
-      <p className="mt-2 text-metric-lg text-foreground">
+      <p className="mt-2 text-2xl sm:text-3xl font-extrabold font-financial tracking-tight text-foreground">
         {value != null
           ? isCurrency
             ? formatCurrency(value)
@@ -81,13 +83,13 @@ export default function FinancialSection({ data }: FinancialSectionProps) {
   const fundingData = hasFundingData
     ? [
         ...(ownCapital != null
-          ? [{ label: 'Own Capital', amount: ownCapital, percentage: Math.round((ownCapital / totalFund) * 100) }]
+          ? [{ label: 'Own Capital', amount: ownCapital, percentage: Math.round((ownCapital / totalFund) * 100), color: 'bg-primary' }]
           : []),
         ...(loanRequired != null
-          ? [{ label: 'Bank Loan Required', amount: loanRequired, percentage: Math.round((loanRequired / totalFund) * 100) }]
+          ? [{ label: 'Bank Loan Required', amount: loanRequired, percentage: Math.round((loanRequired / totalFund) * 100), color: 'bg-indigo-500' }]
           : []),
         ...(subsidyEstimated != null
-          ? [{ label: 'Government Subsidy (Est.)', amount: subsidyEstimated, percentage: Math.round((subsidyEstimated / totalFund) * 100) }]
+          ? [{ label: 'Government Subsidy (Est.)', amount: subsidyEstimated, percentage: Math.round((subsidyEstimated / totalFund) * 100), color: 'bg-cyan-500' }]
           : []),
       ]
     : [];
@@ -144,45 +146,66 @@ export default function FinancialSection({ data }: FinancialSectionProps) {
 
       {/* Loan & Repayment details */}
       {(interestRate != null || tenureMonths != null || repaymentCapacity != null) && (
-        <div className="rounded-card border border-primary/10 bg-white p-5 shadow-card">
-          <p className="text-sm font-bold text-foreground mb-3">Loan & Repayment Details</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="rounded-2xl border border-border bg-white dark:bg-[#161B22] p-6 shadow-subtle">
+          <p className="text-sm font-bold text-foreground mb-4 tracking-tight">Loan & Repayment Metrics</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {interestRate != null && (
-              <div>
-                <p className="text-xs font-medium text-foreground/60">Interest Rate</p>
-                <p className="text-lg font-bold text-foreground">{Number(interestRate).toFixed(1)}% p.a.</p>
+              <div className="border-l-2 border-primary/30 pl-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Interest Rate</p>
+                <p className="text-xl font-bold font-financial text-foreground mt-1">{Number(interestRate).toFixed(1)}% p.a.</p>
               </div>
             )}
             {tenureMonths != null && (
-              <div>
-                <p className="text-xs font-medium text-foreground/60">Loan Tenure</p>
-                <p className="text-lg font-bold text-foreground">{Number(tenureMonths)} months</p>
+              <div className="border-l-2 border-primary/30 pl-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Loan Tenure</p>
+                <p className="text-xl font-bold font-financial text-foreground mt-1">{Number(tenureMonths)} months</p>
               </div>
             )}
             {repaymentCapacity != null && (
-              <div>
-                <p className="text-xs font-medium text-foreground/60">Repayment Capacity (DSCR)</p>
-                <p className="text-lg font-bold text-foreground">{Number(repaymentCapacity).toFixed(2)}x</p>
+              <div className="border-l-2 border-primary/30 pl-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Repayment DSCR</p>
+                <p className="text-xl font-bold font-financial text-foreground mt-1">{Number(repaymentCapacity).toFixed(2)}x</p>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* AI Financial Guidance (when data is sparse) */}
-      {(projectCost == null && monthlyRevenue == null && financialAdviceList.length > 0) && (
-        <div className="rounded-card border border-primary/15 bg-primary/5 p-5 shadow-card">
-          <p className="text-xs font-bold uppercase tracking-wider text-primary mb-2">
-            AI Financial Guidance
-          </p>
-          <ul className="space-y-1.5">
+      {/* AI Financial Guidance (when data is sparse or guidance available) */}
+      {(financialAdviceList.length > 0) && (
+        <div className="rounded-2xl border border-primary/20 dark:border-primary/30 bg-primary/5 dark:bg-primary/10 p-6 shadow-subtle">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-primary">
+              AI Financial Guidance
+            </p>
+            {aiAdvice.confidence && (
+              <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                aiAdvice.confidence === 'high' ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                : aiAdvice.confidence === 'medium' ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                : 'bg-slate-100 dark:bg-[#1F242C] text-muted-foreground border-slate-200 dark:border-[#2B313C]'
+              }`}>
+                {aiAdvice.confidence.toUpperCase()} CONFIDENCE
+              </span>
+            )}
+          </div>
+          <ul className="space-y-2">
             {financialAdviceList.map((advice: string, i: number) => (
-              <li key={i} className="text-sm text-foreground flex items-start gap-1.5">
+              <li key={i} className="text-sm text-foreground flex items-start gap-2">
                 <span className="text-primary font-bold mt-0.5">•</span>
                 <span>{advice}</span>
               </li>
             ))}
           </ul>
+          {aiAdvice.sources && aiAdvice.sources.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-primary/10 dark:border-primary/20 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span className="font-semibold">Sources:</span>
+              {aiAdvice.sources.map((s: any, idx: number) => (
+                <span key={idx} className="bg-white dark:bg-[#1F242C] dark:text-slate-200 px-2 py-0.5 rounded border border-primary/15 font-mono text-[11px]">
+                  {s.claim || s.source_type || `Source #${idx + 1}`}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -191,34 +214,34 @@ export default function FinancialSection({ data }: FinancialSectionProps) {
         title="Capital & Subsidy Structure"
         subtitle="Dynamic breakdown calculated by UdyamAI Finance Engine"
       >
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-6 pt-2">
           {fundingData.length === 0 ? (
-            <p className="text-sm text-foreground/60">
+            <p className="text-sm text-muted-foreground">
               Financial breakdown will appear once the analysis pipeline computes project financing.
             </p>
           ) : (
             fundingData.map((item) => (
               <div key={item.label}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-foreground/70">
+                  <span className="text-sm font-semibold text-foreground">
                     {item.label}
                   </span>
 
-                  <span className="text-sm font-bold text-foreground">
+                  <span className="text-sm font-bold font-financial text-foreground">
                     {formatCurrency(item.amount)}
                   </span>
                 </div>
 
-                <div className="h-3 w-full overflow-hidden rounded-full bg-foreground/10">
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-[#1F242C]">
                   <div
-                    className="h-full rounded-full bg-primary transition-all duration-500"
+                    className={`h-full rounded-full ${item.color} transition-all duration-500`}
                     style={{
                       width: `${Math.min(100, Math.max(5, item.percentage))}%`,
                     }}
                   />
                 </div>
 
-                <p className="mt-1 text-xs text-foreground/50">
+                <p className="mt-1.5 text-xs text-muted-foreground">
                   {item.percentage}% of total funding structure
                 </p>
               </div>
@@ -226,6 +249,16 @@ export default function FinancialSection({ data }: FinancialSectionProps) {
           )}
         </div>
       </ChartCard>
+
+      {/* Real Loan Amortization Schedule (only rendered when real repayment data exists) */}
+      {fin.repayment_schedule && fin.repayment_schedule.length > 0 && (
+        <AmortizationChart schedule={fin.repayment_schedule} />
+      )}
+
+      {/* Financial Scenario Sensitivity (only rendered when real scenario data exists) */}
+      {fin.financial_scenarios && fin.financial_scenarios.length > 0 && (
+        <ScenarioComparisonChart scenarios={fin.financial_scenarios} />
+      )}
     </div>
   );
 }

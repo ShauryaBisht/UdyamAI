@@ -97,7 +97,7 @@ export interface StartAnalysisRequest {
   business_category_id: string;
   available_capital: number;
   desired_project_cost: number;
-  language?: 'en' | 'hi' | 'mr';
+  language?: string;
 }
 
 export interface ConsolidatedAnalysisData {
@@ -451,14 +451,30 @@ export async function downloadAnalysisPdf(analysisId: string): Promise<void> {
   window.URL.revokeObjectURL(url);
 }
 
+export interface ChatSource {
+  title?: string;
+  source_title?: string;
+  url?: string;
+  source_url?: string;
+  claim?: string;
+  source_type?: string;
+  reference_id?: string;
+}
+
 export interface ChatTurn {
   role: 'user' | 'assistant';
   content: string;
+  confidence?: 'high' | 'medium' | 'low' | 'unverified' | string;
+  rag_status?: string;
+  sources?: ChatSource[];
 }
 
 export interface ChatResponse {
   reply: string;
   provider_available: boolean;
+  confidence?: 'high' | 'medium' | 'low' | 'unverified' | string;
+  rag_status?: string;
+  sources?: ChatSource[];
 }
 
 export async function sendChatMessage(
@@ -599,6 +615,17 @@ export { formatKm };
 
 const FIN_BASE = `${API_BASE_URL}/api/v1/finance`;
 
+// ---- Finance Engine Calculation & Scenarios ----
+export async function calculateFinance(data: any) {
+  const res = await apiFetch(`${FIN_BASE}/calculate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to calculate finance (${res.status})`);
+  return res.json();
+}
+
 // ---- Expenses ----
 export async function getExpenses(profileId: string, category?: string) {
   const params = new URLSearchParams({ profile_id: profileId });
@@ -669,6 +696,9 @@ export async function addSavingsTransaction(goalId: string, data: any) {
   if (!res.ok) throw new Error(`Failed to add transaction (${res.status})`);
   return res.json();
 }
+
+export const getSavingsGoals = getSavings;
+export const contributeSavingsGoal = addSavingsTransaction;
 
 // ---- Budget ----
 export async function getBudgets(profileId: string) {
