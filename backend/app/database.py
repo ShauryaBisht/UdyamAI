@@ -8,7 +8,7 @@ from geoalchemy2.functions import GenericFunction
 from sqlalchemy import event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.pool import NullPool, StaticPool
+from sqlalchemy.pool import NullPool, QueuePool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.config import settings
@@ -62,28 +62,28 @@ def get_engine():
 
     if "postgresql" in db_url:
         try:
-            temp_eng = create_engine(db_url, connect_args={"connect_timeout": 10})
-            with temp_eng.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            temp_eng.dispose()
+            _engine = create_engine(
+                db_url,
+                poolclass=QueuePool,
+                pool_size=10,
+                max_overflow=20,
+                pool_recycle=300,
+                pool_pre_ping=True,
+                connect_args={"connect_timeout": 15},
+                echo=False,
+            )
         except Exception as exc:
             if allow_sqlite_fallback:
                 root_db = Path(__file__).resolve().parent.parent.parent / "udyamai.db"
                 db_url = f"sqlite:///{root_db.as_posix()}"
+                _engine = None
             else:
                 raise RuntimeError(
                     "Failed to connect to configured PostgreSQL database. "
                     "Set ALLOW_SQLITE_FALLBACK=true only for offline development."
                 ) from exc
 
-    if "postgresql" in db_url:
-        _engine = create_engine(
-            db_url,
-            poolclass=NullPool,
-            connect_args={"connect_timeout": 15},
-            echo=False,
-        )
-    else:
+    if _engine is None:
         connect_args = {"check_same_thread": False, "timeout": 30}
         _engine = create_engine(
             db_url,

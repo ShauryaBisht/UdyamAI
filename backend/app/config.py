@@ -62,6 +62,31 @@ class Settings(BaseSettings):
     RAG_DEFAULT_TOP_K: int = 5
     RAG_DEFAULT_SCORE_THRESHOLD: float = 0.70
 
+    # Hybrid Search Configuration
+    VECTOR_WEIGHT: float = 0.7
+    KEYWORD_WEIGHT: float = 0.3
+
+    # Reranker Configuration
+    RERANKER_TYPE: str = "score_based"  # "score_based" or "cross_encoder"
+    RERANKER_MODEL: str | None = None
+
+    # LLM Fallback Configuration
+    LLM_TIMEOUT: int = 25  # seconds per model attempt
+    LLM_FALLBACK_MODELS: str = ""  # comma-separated fallback model IDs
+    LLM_MAX_RETRIES: int = 2
+    LLM_CIRCUIT_BREAKER_THRESHOLD: int = 3  # failures before disabling a model
+    LLM_CIRCUIT_BREAKER_RESET_SECONDS: int = 300
+
+    # Caching Configuration
+    CACHE_BACKEND: str = "memory"  # "memory" or "redis"
+    CACHE_TTL: int = 3600  # seconds
+    REDIS_URL: str | None = None
+
+    # Feature Flags
+    VOICE_ENABLED: bool = True
+    WHATSAPP_ENABLED: bool = False  # Intentionally not yet implemented
+    SUPPORTED_LANGUAGES: str = "en,hi,mr,bn,ta,te,kn,ml,gu,pa,or,as"
+
     # API Rate Limiting Configuration
     API_RATE_LIMIT_REQUESTS: int = 100
     API_RATE_LIMIT_WINDOW: int = 60
