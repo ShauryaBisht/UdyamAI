@@ -4,12 +4,9 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, select
 
 from app.api.deps import get_current_profile, get_current_user
-from app.database import get_session
 from app.main import app
-from app.models.system import UserSettings
 from app.models.user import Profile
 from app.services.auth_service import AuthUser
 
