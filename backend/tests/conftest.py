@@ -7,7 +7,6 @@ import pytest
 from fastapi import Depends
 from fastapi.testclient import TestClient
 from sqlalchemy import event
-from sqlalchemy.engine import Engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -44,8 +43,6 @@ from app.models.location import District, Taluka, Village
 from app.models.user import Profile
 from app.schemas.feasibility import AnalysisStatusResponse
 from app.services.auth_service import AuthUser
-
-
 
 # Register sqlite3 adapter for list serialization in SQLite in-memory test databases
 sqlite3.register_adapter(list, json.dumps)
