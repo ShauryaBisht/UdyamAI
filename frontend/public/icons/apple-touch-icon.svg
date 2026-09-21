@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <defs>
+    <linearGradient id="appleBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="applePrimaryGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="appleAccentGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+  <!-- Full bleed for iOS Apple Touch Icon (iOS automatically applies square mask & corner radius) -->
+  <rect width="180" height="180" fill="url(#appleBg)" />
+  <circle cx="90" cy="90" r="55" fill="#10b981" opacity="0.15" filter="blur(14px)" />
+  
+  <g transform="translate(90, 90) scale(0.95)">
+    <path d="M -48,-12 C -48,-42 -22,-62 0,-62 C 22,-62 48,-42 48,-12 C 48,22 22,56 0,62 C -22,56 -48,22 -48,-12 Z" fill="none" stroke="url(#applePrimaryGlow)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="0" cy="-6" r="14" fill="url(#appleAccentGlow)" />
+    <path d="M -18,18 Q 0,0 24,-14 Q 8,14 -12,30 Z" fill="url(#applePrimaryGlow)" />
+    <circle cx="-28" cy="22" r="4" fill="#34d399" />
+    <circle cx="28" cy="22" r="4" fill="#34d399" />
+    <circle cx="0" cy="42" r="5" fill="#f59e0b" />
+  </g>
+</svg>

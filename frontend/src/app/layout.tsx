@@ -1,17 +1,35 @@
 import './globals.css';
 import React from 'react';
+import type { Metadata, Viewport } from 'next';
 import AuthProvider from '@/components/auth/AuthProvider';
 import ChatWidget from '@/components/chat/ChatWidget';
 import LanguageProvider from '@/components/i18n/LanguageProvider';
 import ThemeProvider from '@/components/theme/ThemeProvider';
+import ServiceWorkerRegister from '@/components/pwa/ServiceWorkerRegister';
+import OfflineBanner from '@/components/ui/OfflineBanner';
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "UdyamAI — Rural FinTech & Business Feasibility Platform",
   description: "AI-Powered Business Feasibility, Rural Finance & Government Scheme Intelligence",
+  manifest: "/manifest.json",
+  applicationName: "UdyamAI",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "UdyamAI",
+  },
   icons: {
     icon: "/logo-icon.svg",
-    apple: "/logo-icon.svg",
+    apple: "/icons/apple-touch-icon.svg",
+    shortcut: "/logo-icon.svg",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f172a",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 const themeScript = `
@@ -41,6 +59,8 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
+        <ServiceWorkerRegister />
+        <OfflineBanner />
         <ThemeProvider>
           <LanguageProvider>
             <AuthProvider>
@@ -53,3 +73,4 @@ export default function RootLayout({
     </html>
   );
 }
+

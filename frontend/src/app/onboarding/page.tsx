@@ -112,12 +112,22 @@ export default function OnboardingPage() {
       timestamp: new Date().toISOString(),
     };
 
-    try {
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("udyam_analysis_inputs", JSON.stringify(analysisData));
-        localStorage.setItem("udyam_analysis_inputs", JSON.stringify(analysisData));
-      }
+    // Save inputs to session/local storage
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("udyam_analysis_inputs", JSON.stringify(analysisData));
+      localStorage.setItem("udyam_analysis_inputs", JSON.stringify(analysisData));
+      localStorage.setItem("udyam_draft_analysis", JSON.stringify(analysisData));
+    }
 
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setError(
+        "You are currently offline. Your business inputs have been saved as a draft. Please reconnect to the internet to generate fresh AI feasibility assessments."
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
       // Call backend POST /api/v1/analysis
       const res = await startAnalysis({
         village_id: villageId,
@@ -131,6 +141,7 @@ export default function OnboardingPage() {
       if (analysisId) {
         if (typeof window !== "undefined") {
           localStorage.setItem("udyam_active_analysis_id", String(analysisId));
+          localStorage.removeItem("udyam_draft_analysis");
         }
         router.push(`/dashboard?analysis_id=${analysisId}`);
       } else {
@@ -138,7 +149,13 @@ export default function OnboardingPage() {
       }
     } catch (e: any) {
       console.error("Analysis submission error:", e);
-      setError(e.message || t('onboard.submitFail'));
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setError(
+          "Network disconnected. Your inputs were preserved as a draft. Reconnect to calculate feasibility."
+        );
+      } else {
+        setError(e.message || t('onboard.submitFail'));
+      }
       setIsSubmitting(false);
     }
   };

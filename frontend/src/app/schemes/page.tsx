@@ -101,9 +101,24 @@ export default function SchemesPage() {
       setLoading(true);
       try {
         const data = await getSchemes();
-        setSchemes(data.length > 0 ? data : FALLBACK_SCHEMES);
+        const activeList = data.length > 0 ? data : FALLBACK_SCHEMES;
+        setSchemes(activeList);
+        if (typeof window !== 'undefined' && data.length > 0) {
+          localStorage.setItem('udyam_cached_schemes', JSON.stringify(data));
+        }
       } catch (err) {
-        console.warn('API error, using fallback schemes directory:', err);
+        console.warn('API error, using cached or fallback schemes directory:', err);
+        if (typeof window !== 'undefined') {
+          const cached = localStorage.getItem('udyam_cached_schemes');
+          if (cached) {
+            try {
+              setSchemes(JSON.parse(cached));
+              return;
+            } catch (e) {
+              console.warn('Could not parse cached schemes:', e);
+            }
+          }
+        }
         setSchemes(FALLBACK_SCHEMES);
       } finally {
         setLoading(false);
