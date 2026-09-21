@@ -19,4 +19,3 @@ def test_verify_db_connection_failure():
 
         result = verify_db_connection()
         assert result is False
-

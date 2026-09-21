@@ -84,6 +84,7 @@ def _supabase_auth_overrides(test_engine):
     green. Tests that specifically exercise auth failures should clear
     ``app.dependency_overrides`` for their own assertions.
     """
+
     def _get_test_session():
         with Session(test_engine) as session:
             yield session
