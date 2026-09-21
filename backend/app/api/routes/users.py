@@ -189,7 +189,7 @@ def delete_current_user_profile(
     session.exec(delete(AnalysisRun).where(AnalysisRun.user_id == profile_id))
 
     # 4. Delete profile row
-    session.delete(profile)
+    session.exec(delete(Profile).where(Profile.id == profile_id))
     session.commit()
 
     # 5. Optionally delete from Supabase Auth Admin if service role key is configured

@@ -5,9 +5,37 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, create_engine
 
 from app.api.deps import get_current_profile, get_current_user
+from app.database import get_session
 from app.main import app
+from app.models import (  # noqa: F401
+    agriculture,
+    ai,
+    analysis,
+    budget,
+    business,
+    cash_flow,
+    credit,
+    debt,
+    economic,
+    expenses,
+    finance,
+    infrastructure,
+    livestock,
+    location,
+    market,
+    provenance,
+    rag,
+    report,
+    savings,
+    scheme,
+    system,
+    user,
+    weather,
+)
 from app.models.analysis import AnalysisRun
 from app.models.location import District, Taluka, Village
 from app.models.user import Profile
@@ -36,17 +64,33 @@ def _fake_auth_profile() -> Profile:
     )
 
 
+@pytest.fixture(scope="session")
+def test_engine():
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SQLModel.metadata.create_all(engine)
+    return engine
+
+
 @pytest.fixture(scope="function", autouse=True)
-def _supabase_auth_overrides():
-    """Run route tests as an authenticated Supabase user.
+def _supabase_auth_overrides(test_engine):
+    """Run route tests as an authenticated Supabase user and test database.
 
     Protected routers resolve identity through ``get_current_user`` /
     ``get_current_profile``; overriding them here keeps pre-auth tests
     green. Tests that specifically exercise auth failures should clear
     ``app.dependency_overrides`` for their own assertions.
     """
+    def _get_test_session():
+        with Session(test_engine) as session:
+            yield session
+
     app.dependency_overrides[get_current_user] = _fake_auth_user
     app.dependency_overrides[get_current_profile] = _fake_auth_profile
+    app.dependency_overrides[get_session] = _get_test_session
     yield
     app.dependency_overrides.clear()
 

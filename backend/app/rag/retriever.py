@@ -1,3 +1,4 @@
+import json
 import logging
 import math
 import re
@@ -237,20 +238,32 @@ def retrieve_evidence(
     invalid_dim_count = 0
 
     for chunk, doc in results:
-        if not chunk.embedding:
+        emb = chunk.embedding
+        if emb is None:
             skipped_count += 1
             logger.debug(f"Skipping chunk {chunk.id}: missing vector embedding.")
             continue
 
-        if len(chunk.embedding) != EXPECTED_EMBEDDING_DIMENSION:
+        if isinstance(emb, str):
+            try:
+                emb = json.loads(emb)
+            except Exception:
+                try:
+                    emb = [float(x.strip()) for x in emb.strip("[]()").split(",") if x.strip()]
+                except Exception:
+                    pass
+        elif hasattr(emb, "tolist"):
+            emb = emb.tolist()
+
+        if not isinstance(emb, (list, tuple)) or len(emb) != EXPECTED_EMBEDDING_DIMENSION:
             invalid_dim_count += 1
             logger.warning(
-                f"Skipping chunk {chunk.id}: embedding dimension {len(chunk.embedding)} "
+                f"Skipping chunk {chunk.id}: embedding dimension {len(emb) if hasattr(emb, '__len__') else 'unknown'} "
                 f"!= expected {EXPECTED_EMBEDDING_DIMENSION}."
             )
             continue
 
-        score = _cosine_similarity(chunk.embedding, query_vector)
+        score = _cosine_similarity(emb, query_vector)
         if score >= threshold:
             scored_candidates.append((chunk, doc, score))
 
