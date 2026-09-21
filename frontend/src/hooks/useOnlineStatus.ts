@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState<boolean>(() => {
@@ -11,6 +11,7 @@ export function useOnlineStatus() {
   });
 
   const [justReconnected, setJustReconnected] = useState<boolean>(false);
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -18,15 +19,21 @@ export function useOnlineStatus() {
     const handleOnline = () => {
       setIsOnline(true);
       setJustReconnected(true);
-      const timer = setTimeout(() => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
+      reconnectTimerRef.current = setTimeout(() => {
         setJustReconnected(false);
       }, 4000);
-      return () => clearTimeout(timer);
     };
 
     const handleOffline = () => {
       setIsOnline(false);
       setJustReconnected(false);
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
     };
 
     window.addEventListener('online', handleOnline);
@@ -36,6 +43,9 @@ export function useOnlineStatus() {
     setIsOnline(navigator.onLine);
 
     return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+      }
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -43,3 +53,4 @@ export function useOnlineStatus() {
 
   return { isOnline, justReconnected };
 }
+

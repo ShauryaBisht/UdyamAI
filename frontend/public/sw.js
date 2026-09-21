@@ -1,11 +1,11 @@
 // UdyamAI Progressive Web App (PWA) Service Worker
-const CACHE_VERSION = 'udyam-v1';
+// Version: 1.1 - Secure shared-device isolation & resilient precaching
+const CACHE_VERSION = 'udyam-v2';
 const STATIC_CACHE = `udyam-static-${CACHE_VERSION}`;
-const RUNTIME_CACHE = `udyam-runtime-${CACHE_VERSION}`;
+const PUBLIC_API_CACHE = `udyam-public-api-${CACHE_VERSION}`;
 
 // Pre-cached core app shell assets
 const PRECACHE_ASSETS = [
-  '/',
   '/offline.html',
   '/manifest.json',
   '/logo-icon.svg',
@@ -15,20 +15,28 @@ const PRECACHE_ASSETS = [
   '/icons/apple-touch-icon.svg',
 ];
 
-// Install Event: Precache static core assets
+// Install Event: Resilient individual precaching
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(STATIC_CACHE)
-      .then((cache) => cache.addAll(PRECACHE_ASSETS))
-      .then(() => self.skipWaiting())
-      .catch((err) => {
-        console.warn('[SW] Precache failed:', err);
+      .then((cache) => {
+        return Promise.allSettled(
+          PRECACHE_ASSETS.map((asset) =>
+            fetch(asset)
+              .then((res) => {
+                if (res.ok) return cache.put(asset, res);
+                throw new Error(`Failed to fetch ${asset}`);
+              })
+              .catch((err) => console.warn(`[SW] Precache item failed: ${asset}`, err))
+          )
+        );
       })
+      .then(() => self.skipWaiting())
   );
 });
 
-// Activate Event: Purge outdated caches
+// Activate Event: Purge old cache versions
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
@@ -36,7 +44,7 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key !== STATIC_CACHE && key !== RUNTIME_CACHE)
+            .filter((key) => key !== STATIC_CACHE && key !== PUBLIC_API_CACHE)
             .map((key) => caches.delete(key))
         )
       )
@@ -47,27 +55,30 @@ self.addEventListener('activate', (event) => {
 // Message Listener: Support explicit cache clearing on user logout (§7.1 Shared Device Security)
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'CLEAR_USER_CACHE') {
-    caches.delete(RUNTIME_CACHE).then(() => {
-      console.log('[SW] Runtime user cache purged on logout.');
-    });
+    event.waitUntil(
+      caches.delete(PUBLIC_API_CACHE).then(() => {
+        console.log('[SW] Public API cache purged on logout.');
+      })
+    );
   }
 });
 
-// Helper: Determine if URL is a read-heavy cacheable API endpoint
-function isCacheableApi(url) {
+// Helper: Determine if URL is a public, non-authenticated catalog endpoint safe to cache
+function isPublicCatalogApi(url) {
   const pathname = url.pathname;
-  return (
-    pathname.startsWith('/api/v1/schemes') ||
-    pathname.startsWith('/api/v1/analysis')
-  );
+  // ONLY public schemes directory is cached in SW. Authenticated user analysis is NEVER stored in SW cache.
+  return pathname.startsWith('/api/v1/schemes');
 }
 
-// Helper: Determine if URL is a live streaming / non-cacheable API
-function isLiveAiOrAuthApi(url) {
+// Helper: Determine if URL is a live streaming, authenticated, or user-private endpoint
+function isPrivateOrLiveApi(url) {
   const pathname = url.pathname;
   return (
     pathname.startsWith('/api/v1/chat') ||
     pathname.startsWith('/api/v1/auth') ||
+    pathname.startsWith('/api/v1/analysis') ||
+    pathname.startsWith('/api/v1/expenses') ||
+    pathname.startsWith('/api/v1/finance') ||
     pathname.startsWith('/webhooks')
   );
 }
@@ -83,45 +94,30 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // 1. Bypass Service Worker for live AI streams, chat, and auth
-  if (isLiveAiOrAuthApi(url)) {
+  // 1. Bypass Service Worker for private user APIs, auth, and live AI streams
+  if (isPrivateOrLiveApi(url)) {
     return;
   }
 
-  // 2. Navigation (HTML Pages): Stale-While-Revalidate with offline fallback
+  // 2. Navigation (HTML Pages): Network first, fallback to offline.html
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(RUNTIME_CACHE).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(async () => {
-          const cachedResponse = await caches.match(request);
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          // Fallback to offline page
-          const offlinePage = await caches.match('/offline.html');
-          return offlinePage || new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
-        })
+      fetch(request).catch(async () => {
+        const offlinePage = await caches.match('/offline.html');
+        return offlinePage || new Response('You are offline. Please reconnect.', { status: 503, statusText: 'Offline' });
+      })
     );
     return;
   }
 
-  // 3. API Requests (Schemes & Feasibility Analysis): Network-First with Cache fallback
-  if (url.origin === self.location.origin && isCacheableApi(url)) {
+  // 3. Public Schemes Catalog API: Network-First with Cache Storage fallback
+  if (url.origin === self.location.origin && isPublicCatalogApi(url)) {
     event.respondWith(
       fetch(request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const responseClone = networkResponse.clone();
-            caches.open(RUNTIME_CACHE).then((cache) => {
+            caches.open(PUBLIC_API_CACHE).then((cache) => {
               cache.put(request, responseClone);
             });
           }

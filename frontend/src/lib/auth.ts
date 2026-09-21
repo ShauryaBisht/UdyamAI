@@ -57,12 +57,12 @@ export function clearAuthStorage() {
     window.sessionStorage.removeItem(key);
   });
 
-  // 2. Remove any cached business analysis or user reports
+  // 2. Remove any cached business analysis or user reports from localStorage
   try {
     const keysToRemove: string[] = [];
     for (let i = 0; i < window.localStorage.length; i++) {
       const k = window.localStorage.key(i);
-      if (k && (k.startsWith('udyam_cached_') || k.startsWith('udyam_draft_'))) {
+      if (k && (k.startsWith('udyam_cached_') || k.startsWith('udyam_draft_') || k.startsWith('udyam_latest_'))) {
         keysToRemove.push(k);
       }
     }
@@ -71,17 +71,34 @@ export function clearAuthStorage() {
     console.warn('Error clearing cached user storage:', e);
   }
 
-  // 3. Notify Service Worker to purge runtime cache for shared device privacy (§7.1)
-  if (
-    typeof navigator !== 'undefined' &&
-    'serviceWorker' in navigator &&
-    navigator.serviceWorker.controller
-  ) {
+  // 3. Direct window-side cache deletion
+  if (typeof window !== 'undefined' && 'caches' in window) {
     try {
-      navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_USER_CACHE' });
+      caches.keys().then((names) => {
+        names.forEach((name) => {
+          if (name.includes('runtime') || name.includes('public-api')) {
+            caches.delete(name);
+          }
+        });
+      });
+    } catch (e) {
+      console.warn('Error purging window caches:', e);
+    }
+  }
+
+  // 4. Notify Service Worker to purge runtime cache for shared device privacy (§7.1)
+  if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+    try {
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_USER_CACHE' });
+      }
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.active?.postMessage({ type: 'CLEAR_USER_CACHE' });
+      });
     } catch (e) {
       console.warn('Could not notify service worker on logout:', e);
     }
   }
 }
+
 
