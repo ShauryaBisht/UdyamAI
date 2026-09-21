@@ -1,80 +1,110 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import AppShell from '@/components/ui/AppShell';
 import Link from 'next/link';
+import {
+  Building2,
+  ExternalLink,
+  Filter,
+  Loader2,
+  Search,
+  Sparkles,
+  Award,
+  ArrowRight,
+  Landmark,
+  ShieldCheck,
+  CheckCircle2,
+} from 'lucide-react';
+import AppShell from '@/components/ui/AppShell';
 import { getSchemes } from '@/lib/api';
-import { Building2, ExternalLink, Search, Sparkles, Award, ShieldCheck, Loader2 } from 'lucide-react';
-import { useLanguageStore } from '@/stores/languageStore';
+import { useTranslation } from '@/stores/languageStore';
+import StatusBadge from '@/components/ui/StatusBadge';
 
-interface SchemeItem {
+export interface GovernmentScheme {
   id: string;
   name: string;
   description?: string;
   agency_name?: string;
-  state?: string;
-  official_url?: string;
-  active?: boolean;
+  scheme_type?: string;
+  max_subsidy_percentage?: number;
+  max_loan_amount?: number;
+  target_sectors?: string[];
 }
 
-const FEATURED_SCHEMES: SchemeItem[] = [
+const FALLBACK_SCHEMES: GovernmentScheme[] = [
   {
     id: 'pmegp',
-    name: 'Prime Minister’s Employment Generation Programme (PMEGP)',
-    description: 'Credit-linked subsidy scheme offering 15% to 35% margin money subsidy for rural micro-enterprises across manufacturing and service sectors. Maximum project cost ₹50 Lakhs.',
-    agency_name: 'KVIC / DIC Maharashtra',
-    state: 'Maharashtra / All India',
-    official_url: 'https://kviconline.gov.in/pmegpeportal',
-    active: true,
+    name: 'Prime Minister Employment Generation Programme (PMEGP)',
+    description:
+      'Credit-linked subsidy programme for setting up new micro-enterprises in non-farm sector. Margin money subsidy up to 35% in rural areas.',
+    agency_name: 'KVIC / Ministry of MSME',
+    scheme_type: 'subsidy',
+    max_subsidy_percentage: 35,
+    max_loan_amount: 5000000,
+    target_sectors: ['manufacturing', 'services', 'agro_processing'],
+  },
+  {
+    id: 'mudra',
+    name: 'Pradhan Mantri MUDRA Yojana (PMMY)',
+    description:
+      'Collateral-free institutional loans up to ₹10 Lakh for micro and small enterprises (Shishu up to ₹50k, Kishor up to ₹5L, Tarun up to ₹10L).',
+    agency_name: 'MUDRA / Department of Financial Services',
+    scheme_type: 'loan',
+    max_subsidy_percentage: 0,
+    max_loan_amount: 1000000,
+    target_sectors: ['manufacturing', 'services', 'retail', 'trading'],
+  },
+  {
+    id: 'stand-up-india',
+    name: 'Stand-Up India Scheme',
+    description:
+      'Facilitates bank loans between ₹10 Lakh and ₹1 Crore to at least one SC/ST and at least one woman borrower per bank branch for setting up greenfield enterprises.',
+    agency_name: 'SIDBI / Ministry of Finance',
+    scheme_type: 'loan',
+    max_subsidy_percentage: 0,
+    max_loan_amount: 10000000,
+    target_sectors: ['manufacturing', 'services', 'trading', 'agriculture_allied'],
   },
   {
     id: 'pmfme',
     name: 'PM Formalisation of Micro Food Processing Enterprises (PMFME)',
-    description: '35% credit-linked capital subsidy up to ₹10 Lakhs for individual micro food processing, dairy, agro-processing, and livestock units.',
+    description:
+      'Credit-linked capital subsidy at 35% of eligible project cost with a maximum ceiling of ₹10 Lakh per unit for individual micro food processing units.',
     agency_name: 'Ministry of Food Processing Industries (MoFPI)',
-    state: 'Maharashtra / All India',
-    official_url: 'https://pmfme.mofpi.gov.in',
-    active: true,
+    scheme_type: 'subsidy',
+    max_subsidy_percentage: 35,
+    max_loan_amount: 1000000,
+    target_sectors: ['agro_processing', 'food_processing'],
   },
   {
-    id: 'mudra',
-    name: 'Pradhan Mantri MUDRA Yojana (Shishu, Kishor & Tarun)',
-    description: 'Collateral-free institutional bank credit up to ₹10 Lakhs (Kishor category up to ₹5 Lakhs) for non-farm micro enterprises and rural business setups.',
-    agency_name: 'MUDRA Ltd / PSU Commercial Banks',
-    state: 'All India',
-    official_url: 'https://www.mudra.org.in',
-    active: true,
-  },
-  {
-    id: 'didf',
-    name: 'Dairy Processing & Infrastructure Development Fund (DIDF)',
-    description: 'Concessional interest subvention (up to 2.5% p.a.) for milk processing plants, chilling centers, and livestock product processing units.',
-    agency_name: 'NABARD / DAHD Government of India',
-    state: 'All India',
-    official_url: 'https://www.nabard.org',
-    active: true,
+    id: 'kcc',
+    name: 'Kisan Credit Card (KCC) Scheme',
+    description:
+      'Short-term credit for crop cultivation, post-harvest expenses, animal husbandry, and fisheries with 3% prompt repayment interest subvention.',
+    agency_name: 'NABARD / Ministry of Agriculture',
+    scheme_type: 'interest_subvention',
+    max_subsidy_percentage: 3,
+    max_loan_amount: 300000,
+    target_sectors: ['agriculture', 'dairy', 'poultry', 'fisheries'],
   },
 ];
 
 export default function SchemesPage() {
-  const [schemes, setSchemes] = useState<SchemeItem[]>([]);
+  const [schemes, setSchemes] = useState<GovernmentScheme[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const t = useLanguageStore((s) => s.t);
+  const [selectedType, setSelectedType] = useState<string>('all');
+  const { t } = useTranslation();
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
       try {
-        setLoading(true);
-        const apiSchemes = await getSchemes();
-        if (Array.isArray(apiSchemes) && apiSchemes.length > 0) {
-          setSchemes(apiSchemes);
-        } else {
-          setSchemes(FEATURED_SCHEMES);
-        }
+        const data = await getSchemes();
+        setSchemes(data.length > 0 ? data : FALLBACK_SCHEMES);
       } catch (err) {
-        console.warn('Using default featured schemes:', err);
-        setSchemes(FEATURED_SCHEMES);
+        console.warn('API error, using fallback schemes directory:', err);
+        setSchemes(FALLBACK_SCHEMES);
       } finally {
         setLoading(false);
       }
@@ -84,98 +114,130 @@ export default function SchemesPage() {
 
   const filteredSchemes = schemes.filter((s) => {
     const searchStr = `${s.name} ${s.description || ''} ${s.agency_name || ''}`.toLowerCase();
-    return searchStr.includes(query.toLowerCase());
+    const matchesQuery = searchStr.includes(query.toLowerCase());
+    const matchesType = selectedType === 'all' || s.scheme_type === selectedType;
+    return matchesQuery && matchesType;
   });
 
   return (
     <AppShell>
-      <main className="flex-1 max-w-5xl w-full mx-auto p-6 flex flex-col gap-6">
-        {/* Banner */}
-        <div className="rounded-2xl bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white p-8 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/20 text-blue-300 border border-blue-400/30 rounded-full text-xs font-semibold mb-3">
-              <Sparkles className="h-3.5 w-3.5 text-blue-400" /> {t('schemes.badge')}
-            </span>
-            <h1 className="text-3xl font-extrabold tracking-tight">{t('schemes.title')}</h1>
-            <p className="text-slate-300 text-sm mt-2 leading-relaxed">
-              {t('schemes.desc')}
-            </p>
+      <div className="flex-1 w-full flex flex-col gap-8">
+        {/* Hero Banner */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#1A1D24] via-[#222731] to-[#2B323F] text-white p-6 sm:p-8 lg:p-9 shadow-md border border-neutral-800/60 animate-fade-in-up">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white/[0.04] rounded-full blur-3xl pointer-events-none animate-pulse-slow" />
+          
+          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            <div className="max-w-2xl">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/10 backdrop-blur-md text-white border border-white/15 rounded-full text-xs font-semibold mb-4 transition-transform hover:scale-105">
+                <Sparkles className="h-3.5 w-3.5 text-slate-300 animate-pulse" /> {t('schemes.badge')}
+              </span>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-tight">{t('schemes.title')}</h1>
+              <p className="text-white/70 text-sm sm:text-base mt-2 font-normal leading-relaxed">
+                {t('schemes.desc')}
+              </p>
+            </div>
+            <Link
+              href="/onboarding"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-white text-neutral-900 font-bold text-sm shadow-sm hover:bg-neutral-100 hover:shadow-md hover:scale-105 transition-all duration-200 active:scale-95 shrink-0 self-start sm:self-auto"
+            >
+              {t('schemes.check')} <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
-          <Link
-            href="/onboarding"
-            className="shrink-0 px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition shadow-md"
-          >
-            {t('schemes.check')}
-          </Link>
         </div>
 
         {/* Search & Filter Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-          <div className="relative w-full sm:w-96">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <div className="bg-white dark:bg-[#161B22] rounded-2xl border border-border p-4 sm:p-5 shadow-subtle flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground-muted" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('schemes.search')}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-900"
+              className="w-full pl-11 pr-4 py-2.5 bg-neutral-50/70 dark:bg-[#1F242C] border border-border rounded-xl text-sm outline-none focus:bg-white dark:focus:bg-[#161B22] focus:border-primary focus:ring-4 focus:ring-primary/10 transition text-foreground"
             />
           </div>
-          <div className="text-xs text-slate-500 font-semibold">
-            Showing <span className="text-slate-900">{filteredSchemes.length}</span> verified scheme policies
+          
+          <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+            {['all', 'subsidy', 'loan', 'interest_subvention'].map((type) => (
+              <button
+                key={type}
+                onClick={() => setSelectedType(type)}
+                className={`px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200 active:scale-95 ${
+                  selectedType === type
+                    ? 'bg-primary text-white shadow-sm scale-105'
+                    : 'bg-neutral-100 dark:bg-[#1F242C] text-foreground-muted hover:text-foreground hover:bg-neutral-200/70 dark:hover:bg-[#272D37]'
+                }`}
+              >
+                {type === 'all' ? 'All Schemes' : type.replace(/_/g, ' ').toUpperCase()}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Scheme List */}
         {loading ? (
-          <div className="flex flex-col items-center justify-center p-12 bg-white rounded-xl border border-slate-200">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-3" />
-            <p className="text-sm font-medium text-slate-600">Loading government schemes directory...</p>
+          <div className="bg-white dark:bg-[#161B22] rounded-3xl border border-border p-12 flex flex-col items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+            <p className="text-sm font-semibold text-foreground-muted">Loading government schemes directory...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filteredSchemes.map((s, idx) => (
               <div
                 key={s.id || idx}
-                className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between shadow-xs hover:shadow-md hover:border-slate-300 transition"
+                className="bg-white dark:bg-[#161B22] rounded-2xl border border-border p-6 shadow-subtle hover:border-primary/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group"
               >
                 <div>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-5 w-5 text-blue-600 shrink-0" />
-                      <h3 className="font-bold text-slate-900 text-base leading-snug">{s.name}</h3>
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+                        <Landmark className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-foreground text-base leading-snug group-hover:text-primary transition-colors">{s.name}</h3>
+                        <p className="text-xs text-foreground-muted font-medium mt-0.5">{s.agency_name}</p>
+                      </div>
                     </div>
-                    <span className="shrink-0 px-2.5 py-1 text-2xs font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      ACTIVE
+                    <span className="px-3 py-1 text-xs font-semibold rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shrink-0">
+                      Active
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed mb-4">
-                    {s.description || 'Verified government credit assistance & subsidy scheme.'}
+
+                  <p className="text-sm text-foreground-muted leading-relaxed mb-6">
+                    {s.description}
                   </p>
+
+                  <div className="grid grid-cols-2 gap-3 p-4 rounded-xl bg-neutral-50 dark:bg-[#1F242C] border border-border mb-6 group-hover:border-primary/20 transition-colors">
+                    <div>
+                      <span className="text-foreground-muted font-semibold block text-[11px] uppercase tracking-wider">Subsidies / Support</span>
+                      <strong className="text-primary font-black text-base mt-0.5 block">
+                        {s.max_subsidy_percentage ? `${s.max_subsidy_percentage}% Grant` : 'Subvention Support'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-foreground-muted font-semibold block text-[11px] uppercase tracking-wider">Max Assistance</span>
+                      <strong className="text-foreground font-black text-base mt-0.5 block">
+                        {s.max_loan_amount ? `Up to ₹${(s.max_loan_amount / 100000).toFixed(0)}L` : 'Flexible Limit'}
+                      </strong>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="border-t border-slate-100 pt-3 flex items-center justify-between gap-2 text-xs">
-                  {s.agency_name && (
-                    <span className="text-slate-500 font-medium truncate">
-                      Nodal: <strong className="text-slate-700">{s.agency_name}</strong>
-                    </span>
-                  )}
-                  {s.official_url && (
-                    <a
-                      href={s.official_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 font-bold text-blue-600 hover:text-blue-800 transition"
-                    >
-                      Portal <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
+                <div className="flex items-center justify-between pt-4 border-t border-border text-xs">
+                  <span className="text-foreground-muted font-semibold uppercase tracking-wider">{s.scheme_type?.replace(/_/g, ' ')}</span>
+                  <Link
+                    href="/onboarding"
+                    className="inline-flex items-center gap-1.5 font-bold text-primary hover:text-primary-700 transition group/link"
+                  >
+                    Check Eligibility <ArrowRight className="h-3.5 w-3.5 group-hover/link:translate-x-1 transition-transform" />
+                  </Link>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </main>
+      </div>
     </AppShell>
   );
 }

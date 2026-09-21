@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, Sparkles, AlertTriangle, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Loader2, Sparkles, ArrowLeft, Download, FileText, CheckCircle2 } from 'lucide-react';
 import AppShell from '@/components/ui/AppShell';
 import DashboardNav, { DashboardSection } from '@/components/dashboard/DashboardNav';
 import FinancialSection from '@/components/dashboard/FinancialSection';
@@ -13,7 +13,9 @@ import RiskSection from '@/components/dashboard/RiskSection';
 import MapContainer from '@/components/maps/MapContainer';
 import UserOverview from '@/components/dashboard/UserOverview';
 import { getConsolidatedAnalysis, downloadAnalysisPdf, ConsolidatedAnalysisData } from '@/lib/api';
-import { useLanguageStore } from '@/stores/languageStore';
+import { useTranslation } from '@/stores/languageStore';
+import Card from '@/components/ui/Card';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 const VALID_SECTIONS: DashboardSection[] = [
   'overview',
@@ -38,12 +40,10 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
-  const t = useLanguageStore((s) => s.t);
+  const { t } = useTranslation();
 
   const analysisId = searchParams.get('analysis_id');
 
-  // Apply ?section= (e.g. from the overview's scheme rows) once the data for
-  // the target analysis run is available.
   useEffect(() => {
     const raw = searchParams.get('section');
     setActiveSection(isDashboardSection(raw) ? raw : 'overview');
@@ -61,8 +61,6 @@ function DashboardContent() {
         setData(res);
       } catch (err) {
         console.warn('Failed to fetch consolidated analysis:', err);
-        // The stored run may no longer exist (or belong to this user) -
-        // drop it so we fall back to the personal overview instead.
         if (typeof window !== 'undefined') {
           localStorage.removeItem('udyam_active_analysis_id');
         }
@@ -123,52 +121,40 @@ function DashboardContent() {
     }
   }
 
-function getScoreColor(score: number) {
-  if (score >= 75) return 'text-status-verified bg-primary/10';
-  if (score >= 50) return 'text-status-warning bg-accent/15';
-  return 'text-status-risk bg-danger/10';
-}
-
- function getRiskColor(level: string) {
-  switch (level) {
-    case 'low':
-      return 'text-status-verified bg-primary/10';
-    case 'medium':
-      return 'text-status-warning bg-accent/15';
-    case 'high':
-      return 'text-status-risk bg-danger/10';
-    default:
-      return 'text-foreground/60 bg-foreground/5';
+  function getScoreStatus(score: number): 'verified' | 'warning' | 'risk' {
+    if (score >= 75) return 'verified';
+    if (score >= 50) return 'warning';
+    return 'risk';
   }
-}
 
   function ScoreCard({ label, score }: { label: string; score: number }) {
     return (
-      <div className="rounded-card border border-primary/10 p-4 flex flex-col gap-2 bg-white shadow-card">
-        <span className="text-sm font-medium text-foreground/60">{label}</span>
-        <div className="flex items-baseline gap-1">
-          <span className={`text-metric-lg rounded-md px-2 ${getScoreColor(score)}`}>
-            {score}
-          </span>
-          <span className="text-sm text-foreground/50">/100</span>
+      <Card padding="md" className="border-border bg-white dark:bg-[#161B22] rounded-2xl flex flex-col justify-between shadow-subtle hover:border-primary/30 transition-all">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+        <div className="flex items-baseline justify-between mt-3">
+          <div className="flex items-baseline gap-1">
+            <span className="text-3xl font-extrabold font-financial text-foreground tracking-tight">
+              {score}
+            </span>
+            <span className="text-xs font-medium text-muted-foreground">/ 100</span>
+          </div>
+          <StatusBadge status={getScoreStatus(score)} label={score >= 75 ? 'Strong' : score >= 50 ? 'Moderate' : 'Risk'} size="sm" />
         </div>
-      </div>
+      </Card>
     );
   }
 
   if (loading) {
     return (
       <AppShell>
-        <div className="flex flex-1 flex-col items-center justify-center p-6">
-          <Loader2 className="h-10 w-10 animate-spin text-blue-600 mb-4" />
-          <p className="text-slate-600 font-medium">{t('dash.loading')}</p>
+        <div className="flex flex-1 flex-col items-center justify-center p-12">
+          <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground font-medium text-sm">{t('dash.loading')}</p>
         </div>
       </AppShell>
     );
   }
 
-  // No analysis open (or it could not be loaded) -> the personalised
-  // overview of the tools, schemes and reports the user has opted into.
   if (!analysisId || !data) {
     return (
       <AppShell>
@@ -179,27 +165,27 @@ function getScoreColor(score: number) {
 
   return (
     <AppShell>
-      <main className="p-6 max-w-5xl mx-auto flex flex-col gap-4 w-full flex-1">
+      <main className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto flex flex-col gap-6 w-full flex-1">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-5 gap-3">
           <div>
             <button
               type="button"
               onClick={() => router.push('/dashboard')}
-              className="mb-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 hover:text-slate-900"
+              className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-[#1F242C] hover:bg-slate-200 dark:hover:bg-[#272D37] border border-slate-200 dark:border-[#2B313C] px-3.5 py-1 text-xs font-semibold text-foreground transition"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Back to Personal Dashboard
+              Back to Overview
             </button>
-            <h1 className="text-3xl font-bold text-slate-900">{t('dash.title')}</h1>
-            <p className="text-gray-600 mt-1 font-medium">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">{t('dash.title')}</h1>
+            <p className="text-muted-foreground text-xs sm:text-sm mt-1 font-medium">
               {bizName || t('dash.pendingBiz')} •{' '}
-              <span className="text-blue-600 font-semibold">{locName || t('dash.pendingLoc')}</span>
+              <span className="text-primary font-semibold">{locName || t('dash.pendingLoc')}</span>
             </p>
           </div>
           {analysisId && (
-            <div className="mt-2 sm:mt-0 text-xs font-mono bg-slate-100 px-3 py-1.5 rounded-lg border text-slate-600">
-              ID: {String(analysisId).slice(0, 8)}...
+            <div className="mt-2 sm:mt-0 text-xs font-mono font-medium bg-primary/10 text-primary px-3.5 py-1.5 rounded-full border border-primary/20">
+              Run #{String(analysisId).slice(0, 8)}
             </div>
           )}
         </div>
@@ -209,16 +195,23 @@ function getScoreColor(score: number) {
         {activeSection === 'overview' && (
           <div className="flex flex-col gap-6">
             {/* Overall feasibility banner */}
-            <div className="rounded-card border border-primary/10 p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white shadow-card gap-4">
-              <div>
-                <span className="text-sm font-medium text-gray-500">{t('dash.overall')}</span>
-                <div className="text-metric-xl mt-1 text-foreground">
-                  {overallScore != null ? `${overallScore}/100` : (data?.ai_advice?.confidence ? `AI: ${data.ai_advice.confidence}` : '—')}
+            <div className="relative overflow-hidden rounded-[24px] border border-border bg-white dark:bg-[#161B22] p-6 sm:p-8 shadow-subtle">
+              <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t('dash.overall')}</span>
+                  <div className="text-4xl sm:text-5xl font-extrabold font-financial text-foreground mt-2 tracking-tight">
+                    {overallScore != null ? `${overallScore}/100` : (data?.ai_advice?.confidence ? `AI: ${data.ai_advice.confidence}` : '—')}
+                  </div>
+                  <span className="text-primary font-semibold text-sm sm:text-base block mt-2">{label}</span>
                 </div>
-                <span className="text-primary font-semibold">{label}</span>
-              </div>
-              <div className={`px-4 py-2 rounded-lg font-semibold text-sm ${getRiskColor(riskLevelKey)}`}>
-                {riskLevelLabel} {t('dash.riskProfile')}
+                <div className="shrink-0">
+                  <StatusBadge
+                    status={riskLevelKey === 'low' ? 'verified' : riskLevelKey === 'medium' ? 'warning' : 'risk'}
+                    label={`${riskLevelLabel} ${t('dash.riskProfile')}`}
+                    size="lg"
+                  />
+                </div>
               </div>
             </div>
 
@@ -232,49 +225,54 @@ function getScoreColor(score: number) {
 
             {/* Analysis Data Status */}
             {overallScore == null && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">Analysis Data Status</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${data?.financial ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <span className="text-slate-600">Financial</span>
+              <div className="rounded-2xl border border-border bg-slate-50/70 dark:bg-[#1C2128]/70 p-5">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Analysis Data Readiness</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-semibold">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${data?.financial ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <span className="text-foreground">Financial Model</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${data?.market ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <span className="text-slate-600">Market</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${data?.market ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <span className="text-foreground">Market Demand</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${data?.competition ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <span className="text-slate-600">Competition</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${data?.competition ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <span className="text-foreground">Competition Density</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${data?.ai_advice?.model_name && data.ai_advice.model_name !== 'unavailable' ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <span className="text-slate-600">AI Advisor</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${data?.ai_advice?.model_name && data.ai_advice.model_name !== 'unavailable' ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    <span className="text-foreground">AI Intelligence</span>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* AI Advisor Recommendations (RAG Evidence Driven) */}
-            <div className="rounded-card border border-primary/15 bg-primary/5 p-6 shadow-card">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-bold text-foreground">{t('dash.advisorTitle')}</h3>
+            {/* AI Advisor Recommendations */}
+            <div className="rounded-[24px] border border-primary/20 dark:border-primary/30 bg-gradient-to-br from-primary/5 via-white to-indigo-50/20 dark:from-primary/10 dark:via-[#161B22] dark:to-indigo-950/20 p-6 sm:p-8 shadow-subtle">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-foreground">{t('dash.advisorTitle')}</h3>
               </div>
-              <p className="text-sm leading-relaxed text-slate-700 font-normal">
+              <p className="text-sm leading-relaxed text-muted-foreground">
                 {advisorSummary || t('dash.advisorEmpty')}
               </p>
               {data?.ai_advice?.recommendation && (
-                <p className="mt-3 text-sm font-medium text-slate-800">
+                <p className="mt-4 text-sm font-semibold text-foreground bg-white/80 dark:bg-[#1F242C]/80 p-3.5 rounded-xl border border-primary/10 dark:border-primary/20">
                   {data.ai_advice.recommendation}
                 </p>
               )}
               {advisorRecommendations.length > 0 && (
-                <div className="mt-4 space-y-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('dash.recommendations')}</h4>
-                  <ul className="list-disc list-inside text-sm text-slate-800 space-y-1">
+                <div className="mt-5 space-y-2.5 pt-4 border-t border-primary/10 dark:border-primary/20">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-primary">{t('dash.recommendations')}</h4>
+                  <ul className="space-y-2 text-xs sm:text-sm text-foreground">
                     {advisorRecommendations.map((rec, i) => (
-                      <li key={i}>{rec}</li>
+                      <li key={i} className="flex items-start gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                        <span>{rec}</span>
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -292,16 +290,19 @@ function getScoreColor(score: number) {
         {activeSection === 'schemes' && <SchemeSection data={data} />}
         {activeSection === 'risks' && <RiskSection data={data} />}
         {activeSection === 'report' && (
-          <div className="rounded-xl border border-gray-200 p-8 bg-white shadow-sm text-center">
-            <h3 className="text-xl font-bold text-slate-900 mb-2">{t('dash.pdfTitle')}</h3>
-            <p className="text-sm text-slate-500 mb-4">{t('dash.pdfDesc')}</p>
+          <div className="rounded-[28px] border border-border bg-white dark:bg-[#161B22] p-8 sm:p-12 text-center shadow-subtle">
+            <div className="h-16 w-16 rounded-2xl bg-primary/10 text-primary border border-primary/20 mx-auto flex items-center justify-center mb-5">
+              <FileText className="h-8 w-8" />
+            </div>
+            <h3 className="text-2xl font-extrabold text-foreground mb-2">{t('dash.pdfTitle')}</h3>
+            <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto leading-relaxed">{t('dash.pdfDesc')}</p>
             {pdfError && (
-              <p className="text-sm text-red-600 mb-3">{pdfError}</p>
+              <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 mb-4">{pdfError}</p>
             )}
             <button
               onClick={handleDownloadPdf}
               disabled={!analysisId || pdfLoading}
-              className="px-6 py-2.5 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 transition disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              className="px-8 py-3.5 bg-primary text-white rounded-full text-sm font-semibold shadow-fintech-btn hover:bg-primary-600 transition disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               {pdfLoading ? (
                 <>
@@ -309,7 +310,10 @@ function getScoreColor(score: number) {
                   {t('dash.pdfDownloading')}
                 </>
               ) : (
-                t('dash.pdfButton')
+                <>
+                  <Download className="h-4 w-4" />
+                  {t('dash.pdfButton')}
+                </>
               )}
             </button>
           </div>
@@ -321,7 +325,7 @@ function getScoreColor(score: number) {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>}>
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
       <DashboardContent />
     </Suspense>
   );

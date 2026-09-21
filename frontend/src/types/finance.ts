@@ -281,3 +281,95 @@ export interface UserProfile {
   created_at: string;
   updated_at: string;
 }
+
+// ============================================================
+// FINANCE CALCULATION & AMORTIZATION TYPES
+// ============================================================
+export interface ScenarioMultiplierInput {
+  revenue_multiplier: number;
+  operating_cost_multiplier: number;
+}
+
+export interface ScenarioConfigInput {
+  worst_case?: ScenarioMultiplierInput;
+  expected_case?: ScenarioMultiplierInput;
+  best_case?: ScenarioMultiplierInput;
+}
+
+export interface RepaymentScheduleItemResponse {
+  period_number: number;
+  opening_balance: number;
+  payment_amount: number;
+  principal_amount: number;
+  interest_amount: number;
+  closing_balance: number;
+  remaining_principal: number;
+  is_moratorium: boolean;
+  verification_required?: boolean;
+}
+
+export interface FinancialScenarioResponse {
+  scenario_type: 'worst_case' | 'expected_case' | 'best_case' | string;
+  sufficient_assumptions_exist: boolean;
+  revenue?: number | null;
+  operating_costs?: number | null;
+  surplus?: number | null;
+  loan_repayment?: number | null;
+  cash_surplus?: number | null;
+  monthly_revenue?: number | null;
+  monthly_expenses?: number | null;
+  monthly_profit?: number | null;
+  repayment_coverage?: number | null;
+  data_source?: string | null;
+  marked_assumptions?: Record<string, any> | null;
+  cash_flow?: Record<string, any> | null;
+}
+
+export interface FinanceCalculateRequest {
+  available_capital: number;
+  desired_project_cost?: number | null;
+  scheme_id?: string | null;
+  scheme_rule_id?: string | null;
+  interest_rate?: number | null;
+  tenure_months?: number | null;
+  moratorium_months?: number | null;
+  loan_percent?: number | null;
+  beneficiary_contribution_percent?: number | null;
+  payment_frequency?: string | null;
+  moratorium_interest_treatment?: string | null;
+  monthly_revenue?: number | null;
+  monthly_operating_cost?: number | null;
+  verified_revenue?: number | null;
+  verified_operating_cost?: number | null;
+  scenario_config?: ScenarioConfigInput | null;
+  analysis_run_id?: string | null;
+}
+
+export interface FinanceCalculateResponse {
+  status: string;
+  available_capital: number;
+  required_contribution: number;
+  shortfall: number;
+  desired_project_cost?: number | null;
+  feasible_project_cost?: number | null;
+  potential_loan?: number | null;
+  project_cost_cap_applied?: boolean;
+  loan_cap_applied?: boolean;
+  max_project_cost_limit?: number | null;
+  max_loan_amount_limit?: number | null;
+  beneficiary_contribution_percent?: number | null;
+  loan_percent?: number | null;
+  interest_rate?: number | null;
+  tenure_months?: number | null;
+  moratorium_months?: number | null;
+  payment_frequency?: string | null;
+  moratorium_interest_treatment?: string | null;
+  verification_required?: boolean;
+  monthly_emi?: number | null;
+  total_interest?: number | null;
+  total_repayment?: number | null;
+  working_capital?: number | null;
+  repayment_schedule: RepaymentScheduleItemResponse[];
+  financial_scenarios: FinancialScenarioResponse[];
+  message?: string | null;
+}

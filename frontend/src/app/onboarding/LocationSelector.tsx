@@ -49,7 +49,7 @@ export default function LocationSelector({
       }
     }
     loadDistricts();
-  }, []);
+  }, [t]);
 
   // Load Talukas when districtId changes
   useEffect(() => {
@@ -93,19 +93,19 @@ export default function LocationSelector({
 
   return (
     <div className="flex gap-4">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-        <MapPin size={21} aria-hidden="true" />
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 shadow-sm">
+        <MapPin size={20} aria-hidden="true" />
       </div>
 
       <div className="w-full">
-        <h4 className="font-semibold text-slate-900">
+        <h4 className="font-bold text-foreground text-sm sm:text-base">
           {t('onboard.locTitle')}
         </h4>
 
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-0.5 text-xs text-foreground-muted">
           {t('onboard.locDesc')}
         </p>
-        {loadError && <p className="mt-2 text-sm text-red-600">{loadError}</p>}
+        {loadError && <p className="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-400">{loadError}</p>}
 
         <div className="mt-4 space-y-3">
           {/* District Selector */}
@@ -120,19 +120,19 @@ export default function LocationSelector({
                 setVillageId('', '');
               }}
               disabled={loadingDistricts}
-              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100"
+              className="w-full rounded-2xl border border-slate-200 dark:border-[#2B313C] bg-slate-50/50 dark:bg-[#1C2128] px-4 py-3 text-sm outline-none transition focus:border-primary focus:bg-white dark:focus:bg-[#222731] focus:ring-2 focus:ring-primary/20 disabled:bg-slate-100 dark:disabled:bg-[#161B22] text-foreground font-medium"
             >
               <option value="">
                 {loadingDistricts ? t('onboard.loadingDistricts') : t('onboard.selectDistrict')}
               </option>
               {districts.map((item) => (
-                <option key={item.id} value={item.id}>
+                <option key={item.id} value={item.id} className="bg-white dark:bg-[#1C2128] text-foreground">
                   {item.name}
                 </option>
               ))}
             </select>
             {loadingDistricts && (
-              <Loader2 className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-slate-400" />
+              <Loader2 className="absolute right-3.5 top-3.5 h-4 w-4 animate-spin text-primary" />
             )}
           </div>
 
@@ -147,19 +147,19 @@ export default function LocationSelector({
                 setVillageId('', '');
               }}
               disabled={!districtId || loadingTalukas}
-              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100"
+              className="w-full rounded-2xl border border-slate-200 dark:border-[#2B313C] bg-slate-50/50 dark:bg-[#1C2128] px-4 py-3 text-sm outline-none transition focus:border-primary focus:bg-white dark:focus:bg-[#222731] focus:ring-2 focus:ring-primary/20 disabled:bg-slate-100 dark:disabled:bg-[#161B22] text-foreground font-medium"
             >
               <option value="">
                 {loadingTalukas ? t('onboard.loadingTalukas') : t('onboard.selectTaluka')}
               </option>
               {talukas.map((item) => (
-                <option key={item.id} value={item.id}>
+                <option key={item.id} value={item.id} className="bg-white dark:bg-[#1C2128] text-foreground">
                   {item.name}
                 </option>
               ))}
             </select>
             {loadingTalukas && (
-              <Loader2 className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-slate-400" />
+              <Loader2 className="absolute right-3.5 top-3.5 h-4 w-4 animate-spin text-primary" />
             )}
           </div>
 
@@ -173,19 +173,19 @@ export default function LocationSelector({
                 setVillageId(id, found?.name || '');
               }}
               disabled={!talukaId || loadingVillages}
-              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100"
+              className="w-full rounded-2xl border border-slate-200 dark:border-[#2B313C] bg-slate-50/50 dark:bg-[#1C2128] px-4 py-3 text-sm outline-none transition focus:border-primary focus:bg-white dark:focus:bg-[#222731] focus:ring-2 focus:ring-primary/20 disabled:bg-slate-100 dark:disabled:bg-[#161B22] text-foreground font-medium"
             >
               <option value="">
                 {loadingVillages ? t('onboard.loadingVillages') : t('onboard.selectVillage')}
               </option>
               {villages.map((item) => (
-                <option key={item.id} value={item.id}>
+                <option key={item.id} value={item.id} className="bg-white dark:bg-[#1C2128] text-foreground">
                   {item.name}
                 </option>
               ))}
             </select>
             {loadingVillages && (
-              <Loader2 className="absolute right-3 top-3.5 h-4 w-4 animate-spin text-slate-400" />
+              <Loader2 className="absolute right-3.5 top-3.5 h-4 w-4 animate-spin text-primary" />
             )}
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles, CheckCircle2 } from "lucide-react";
 
 import LocationSelector from "./LocationSelector";
 import BusinessSelector from "./BusinessSelector";
@@ -10,6 +10,8 @@ import FinancialForm from "./FinancialForm";
 import ReviewScreen from "./ReviewScreen";
 import WhatYouNeed from "./WhatYouNeed";
 import AppShell from "@/components/ui/AppShell";
+import Card from "@/components/ui/Card";
+import DemoBadge, { DemoScenarioButton } from "@/components/ui/DemoBadge";
 
 import { startAnalysis } from "@/lib/api";
 import { type Language } from "@/lib/i18n";
@@ -74,13 +76,21 @@ export default function OnboardingPage() {
     setError("");
   };
 
-   // Demo button
+  // Demo sample scenario button using verified seeded data from Maharashtra database
   const handleDemo = () => {
-  setCapital("500000");
-  setDesiredProjectCost("800000");
-  setError("");
-  setShowReview(false);
-};
+    setDistrictId("624a9c93-78e1-4f68-b79b-0b865a45c1bf");
+    setDistrictName("Pune");
+    setTalukaId("3158caf9-f1f2-446f-8dc4-27e0be20170c");
+    setTalukaName("Baramati");
+    setVillageId("30c4436a-813c-4455-847e-5ec17e386d67");
+    setVillageName("Malegaon Bk");
+    setBusinessCategoryId("02f4c8bc-d8ca-4e80-9ef8-76dcd49547cd");
+    setBusinessCategoryName("Agro-Processing & Food Manufacturing");
+    setCapital("500000");
+    setDesiredProjectCost("800000");
+    setError("");
+    setShowReview(true);
+  };
 
   // Start Analysis via Backend API
   const handleStartAnalysis = async () => {
@@ -152,10 +162,10 @@ export default function OnboardingPage() {
           onStartAnalysis={handleStartAnalysis}
         />
         {isSubmitting && (
-          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-sm text-white">
-            <Loader2 className="h-12 w-12 animate-spin text-blue-400 mb-4" />
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-foreground/70 backdrop-blur-sm text-white">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
             <h3 className="text-xl font-bold">{t('onboard.runningTitle')}</h3>
-            <p className="mt-2 text-sm text-slate-300">{t('onboard.runningDesc')}</p>
+            <p className="mt-2 text-sm text-white/80">{t('onboard.runningDesc')}</p>
           </div>
         )}
       </AppShell>
@@ -167,104 +177,115 @@ export default function OnboardingPage() {
   // -----------------------------
   return (
     <AppShell>
+      <section className="w-full max-w-6xl mx-auto py-2">
+        <div className="grid gap-8 lg:grid-cols-12">
+          {/* Left Column */}
+          <div className="lg:col-span-5 space-y-6">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-primary">
+                {t('onboard.eyebrow')}
+              </p>
 
-      {/* Main content */}
-      <section className="mx-auto max-w-6xl px-6 py-12">
-        <div className="grid gap-10 lg:grid-cols-2">
+              <h1 className="mt-2 text-3xl sm:text-4xl font-black text-foreground tracking-tight leading-tight">
+                {t('onboard.title')}
+              </h1>
 
-          {/* Left side */}
-          <div>
-            <p className="font-medium text-blue-600">
-              {t('onboard.eyebrow')}
-            </p>
-
-            <h1 className="mt-3 text-4xl font-bold leading-tight">
-              {t('onboard.title')}
-            </h1>
-
-            <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
-              {t('onboard.desc')}
-            </p>
-
-            <div className="mt-8">
-              <WhatYouNeed />
+              <p className="mt-3 text-sm sm:text-base leading-relaxed text-foreground-muted">
+                {t('onboard.desc')}
+              </p>
             </div>
+
+            <WhatYouNeed />
           </div>
 
-          {/* Right side */}
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold">
-              {t('onboard.startTitle')}
-            </h2>
-
-            <div className="mt-6 space-y-8">
-              {/* Location */}
-              <LocationSelector
-                districtId={districtId}
-                talukaId={talukaId}
-                villageId={villageId}
-                setDistrictId={(id, name) => {
-                  setDistrictId(id);
-                  setDistrictName(name || "");
-                }}
-                setTalukaId={(id, name) => {
-                  setTalukaId(id);
-                  setTalukaName(name || "");
-                }}
-                setVillageId={(id, name) => {
-                  setVillageId(id);
-                  setVillageName(name || "");
-                }}
-              />
-
-              {/* Business */}
-              <BusinessSelector
-                businessCategoryId={businessCategoryId}
-                setBusinessCategoryId={(id, name) => {
-                  setBusinessCategoryId(id);
-                  setBusinessCategoryName(name || "");
-                }}
-              />
-
-              {/* Financial */}
-              <FinancialForm
-                capital={capital}
-                desiredProjectCost={desiredProjectCost}
-                language={language}
-                setCapital={setCapital}
-                setDesiredProjectCost={setDesiredProjectCost}
-                setLanguage={setLanguage}
-              />
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                {error}
+          {/* Right Column Form Card */}
+          <div className="lg:col-span-7">
+            <Card padding="lg" className="border-primary/20">
+              <div className="flex items-center justify-between gap-2 border-b border-primary/10 pb-4 mb-6">
+                <h2 className="text-lg sm:text-xl font-black text-foreground tracking-tight">
+                  {t('onboard.startTitle')}
+                </h2>
+                <DemoBadge label="Simulation Ready" />
               </div>
-            )}
 
-            {/* Demo + Review actions */}
-<div className="mt-8 space-y-3">
-  <button
-    type="button"
-    onClick={handleDemo}
-    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-accent/40 bg-accent/15 px-5 py-3 text-sm font-bold text-foreground transition hover:bg-accent/25"
-  >
-    <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-foreground">
-      Demo
-    </span>
-    Try sample financial inputs
-  </button>
+              <div className="space-y-6">
+                {/* Location */}
+                <LocationSelector
+                  districtId={districtId}
+                  talukaId={talukaId}
+                  villageId={villageId}
+                  setDistrictId={(id, name) => {
+                    setDistrictId(id);
+                    setDistrictName(name || "");
+                  }}
+                  setTalukaId={(id, name) => {
+                    setTalukaId(id);
+                    setTalukaName(name || "");
+                  }}
+                  setVillageId={(id, name) => {
+                    setVillageId(id);
+                    setVillageName(name || "");
+                  }}
+                />
 
-  <button
-    type="button"
-    onClick={handleReview}
-    className="w-full rounded-xl bg-primary px-6 py-3 font-semibold text-white transition hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-  >
-    {t('onboard.reviewCta')}
-  </button>
-</div>
+                <div className="h-px bg-primary/10" />
+
+                {/* Business */}
+                <BusinessSelector
+                  businessCategoryId={businessCategoryId}
+                  setBusinessCategoryId={(id, name) => {
+                    setBusinessCategoryId(id);
+                    setBusinessCategoryName(name || "");
+                  }}
+                />
+
+                <div className="h-px bg-primary/10" />
+
+                {/* Financial */}
+                <FinancialForm
+                  capital={capital}
+                  desiredProjectCost={desiredProjectCost}
+                  language={language}
+                  setCapital={setCapital}
+                  setDesiredProjectCost={setDesiredProjectCost}
+                  setLanguage={setLanguage}
+                />
+              </div>
+
+              {/* Error Alert */}
+              {error && (
+                <div className="mt-6 rounded-xl border border-danger-200 bg-danger-50 p-4 text-xs sm:text-sm text-danger-700 font-medium">
+                  {error}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="mt-8 space-y-3">
+                <button
+                  type="button"
+                  onClick={handleDemo}
+                  className="w-full flex items-center justify-between gap-3 p-3.5 rounded-xl bg-gradient-to-r from-accent-50/70 to-accent-100/50 border border-dashed border-accent-400 hover:border-accent-600 hover:bg-accent-100 transition-all text-left group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Sparkles className="h-4 w-4 text-accent-700 animate-demo-pulse shrink-0" />
+                    <span className="text-xs sm:text-sm font-bold text-foreground">
+                      Pre-fill Sample Financial Scenario
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md bg-accent text-foreground">
+                    Try Demo
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleReview}
+                  className="w-full rounded-xl bg-primary px-6 py-3.5 font-bold text-white shadow-lg shadow-primary/25 transition-all hover:bg-primary-600 hover:shadow-primary/35 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                >
+                  {t('onboard.reviewCta')}
+                </button>
+              </div>
+            </Card>
           </div>
         </div>
       </section>

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Loader2, MapPin } from 'lucide-react';
+import { Loader2, MapPin, Compass, Layers } from 'lucide-react';
 import {
   ConsolidatedAnalysisData,
   getNearbyBusinesses,
@@ -19,8 +19,8 @@ import type { MapLayers } from './LocationMap';
 const LocationMap = dynamic(() => import('./LocationMap'), {
   ssr: false,
   loading: () => (
-    <div className="h-[420px] bg-gray-50 flex items-center justify-center">
-      <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+    <div className="h-[440px] bg-neutral-50 dark:bg-[#161B22] flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   ),
 });
@@ -40,7 +40,7 @@ const DEFAULT_LAYERS: MapLayers = {
 };
 
 export default function MapContainer({
-  title = 'Location Map',
+  title = 'Geospatial Location Map',
   data,
 }: MapContainerProps) {
   const [markets, setMarkets] = useState<NearbyMarket[]>([]);
@@ -112,83 +112,85 @@ export default function MapContainer({
     .join(', ');
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
-      <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+    <div className="bg-white dark:bg-[#161B22] rounded-3xl border border-border overflow-hidden shadow-subtle">
+      <div className="px-6 py-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-[#161B22]">
         <div>
-          <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+          <div className="flex items-center gap-2">
+            <Compass className="h-5 w-5 text-primary" />
+            <h3 className="text-lg font-bold text-foreground">{title}</h3>
+          </div>
           {locLabel && (
-            <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
-              <MapPin className="h-3.5 w-3.5" />
+            <p className="text-xs text-foreground-muted flex items-center gap-1.5 mt-1 font-medium">
+              <MapPin className="h-3.5 w-3.5 text-primary" />
               {locLabel}
             </p>
           )}
         </div>
         {!loading && lat != null && lng != null && (
-          <div className="flex flex-wrap gap-3 text-xs text-gray-600">
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />
-              {markets.length} mandis
+          <div className="flex flex-wrap gap-3 text-xs font-semibold text-foreground-muted">
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+              {markets.length} APMC Mandis
             </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
-              {directCompetitors.length} direct / {businesses.length} MSME
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
+              <span className="inline-block w-2 h-2 rounded-full bg-rose-500" />
+              {directCompetitors.length} Direct Competitors
             </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-blue-500" />
-              {facilities.length} facilities
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-50 dark:bg-primary/20 text-primary border border-primary-100 dark:border-primary/30">
+              <span className="inline-block w-2 h-2 rounded-full bg-primary" />
+              {facilities.length} Infrastructure Units
             </span>
           </div>
         )}
       </div>
 
       {lat == null || lng == null ? (
-        <div className="h-[420px] bg-gray-50 flex flex-col items-center justify-center gap-2 text-gray-400 px-6 text-center">
-          <MapPin className="h-10 w-10" />
-          <p className="text-sm">No coordinates available for this location.</p>
-          <p className="text-xs text-gray-400">
-            Re-run analysis with a village that has latitude/longitude data.
+        <div className="h-[440px] bg-neutral-50 dark:bg-[#161B22] flex flex-col items-center justify-center gap-2 text-foreground-muted px-6 text-center">
+          <MapPin className="h-10 w-10 text-primary/40" />
+          <p className="text-base font-bold text-foreground">No coordinates available for this location</p>
+          <p className="text-xs text-foreground-muted">
+            Re-run analysis with a village that has spatial coordinates.
           </p>
         </div>
       ) : loading ? (
-        <div className="h-[420px] bg-gray-50 flex flex-col items-center justify-center gap-2 text-gray-500">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-sm">Loading spatial data from API...</p>
+        <div className="h-[440px] bg-neutral-50 dark:bg-[#161B22] flex flex-col items-center justify-center gap-3 text-foreground-muted">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm font-semibold">Loading PostGIS spatial data...</p>
         </div>
       ) : error ? (
-        <div className="h-[420px] bg-red-50 flex flex-col items-center justify-center gap-2 text-red-600 px-6 text-center">
-          <p className="text-sm font-medium">Could not load map data</p>
+        <div className="h-[440px] bg-rose-50/50 dark:bg-rose-950/20 flex flex-col items-center justify-center gap-2 text-rose-700 dark:text-rose-400 px-6 text-center">
+          <p className="text-base font-bold">Could not load spatial data</p>
           <p className="text-xs">{error}</p>
         </div>
       ) : (
         <>
-          <div className="px-4 py-3 border-b border-gray-100 bg-slate-50 flex flex-wrap gap-x-4 gap-y-2">
+          <div className="px-6 py-3 border-b border-border bg-neutral-50/70 dark:bg-[#1C2128]/70 flex flex-wrap gap-x-5 gap-y-2">
             {(
               [
-                ['markets', 'APMC Mandis', 'bg-green-500'],
-                ['businesses', 'Competitors', 'bg-red-500'],
-                ['facilities', 'Infrastructure', 'bg-blue-500'],
-                ['villages', 'Nearby Villages', 'bg-gray-400'],
-                ['radius5', '5 km radius', 'border-2 border-blue-500 bg-transparent'],
-                ['radius10', '10 km radius', 'border-2 border-dashed border-indigo-500 bg-transparent'],
+                ['markets', 'APMC Mandis', 'bg-emerald-500'],
+                ['businesses', 'Competitors', 'bg-rose-500'],
+                ['facilities', 'Infrastructure', 'bg-primary'],
+                ['villages', 'Nearby Villages', 'bg-neutral-400'],
+                ['radius5', '5 km radius', 'border-2 border-primary bg-transparent'],
+                ['radius10', '10 km radius', 'border-2 border-dashed border-indigo-400 bg-transparent'],
               ] as const
             ).map(([key, label, colorClass]) => (
-              <label key={key} className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer select-none">
+              <label key={key} className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={layers[key]}
                   onChange={() => toggleLayer(key)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-border text-primary focus:ring-primary h-4 w-4"
                 />
                 <span className={`inline-block w-2.5 h-2.5 rounded-full ${colorClass}`} />
                 {label}
               </label>
             ))}
           </div>
-          <div className="h-[420px] relative">
+          <div className="h-[440px] relative">
             {businesses.length === 0 && (
-              <div className="absolute top-3 left-3 right-3 z-[500] rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 shadow-sm">
-                No MSME competitor records found within 25 km. Import business data with{' '}
-                <code className="font-mono">python scripts/data/import_businesses.py --file data/raw/businesses/maharashtra_msme_clusters.csv</code>
+              <div className="absolute top-4 left-4 right-4 z-[500] rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/95 dark:bg-amber-950/95 px-4 py-2.5 text-xs font-medium text-amber-900 dark:text-amber-200 shadow-sm backdrop-blur">
+                No MSME competitor records found within 25 km radius.
               </div>
             )}
             <LocationMap
@@ -202,9 +204,8 @@ export default function MapContainer({
               layers={layers}
             />
           </div>
-          <div className="px-4 py-2 border-t border-gray-100 bg-slate-50 text-xs text-gray-500">
+          <div className="px-6 py-3 border-t border-border bg-neutral-50 dark:bg-[#1C2128] text-xs text-foreground-muted">
             Data sourced from UdyamAI PostGIS — APMC mandis &amp; MSME clusters (25 km), infrastructure (10 km).
-            Red markers are direct competitors in your business category.
           </div>
         </>
       )}

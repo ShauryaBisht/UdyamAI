@@ -4,27 +4,248 @@
 
 @import 'leaflet/dist/leaflet.css';
 
-/* ============================================
-   UdyamAI Design System — Color Tokens
-   ============================================ */
+/* ==========================================================================
+   UdyamAI Design System — Modern FinTech SaaS Theme
+   Palette: Light Gray Canvas (#F3F3F3) + White Surfaces (#FFFFFF) + Refined Emerald Green (#159A68)
+   ========================================================================== */
 
 :root {
-  --background: #F7F6F1;
-  --foreground: #17221D;
+  /* Surface & Background */
+  --background: #F3F3F3;
+  --surface: #FFFFFF;
+  --surface-subtle: #F8F9FA;
+  --surface-muted: #EFEFEF;
 
-  --primary: #176B4D;
-  --secondary: #7BAE8A;
-  --accent: #F2B84B;
-  --danger: #D95C5C;
+  /* Typography / Text Foreground */
+  --foreground: #111111;
+  --foreground-muted: #6B7280;
+  --foreground-subtle: #9CA3AF;
+  --border: #E7E7E7;
+
+  /* Brand Colors */
+  --primary: #159A68;       /* Refined Emerald Green */
+  --primary-dark: #0F7D57;
+  --primary-soft: #E8F7F0;
+  --primary-mint: #DDF3E9;
+  --secondary: #6366F1;     /* Indigo Accent */
+  --accent: #F59E0B;        /* Warm Gold / Amber */
+  --danger: #EF4444;        /* Vibrant Red */
+
+  /* Fonts */
+  --font-financial: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.dark {
+  /* Surface & Background */
+  --background: #0E1117;
+  --surface: #161B22;
+  --surface-subtle: #1F242C;
+  --surface-muted: #272D37;
+
+  /* Typography / Text Foreground */
+  --foreground: #F0F6FC;
+  --foreground-muted: #9BA3AF;
+  --foreground-subtle: #6B7280;
+  --border: #2B313C;
+
+  /* Brand Colors */
+  --primary: #1BB37A;
+  --primary-dark: #159A68;
+  --primary-soft: #142E22;
+  --primary-mint: #1B3D2E;
+  --secondary: #818CF8;
+  --accent: #FBBF24;
+  --danger: #F87171;
 }
 
 /* Base application styling */
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Leaflet inherits the application's font */
+/* Financial Figure Treatment */
+.font-financial,
+.tabular-nums {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Atmospheric Glow Background Gradients (for marketing/landing or high-impact banners) */
+.glow-mesh-hero {
+  background: radial-gradient(circle at 50% 0%, rgba(36, 55, 245, 0.12) 0%, rgba(99, 102, 241, 0.06) 40%, rgba(248, 250, 252, 0) 70%);
+}
+
+.glow-mesh-cta {
+  background: linear-gradient(135deg, #0F7D57 0%, #159A68 50%, #168F61 100%);
+}
+
+.glow-mesh-card {
+  background: radial-gradient(circle at 100% 0%, rgba(21, 154, 104, 0.05) 0%, rgba(255, 255, 255, 1) 60%);
+}
+
+/* Leaflet Container Defaults */
 .leaflet-container {
   font-family: inherit;
+  z-index: 10;
+}
+
+/* ==========================================================================
+   Dark Mode Universal Surface & Component Overrides
+   ========================================================================== */
+.dark {
+  color-scheme: dark;
+}
+
+.dark .bg-white {
+  background-color: var(--surface);
+}
+
+.dark .bg-\[\#F3F3F3\] {
+  background-color: var(--background);
+}
+
+.dark .bg-\[\#F8F9FA\],
+.dark .bg-\[\#F6F7F9\],
+.dark .bg-neutral-50,
+.dark .bg-slate-50,
+.dark .bg-gray-50 {
+  background-color: var(--surface-subtle);
+}
+
+.dark .bg-neutral-100,
+.dark .bg-slate-100,
+.dark .bg-gray-100 {
+  background-color: var(--surface-muted);
+}
+
+.dark .bg-neutral-200,
+.dark .bg-slate-200,
+.dark .bg-gray-200 {
+  background-color: #2E3541;
+}
+
+.dark .hover\:bg-neutral-50:hover,
+.dark .hover\:bg-slate-50:hover {
+  background-color: var(--surface-subtle);
+}
+
+.dark .hover\:bg-neutral-100:hover,
+.dark .hover\:bg-slate-100:hover {
+  background-color: var(--surface-muted);
+}
+
+.dark .hover\:bg-neutral-200:hover,
+.dark .hover\:bg-slate-200:hover {
+  background-color: #353D4A;
+}
+
+.dark .border-\[\#E7E7E7\],
+.dark .border-\[\#EFEFEF\],
+.dark .border-\[\#EAEAEA\],
+.dark .border-\[\#D0D0D0\],
+.dark .border-neutral-200,
+.dark .border-slate-200,
+.dark .border-gray-200 {
+  border-color: var(--border);
+}
+
+.dark .divide-\[\#EFEFEF\] > :not([hidden]) ~ :not([hidden]),
+.dark .divide-\[\#E7E7E7\] > :not([hidden]) ~ :not([hidden]),
+.dark .divide-neutral-200 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border);
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  background-color: var(--surface-subtle);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+.dark select option {
+  background-color: #161B22;
+  color: #E6EDF3;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--foreground-subtle);
+}
+
+.dark .glow-mesh-card {
+  background: radial-gradient(circle at 100% 0%, rgba(27, 179, 122, 0.08) 0%, rgba(22, 27, 34, 1) 60%);
+}
+
+/* Dark Mode Icon Badges & Category Containers */
+.dark .bg-rose-50 {
+  background-color: rgba(225, 29, 72, 0.15);
+}
+.dark .text-rose-500,
+.dark .text-rose-600 {
+  color: #fb7185;
+}
+
+.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.15);
+}
+.dark .text-emerald-600,
+.dark .text-emerald-700 {
+  color: #34d399;
+}
+
+.dark .bg-primary-50 {
+  background-color: rgba(27, 179, 122, 0.15);
+}
+
+.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.15);
+}
+.dark .text-blue-500,
+.dark .text-blue-600 {
+  color: #60a5fa;
+}
+
+.dark .bg-purple-50 {
+  background-color: rgba(168, 85, 247, 0.15);
+}
+.dark .text-purple-500,
+.dark .text-purple-600 {
+  color: #c084fc;
+}
+
+.dark .bg-cyan-50 {
+  background-color: rgba(6, 182, 212, 0.15);
+}
+.dark .text-cyan-500,
+.dark .text-cyan-600 {
+  color: #22d3ee;
+}
+
+.dark .bg-green-50 {
+  background-color: rgba(34, 197, 94, 0.15);
+}
+.dark .text-green-500,
+.dark .text-green-600 {
+  color: #4ade80;
+}
+
+.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.15);
+}
+.dark .text-amber-500,
+.dark .text-amber-600 {
+  color: #fbbf24;
+}
+
+.dark .bg-indigo-50 {
+  background-color: rgba(99, 102, 241, 0.15);
+}
+.dark .text-indigo-600,
+.dark .text-indigo-700 {
+  color: #a5b4fc;
 }
