@@ -46,14 +46,6 @@ from app.schemas.feasibility import AnalysisStatusResponse
 from app.services.auth_service import AuthUser
 
 
-@event.listens_for(Engine, "connect")
-def _set_sqlite_foreign_keys(dbapi_connection, connection_record):
-    if hasattr(dbapi_connection, "execute"):
-        try:
-            dbapi_connection.execute("PRAGMA foreign_keys=ON;")
-        except Exception:
-            pass
-
 
 # Register sqlite3 adapter for list serialization in SQLite in-memory test databases
 sqlite3.register_adapter(list, json.dumps)
@@ -89,6 +81,17 @@ def test_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+    # Enable FK enforcement only on this shared engine — not globally, so that
+    # isolated per-test engines (which use mock location IDs) remain unaffected.
+    @event.listens_for(engine, "connect")
+    def _fk_pragma(dbapi_conn, _record):
+        if hasattr(dbapi_conn, "execute"):
+            try:
+                dbapi_conn.execute("PRAGMA foreign_keys=ON;")
+            except Exception:
+                pass
+
     SQLModel.metadata.create_all(engine)
     return engine
 
