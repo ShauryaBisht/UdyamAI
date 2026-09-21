@@ -4,9 +4,12 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
+from fastapi import Depends
 from fastapi.testclient import TestClient
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.api.deps import get_current_profile, get_current_user
 from app.database import get_session
@@ -42,6 +45,16 @@ from app.models.user import Profile
 from app.schemas.feasibility import AnalysisStatusResponse
 from app.services.auth_service import AuthUser
 
+
+@event.listens_for(Engine, "connect")
+def _set_sqlite_foreign_keys(dbapi_connection, connection_record):
+    if hasattr(dbapi_connection, "execute"):
+        try:
+            dbapi_connection.execute("PRAGMA foreign_keys=ON;")
+        except Exception:
+            pass
+
+
 # Register sqlite3 adapter for list serialization in SQLite in-memory test databases
 sqlite3.register_adapter(list, json.dumps)
 
@@ -55,13 +68,18 @@ def _fake_auth_user() -> AuthUser:
     return AuthUser(sub=str(TEST_AUTH_USER_ID), phone="+919999999999")
 
 
-def _fake_auth_profile() -> Profile:
-    return Profile(
-        id=TEST_PROFILE_ID,
-        auth_user_id=TEST_AUTH_USER_ID,
-        name="Test User",
-        phone="+919999999999",
-    )
+def _fake_auth_profile(session: Session = Depends(get_session)) -> Profile:
+    p = session.exec(select(Profile).where(Profile.auth_user_id == TEST_AUTH_USER_ID)).first()
+    if not p:
+        p = Profile(
+            id=TEST_PROFILE_ID,
+            auth_user_id=TEST_AUTH_USER_ID,
+            name="Test User",
+            phone="+919999999999",
+        )
+        session.add(p)
+        session.commit()
+    return p
 
 
 @pytest.fixture(scope="session")
