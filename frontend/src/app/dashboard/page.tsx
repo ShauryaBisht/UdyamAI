@@ -15,8 +15,9 @@ import UserOverview from '@/components/dashboard/UserOverview';
 import { getConsolidatedAnalysis, downloadAnalysisPdf, ConsolidatedAnalysisData } from '@/lib/api';
 import { useTranslation } from '@/stores/languageStore';
 import Card from '@/components/ui/Card';
-import StatusBadge from '@/components/ui/StatusBadge';
+import StatusBadge, { StatusType } from '@/components/ui/StatusBadge';
 import { useSpeech } from '@/hooks/useSpeech';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 const VALID_SECTIONS: DashboardSection[] = [
   'overview',
@@ -44,6 +45,7 @@ function isValidAnalysisData(obj: any): obj is ConsolidatedAnalysisData {
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { profile, user } = useAuth();
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
   const [data, setData] = useState<ConsolidatedAnalysisData | null>(null);
   const [resolvedAnalysisId, setResolvedAnalysisId] = useState<string | null>(null);
@@ -54,6 +56,7 @@ function DashboardContent() {
   const { isSpeaking, speakingId, toggleSpeak } = useSpeech();
 
   const analysisId = searchParams.get('analysis_id');
+  const userScope = profile?.id || user?.id || 'guest';
 
   useEffect(() => {
     const raw = searchParams.get('section');
@@ -61,56 +64,76 @@ function DashboardContent() {
   }, [analysisId, data?.analysis_id, searchParams]);
 
   useEffect(() => {
+    let isCancelled = false;
+    const requestedId = analysisId;
+
     async function loadAnalysis() {
-      // Only fetch consolidated analysis if an analysisId is explicitly requested in URL
-      // or if viewing a detailed analysis section
-      if (!analysisId) {
+      if (!requestedId) {
         setData(null);
         setResolvedAnalysisId(null);
         setLoading(false);
         return;
       }
 
-      setData(null);
-      setResolvedAnalysisId(analysisId);
+      setResolvedAnalysisId(requestedId);
 
-      // Check client-side cache strictly for this specific analysisId
+      const cacheKey = `udyam_cached_analysis_${userScope}_${requestedId}`;
+      const legacyKey = `udyam_cached_analysis_${requestedId}`;
+      let hasCachedData = false;
+
       if (typeof window !== 'undefined') {
-        const cached = localStorage.getItem(`udyam_cached_analysis_${analysisId}`);
+        const cached = localStorage.getItem(cacheKey) || localStorage.getItem(legacyKey);
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
-            if (isValidAnalysisData(parsed) && parsed.analysis_id === analysisId) {
+            if (isValidAnalysisData(parsed) && parsed.analysis_id === requestedId) {
               setData(parsed);
+              hasCachedData = true;
             }
           } catch (e) {}
         }
       }
 
-      try {
+      if (!hasCachedData) {
+        setData(null);
         setLoading(true);
-        const res = await getConsolidatedAnalysis(analysisId);
-        if (isValidAnalysisData(res)) {
+      }
+
+      try {
+        const res = await getConsolidatedAnalysis(requestedId);
+        if (
+          !isCancelled &&
+          searchParams.get('analysis_id') === requestedId &&
+          isValidAnalysisData(res) &&
+          res.analysis_id === requestedId
+        ) {
           setData(res);
           if (typeof window !== 'undefined') {
-            localStorage.setItem(`udyam_cached_analysis_${analysisId}`, JSON.stringify(res));
-            localStorage.setItem('udyam_latest_cached_analysis', JSON.stringify(res));
-            localStorage.setItem('udyam_active_analysis_id', analysisId);
+            localStorage.setItem(cacheKey, JSON.stringify(res));
+            localStorage.setItem(`udyam_latest_cached_analysis_${userScope}`, JSON.stringify(res));
+            localStorage.setItem(`udyam_active_analysis_id_${userScope}`, requestedId);
           }
         }
       } catch (err: any) {
         console.warn('Failed to fetch fresh consolidated analysis:', err);
         // If analysis not found (404), purge stale keys from localStorage
         if (typeof window !== 'undefined' && err?.message?.includes('404')) {
-          localStorage.removeItem('udyam_active_analysis_id');
-          localStorage.removeItem(`udyam_cached_analysis_${analysisId}`);
+          localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
+          localStorage.removeItem(cacheKey);
+          localStorage.removeItem(legacyKey);
         }
       } finally {
-        setLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     }
+
     loadAnalysis();
-  }, [analysisId]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [analysisId, searchParams, userScope]);
 
   const feas = data?.feasibility || {};
   const overallScore = feas.overall_score != null ? Math.round(feas.overall_score) : null;
@@ -138,10 +161,18 @@ function DashboardContent() {
           ? t('dash.moderately')
           : t('dash.highRisk');
 
-  const locName = data?.location
-    ? `${data.location.village_name || data.location.name || ''}${data.location.district_name ? `, ${data.location.district_name}` : ''}`.trim()
-    : '';
-  const bizName = data?.business?.category_name || '';
+  const bizName =
+    data?.business?.category_name ||
+    (data as any)?.business_category?.name ||
+    (feas as any)?.business_name ||
+    '';
+  const locName = [
+    data?.location?.village_name || (feas as any)?.village_name,
+    data?.location?.taluka_name || (feas as any)?.taluka_name,
+    data?.location?.district_name || (feas as any)?.district_name,
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   const advisorSummary = data?.ai_advice?.summary || feas.recommendation || '';
   const advisorRecommendations =
@@ -164,16 +195,19 @@ function DashboardContent() {
     }
   }
 
-  function getScoreStatus(score: number): 'verified' | 'warning' | 'risk' {
+  const getScoreStatus = (score: number | null): StatusType => {
+    if (score == null) return 'neutral';
     if (score >= 75) return 'verified';
     if (score >= 50) return 'warning';
     return 'risk';
-  }
+  };
 
   function ScoreCard({ label, score }: { label: string; score: number }) {
     return (
-      <Card padding="md" className="border-border bg-white dark:bg-[#161B22] rounded-2xl flex flex-col justify-between shadow-subtle hover:border-primary/30 transition-all">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+      <Card className="flex flex-col justify-between p-5 border border-border shadow-subtle hover:border-primary/40 transition">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+        </div>
         <div className="flex items-baseline justify-between mt-3">
           <div className="flex items-baseline gap-1">
             <span className="text-3xl font-extrabold font-financial text-foreground tracking-tight">
@@ -187,7 +221,7 @@ function DashboardContent() {
     );
   }
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <AppShell>
         <div className="flex flex-1 flex-col items-center justify-center p-12">

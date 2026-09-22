@@ -223,15 +223,6 @@ class DashboardService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _user_run_ids(db: Session, profile_id: UUID) -> list[UUID]:
-        rows = db.exec(
-            select(AnalysisRun.id)
-            .where(AnalysisRun.user_id == profile_id)
-            .order_by(AnalysisRun.created_at.desc())
-        ).all()
-        return [r for r in rows]
-
-    @staticmethod
     def _analyses(db: Session, profile_id: UUID) -> list[AnalysisRunOverview]:
         runs = db.exec(
             select(AnalysisRun)
@@ -285,15 +276,17 @@ class DashboardService:
 
     @staticmethod
     def _matched_schemes(db: Session, profile_id: UUID) -> list[SchemeOverviewItem]:
-        run_ids = DashboardService._user_run_ids(db, profile_id)
-        if not run_ids:
-            return []
+        run_ids_subquery = (
+            select(AnalysisRun.id)
+            .where(AnalysisRun.user_id == profile_id)
+            .scalar_subquery()
+        )
 
         rows = db.exec(
             select(SchemeMatch, Scheme)
             .join(Scheme, Scheme.id == SchemeMatch.scheme_id)
             .where(
-                SchemeMatch.analysis_run_id.in_(run_ids),
+                SchemeMatch.analysis_run_id.in_(run_ids_subquery),
                 SchemeMatch.match_status == SchemeMatchStatus.POTENTIAL_MATCH,
             )
             .order_by(SchemeMatch.match_score.desc())
