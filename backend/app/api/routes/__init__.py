@@ -17,6 +17,7 @@ from app.api.routes import (
     reports,
     schemes,
     users,
+    voice,
     weather,
     whatsapp,
 )
@@ -38,6 +39,7 @@ __all__ = [
     "reports",
     "schemes",
     "users",
+    "voice",
     "weather",
     "whatsapp",
 ]
