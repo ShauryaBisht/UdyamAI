@@ -30,9 +30,17 @@ router = APIRouter()
 # --- Hierarchy Endpoints ---
 
 
+@router.get("/states", response_model=list[str])
+def get_states(db: Session = Depends(get_session)):
+    return LocationService.get_states(db)
+
+
 @router.get("/districts", response_model=list[DistrictResponse])
-def get_districts(db: Session = Depends(get_session)):
-    return LocationService.get_districts(db)
+def get_districts(
+    state: str | None = Query(default=None, description="Filter districts by state name"),
+    db: Session = Depends(get_session),
+):
+    return LocationService.get_districts(db, state=state)
 
 
 @router.get("/talukas", response_model=list[TalukaResponse])

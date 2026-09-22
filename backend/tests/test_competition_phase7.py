@@ -243,21 +243,21 @@ class TestMarketServiceCompetitionOrchestration:
         assert exc_info.value.status_code == 404
         assert "not found" in exc_info.value.detail
 
-    def test_village_missing_coordinates_raises_400(self):
-        """When village exists in DB but has null latitude/longitude, raise 400."""
-        from fastapi import HTTPException
-
+    def test_village_missing_coordinates_resolves_fallback(self):
+        """When village exists in DB but has null latitude/longitude, fallback coordinates are resolved."""
         from app.models.location import Village
 
         mock_db = MagicMock()
         mock_village = Village(id=uuid4(), name="No Geo Vil", latitude=None, longitude=None)
         mock_db.get.return_value = mock_village
 
-        with pytest.raises(HTTPException) as exc_info:
-            MarketService.analyze_competition_for_location(db=mock_db, village_id=mock_village.id)
-
-        assert exc_info.value.status_code == 400
-        assert "missing latitude/longitude coordinates" in exc_info.value.detail
+        with patch("app.services.market_service.find_nearby_businesses") as mock_find:
+            mock_find.return_value = []
+            res = MarketService.analyze_competition_for_location(
+                db=mock_db, village_id=mock_village.id
+            )
+            assert res is not None
+            assert res.competitor_count == 0
 
     def test_lat_lng_takes_precedence_over_village_id(self):
         """User provided lat/lng takes precedence over village DB lookup."""

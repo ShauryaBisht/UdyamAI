@@ -43,6 +43,7 @@ from app.schemas.market import (
     RadiusMarketAnalysisResult,
     RiskIndicatorItem,
 )
+from app.services.location_service import LocationService
 
 logger = logging.getLogger(__name__)
 
@@ -241,13 +242,10 @@ class MarketService:
             raise HTTPException(status_code=404, detail=f"Village with id {village_id} not found")
 
         if village.latitude is None or village.longitude is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Village '{village.name}' (id {village_id}) is missing latitude/longitude coordinates.",
-            )
-
-        lat = village.latitude
-        lng = village.longitude
+            lat, lng = LocationService.ensure_village_coordinates(db, village)
+        else:
+            lat = village.latitude
+            lng = village.longitude
 
         district_name = (
             village.district.name if hasattr(village, "district") and village.district else None
@@ -633,12 +631,10 @@ class MarketService:
                     status_code=404, detail=f"Village with id {village_id} not found"
                 )
             if village.latitude is None or village.longitude is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Village '{village.name}' (id {village_id}) is missing latitude/longitude coordinates.",
-                )
-            target_lat = village.latitude
-            target_lng = village.longitude
+                target_lat, target_lng = LocationService.ensure_village_coordinates(db, village)
+            else:
+                target_lat = village.latitude
+                target_lng = village.longitude
 
         if target_lat is None or target_lng is None:
             raise HTTPException(
@@ -722,12 +718,10 @@ class MarketService:
                     status_code=404, detail=f"Village with id {village_id} not found"
                 )
             if village.latitude is None or village.longitude is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Village '{village.name}' (id {village_id}) is missing latitude/longitude coordinates.",
-                )
-            target_lat = village.latitude
-            target_lng = village.longitude
+                target_lat, target_lng = LocationService.ensure_village_coordinates(db, village)
+            else:
+                target_lat = village.latitude
+                target_lng = village.longitude
 
         if target_lat is None or target_lng is None:
             raise HTTPException(

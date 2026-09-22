@@ -31,6 +31,7 @@ const EXPENSE_CATEGORIES: ExpenseCategoryConfig[] = [
 ];
 
 import { useTranslation } from '@/stores/languageStore';
+import ExpenseCategoryChart from '@/components/charts/ExpenseCategoryChart';
 
 export default function ExpensesPage() {
   const { t } = useTranslation();
@@ -151,33 +152,15 @@ export default function ExpensesPage() {
           </Card>
         </div>
 
-        {/* Category Breakdown */}
-        {summary && Object.keys(summary.by_category).length > 0 && (
-          <div className="rounded-[24px] border border-border bg-white p-6 sm:p-8 shadow-subtle">
-            <h3 className="text-base font-bold text-foreground tracking-tight mb-5">Spending by Category</h3>
-            <div className="flex flex-col gap-4">
-              {Object.entries(summary.by_category).sort((a, b) => (b[1] as number) - (a[1] as number)).map(([cat, amount]) => {
-                const catInfo = EXPENSE_CATEGORIES.find(c => c.value === cat);
-                const CatIcon = catInfo?.icon || ClipboardList;
-                const pct = summary.total_expenses > 0 ? ((amount as number) / summary.total_expenses * 100) : 0;
-                return (
-                  <div key={cat}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-semibold text-foreground flex items-center gap-2">
-                        <CatIcon className="h-4 w-4 text-primary shrink-0" />
-                        <span>{catInfo?.label || cat}</span>
-                      </span>
-                      <span className="text-sm font-bold font-financial text-foreground">{formatCurrency(amount as number)}</span>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
-                      <div className="h-full rounded-full bg-rose-500 transition-all duration-500" style={{ width: `${Math.min(100, pct)}%` }} />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1 font-medium">{pct.toFixed(1)}% of total outflows</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+        {/* Expense Category Analytics Chart */}
+        {summary && summary.by_category && Object.keys(summary.by_category).length > 0 && (
+          <ExpenseCategoryChart
+            categories={Object.entries(summary.by_category).map(([category, amount]) => ({
+              category,
+              amount: Number(amount) || 0,
+              count: expenses.filter((e) => e.category === category).length,
+            }))}
+          />
         )}
 
         {/* Filter & Add Actions */}

@@ -156,6 +156,96 @@ def _persist_new(db, record) -> UUID:
     return record.id
 
 
+# Standard State Code and Alias mappings
+STATE_CODE_MAP: dict[str, str] = {
+    "AP": "Andhra Pradesh",
+    "AR": "Arunachal Pradesh",
+    "AS": "Assam",
+    "BR": "Bihar",
+    "CG": "Chhattisgarh",
+    "GA": "Goa",
+    "GJ": "Gujarat",
+    "HR": "Haryana",
+    "HP": "Himachal Pradesh",
+    "JH": "Jharkhand",
+    "KA": "Karnataka",
+    "KL": "Kerala",
+    "MP": "Madhya Pradesh",
+    "MH": "Maharashtra",
+    "MN": "Manipur",
+    "ML": "Meghalaya",
+    "MZ": "Mizoram",
+    "NL": "Nagaland",
+    "OD": "Odisha",
+    "PB": "Punjab",
+    "RJ": "Rajasthan",
+    "SK": "Sikkim",
+    "TN": "Tamil Nadu",
+    "TS": "Telangana",
+    "TR": "Tripura",
+    "UP": "Uttar Pradesh",
+    "UK": "Uttarakhand",
+    "WB": "West Bengal",
+    "AN": "Andaman and Nicobar Islands",
+    "CH": "Chandigarh",
+    "DH": "Dadra and Nagar Haveli",
+    "DD": "Daman and Diu",
+    "DL": "Delhi",
+    "JK": "Jammu and Kashmir",
+    "LA": "Ladakh",
+    "LD": "Lakshadweep",
+    "PY": "Puducherry",
+}
+
+STATE_ALIASES: dict[str, str] = {
+    "orissa": "Odisha",
+    "uttaranchal": "Uttarakhand",
+    "andaman and nicobar": "Andaman and Nicobar Islands",
+    "pondicherry": "Puducherry",
+}
+
+# State centroid coordinates (lat, lng)
+STATE_CENTROIDS: dict[str, tuple[float, float]] = {
+    "Andaman and Nicobar Islands": (11.7401, 92.6586),
+    "Andhra Pradesh": (15.9129, 79.7400),
+    "Arunachal Pradesh": (28.2180, 94.7278),
+    "Assam": (26.2006, 92.9376),
+    "Bihar": (25.0961, 85.3131),
+    "Chandigarh": (30.7333, 76.7794),
+    "Chhattisgarh": (21.2787, 81.8661),
+    "Dadra and Nagar Haveli": (20.1809, 73.0169),
+    "Daman and Diu": (20.4283, 72.8397),
+    "Delhi": (28.7041, 77.1025),
+    "Goa": (15.2993, 74.1240),
+    "Gujarat": (22.2587, 71.1924),
+    "Haryana": (29.0588, 76.0856),
+    "Himachal Pradesh": (31.1048, 77.1734),
+    "Jammu and Kashmir": (33.7782, 76.5762),
+    "Jharkhand": (23.6102, 85.2799),
+    "Karnataka": (15.3173, 75.7139),
+    "Kerala": (10.8505, 76.2711),
+    "Ladakh": (34.1526, 77.5771),
+    "Lakshadweep": (10.5667, 72.6417),
+    "Madhya Pradesh": (22.9734, 78.6569),
+    "Maharashtra": (19.7515, 75.7139),
+    "Manipur": (24.6637, 93.9063),
+    "Meghalaya": (25.4670, 91.3662),
+    "Mizoram": (23.1645, 92.9376),
+    "Nagaland": (26.1584, 94.5624),
+    "Odisha": (20.9517, 85.0985),
+    "Puducherry": (11.9416, 79.8083),
+    "Punjab": (31.1471, 75.3412),
+    "Rajasthan": (27.0238, 74.2179),
+    "Sikkim": (27.5330, 88.5122),
+    "Tamil Nadu": (11.1271, 78.6569),
+    "Telangana": (18.1124, 79.0193),
+    "Tripura": (23.9408, 91.9882),
+    "Uttar Pradesh": (26.8467, 80.9462),
+    "Uttarakhand": (30.0668, 79.0193),
+    "West Bengal": (22.9868, 87.8550),
+}
+
+
 class LocationService:
     """Unified location service: CRUD, normalization, matching, resolution, dedup."""
 
@@ -164,8 +254,72 @@ class LocationService:
     # -----------------------------------------------------------------------
 
     @staticmethod
-    def get_districts(db: Session) -> list[District]:
-        statement = select(District).order_by(District.name)
+    def ensure_village_coordinates(db: Session, village: Village) -> tuple[float, float]:
+        """Ensure a village has valid coordinates, resolving and caching if missing."""
+        if village.latitude is not None and village.longitude is not None:
+            return float(village.latitude), float(village.longitude)
+
+        dist = None
+        if village.district_id:
+            dist = db.get(District, village.district_id)
+        if not dist and village.taluka_id:
+            tal = db.get(Taluka, village.taluka_id)
+            if tal and tal.district_id:
+                dist = db.get(District, tal.district_id)
+
+        st_name = dist.state if dist and dist.state else "Maharashtra"
+        c_lat, c_lng = STATE_CENTROIDS.get(st_name, (19.7515, 75.7139))
+        village.latitude = c_lat
+        village.longitude = c_lng
+        try:
+            from geoalchemy2.elements import WKTElement
+
+            village.geom = WKTElement(f"POINT({c_lng} {c_lat})", srid=4326)
+        except Exception:
+            village.geom = f"SRID=4326;POINT({c_lng} {c_lat})"
+
+        db.add(village)
+        try:
+            if not _in_savepoint(db):
+                db.commit()
+        except Exception:
+            pass
+        return c_lat, c_lng
+
+    @staticmethod
+    def get_states(db: Session) -> list[str]:
+        statement = (
+            select(District.state)
+            .distinct()
+            .where(District.state.isnot(None))
+            .order_by(District.state)
+        )
+        raw_states = db.exec(statement).all()
+        cleaned_states: list[str] = []
+        for item in raw_states:
+            val = (
+                item[0]
+                if isinstance(item, (tuple, list))
+                or (hasattr(item, "__getitem__") and not isinstance(item, str))
+                else item
+            )
+            if val and isinstance(val, str) and val.strip():
+                cleaned_states.append(val.strip())
+            elif val and str(val).strip():
+                cleaned_states.append(str(val).strip())
+        return cleaned_states
+
+    @staticmethod
+    def get_districts(db: Session, state: str | None = None) -> list[District]:
+        statement = select(District)
+        if state and state.strip():
+            st_clean = state.strip()
+            # Check 2-letter state code or alias
+            canon = STATE_CODE_MAP.get(st_clean.upper())
+            if not canon:
+                canon = STATE_ALIASES.get(st_clean.lower(), st_clean)
+            statement = statement.where(District.state.ilike(f"%{canon}%"))
+        statement = statement.order_by(District.name)
         return db.exec(statement).all()
 
     @staticmethod

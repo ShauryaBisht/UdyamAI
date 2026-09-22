@@ -18,6 +18,17 @@ dummy_village = Village(
 )
 
 
+def test_get_states(client):
+    with patch(
+        "app.api.routes.locations.LocationService.get_states",
+        return_value=["Gujarat", "Maharashtra", "Tamil Nadu"],
+    ):
+        response = client.get("/locations/states")
+        assert response.status_code == 200
+        data = response.json()
+        assert data == ["Gujarat", "Maharashtra", "Tamil Nadu"]
+
+
 def test_get_districts(client):
     with patch(
         "app.api.routes.locations.LocationService.get_districts", return_value=[dummy_district]
@@ -28,6 +39,18 @@ def test_get_districts(client):
         assert len(data) == 1
         assert data[0]["name"] == "Pune"
         assert data[0]["state"] == "Maharashtra"
+
+
+def test_get_districts_filtered_by_state(client):
+    with patch(
+        "app.api.routes.locations.LocationService.get_districts", return_value=[dummy_district]
+    ) as mock_get:
+        response = client.get("/locations/districts?state=Maharashtra")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["state"] == "Maharashtra"
+        mock_get.assert_called_once()
 
 
 def test_get_talukas(client):
