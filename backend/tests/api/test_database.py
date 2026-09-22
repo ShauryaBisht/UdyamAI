@@ -4,7 +4,7 @@ from app.database import verify_db_connection
 
 
 def test_verify_db_connection_success():
-    with patch("app.database.Session") as mock_session_cls:
+    with patch("app.database.get_engine"), patch("app.database.Session") as mock_session_cls:
         mock_session = mock_session_cls.return_value.__enter__.return_value
         mock_session.execute.return_value = None
 
@@ -13,7 +13,7 @@ def test_verify_db_connection_success():
 
 
 def test_verify_db_connection_failure():
-    with patch("app.database.Session") as mock_session_cls:
+    with patch("app.database.get_engine"), patch("app.database.Session") as mock_session_cls:
         mock_session = mock_session_cls.return_value.__enter__.return_value
         mock_session.execute.side_effect = Exception("DB Connection Refused")
 

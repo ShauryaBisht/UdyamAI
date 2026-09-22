@@ -43,6 +43,7 @@ from app.schemas.scheme import (
     SchemeMatchResultResponse,
     SchemeResponse,
 )
+from app.schemas.user import UserResponse, UserSettingsResponse, UserUpdateRequest
 
 __all__ = [
     "LocationValidatedModel",
@@ -83,4 +84,7 @@ __all__ = [
     "SchemeMatchResultResponse",
     "ReportCreateRequest",
     "ReportResponse",
+    "UserResponse",
+    "UserSettingsResponse",
+    "UserUpdateRequest",
 ]

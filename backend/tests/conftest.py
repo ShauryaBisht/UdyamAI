@@ -4,10 +4,40 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
+from fastapi import Depends
 from fastapi.testclient import TestClient
+from sqlalchemy import event
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.api.deps import get_current_profile, get_current_user
+from app.database import get_session
 from app.main import app
+from app.models import (  # noqa: F401
+    agriculture,
+    ai,
+    analysis,
+    budget,
+    business,
+    cash_flow,
+    credit,
+    debt,
+    economic,
+    expenses,
+    finance,
+    infrastructure,
+    livestock,
+    location,
+    market,
+    provenance,
+    rag,
+    report,
+    savings,
+    scheme,
+    system,
+    user,
+    weather,
+)
 from app.models.analysis import AnalysisRun
 from app.models.location import District, Taluka, Village
 from app.models.user import Profile
@@ -27,26 +57,59 @@ def _fake_auth_user() -> AuthUser:
     return AuthUser(sub=str(TEST_AUTH_USER_ID), phone="+919999999999")
 
 
-def _fake_auth_profile() -> Profile:
-    return Profile(
-        id=TEST_PROFILE_ID,
-        auth_user_id=TEST_AUTH_USER_ID,
-        name="Test User",
-        phone="+919999999999",
+def _fake_auth_profile(session: Session = Depends(get_session)) -> Profile:
+    p = session.exec(select(Profile).where(Profile.auth_user_id == TEST_AUTH_USER_ID)).first()
+    if not p:
+        p = Profile(
+            id=TEST_PROFILE_ID,
+            auth_user_id=TEST_AUTH_USER_ID,
+            name="Test User",
+            phone="+919999999999",
+        )
+        session.add(p)
+        session.commit()
+    return p
+
+
+@pytest.fixture(scope="session")
+def test_engine():
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
+
+    # Enable FK enforcement only on this shared engine — not globally, so that
+    # isolated per-test engines (which use mock location IDs) remain unaffected.
+    @event.listens_for(engine, "connect")
+    def _fk_pragma(dbapi_conn, _record):
+        if hasattr(dbapi_conn, "execute"):
+            try:
+                dbapi_conn.execute("PRAGMA foreign_keys=ON;")
+            except Exception:
+                pass
+
+    SQLModel.metadata.create_all(engine)
+    return engine
 
 
 @pytest.fixture(scope="function", autouse=True)
-def _supabase_auth_overrides():
-    """Run route tests as an authenticated Supabase user.
+def _supabase_auth_overrides(test_engine):
+    """Run route tests as an authenticated Supabase user and test database.
 
     Protected routers resolve identity through ``get_current_user`` /
     ``get_current_profile``; overriding them here keeps pre-auth tests
     green. Tests that specifically exercise auth failures should clear
     ``app.dependency_overrides`` for their own assertions.
     """
+
+    def _get_test_session():
+        with Session(test_engine) as session:
+            yield session
+
     app.dependency_overrides[get_current_user] = _fake_auth_user
     app.dependency_overrides[get_current_profile] = _fake_auth_profile
+    app.dependency_overrides[get_session] = _get_test_session
     yield
     app.dependency_overrides.clear()
 
