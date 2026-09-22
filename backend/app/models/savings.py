@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -23,8 +23,8 @@ class SavingsGoal(SQLModel, table=True):
     status: str = Field(default="active", description="active, completed, paused, cancelled")
     notes: str | None = Field(default=None)
     deleted: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     profile: "Profile" = Relationship(back_populates="savings_goals")
@@ -38,9 +38,9 @@ class SavingsTransaction(SQLModel, table=True):
     goal_id: UUID = Field(foreign_key="savings_goals.id", nullable=False, index=True)
     amount: float = Field(nullable=False, ge=0)
     transaction_type: str = Field(nullable=False, description="deposit or withdrawal")
-    date: datetime = Field(default_factory=datetime.utcnow)
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     notes: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     savings_goal: "SavingsGoal" = Relationship(back_populates="transactions")

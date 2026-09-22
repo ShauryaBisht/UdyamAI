@@ -1,6 +1,6 @@
 """Unit tests for enhanced SchemeService data lookup functions."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -270,7 +270,12 @@ class TestSchemeAPIEndpoints:
     def test_list_schemes(self, client):
         with patch("app.api.routes.schemes.SchemeService.get_schemes") as mock_fn:
             mock_fn.return_value = [
-                Scheme(id=uuid4(), name="PMEGP", active=True, created_at=datetime.utcnow()),
+                Scheme(
+                    id=uuid4(),
+                    name="PMEGP",
+                    active=True,
+                    created_at=datetime.now(timezone.utc),
+                ),
             ]
             response = client.get("/schemes")
             assert response.status_code == 200
@@ -282,7 +287,10 @@ class TestSchemeAPIEndpoints:
         scheme_id = uuid4()
         with patch("app.api.routes.schemes.SchemeService.get_scheme_by_id") as mock_fn:
             mock_fn.return_value = Scheme(
-                id=scheme_id, name="PMEGP", active=True, created_at=datetime.utcnow()
+                id=scheme_id,
+                name="PMEGP",
+                active=True,
+                created_at=datetime.now(timezone.utc),
             )
             response = client.get(f"/schemes/{scheme_id}")
             assert response.status_code == 200
@@ -306,7 +314,7 @@ class TestSchemeAPIEndpoints:
                         scheme_id=scheme_id,
                         interest_rate=8.5,
                         tenure_months=84,
-                        created_at=datetime.utcnow(),
+                        created_at=datetime.now(timezone.utc),
                     ),
                 ]
                 response = client.get(f"/schemes/{scheme_id}/rules")
@@ -345,7 +353,7 @@ class TestSchemeAPIEndpoints:
                         operator=">=",
                         expected_value=18,
                         description="Minimum age 18",
-                        created_at=datetime.utcnow(),
+                        created_at=datetime.now(timezone.utc),
                     ),
                 ]
                 response = client.get(f"/schemes/{scheme_id}/eligibility-rules")
@@ -364,7 +372,7 @@ class TestSchemeAPIEndpoints:
                     scheme_id=uuid4(),
                     match_status="potential_match",
                     match_score=0.92,
-                    created_at=datetime.utcnow(),
+                    created_at=datetime.now(timezone.utc),
                 ),
             ]
             response = client.get(f"/schemes/matches/{run_id}")

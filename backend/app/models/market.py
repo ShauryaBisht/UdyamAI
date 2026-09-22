@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 from uuid import UUID, uuid4
 
@@ -29,7 +29,7 @@ class Market(SQLModel, table=True):
 
     source: str | None = Field(default=None)
     source_url: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     location: Optional["Village"] = Relationship(back_populates="markets")
@@ -57,7 +57,7 @@ class MarketPrice(SQLModel, table=True):
 
     source: str | None = Field(default=None)
     source_url: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     market: Market | None = Relationship(back_populates="prices")
@@ -83,7 +83,7 @@ class MarketAnalysis(SQLModel, table=True):
     market_gaps: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
 
     data_confidence: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     analysis_run: "AnalysisRun" = Relationship(back_populates="market_analyses")
@@ -104,7 +104,10 @@ class CompetitorAnalysis(SQLModel, table=True):
     identified_gaps: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
 
     data_confidence: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    analysis_run: "AnalysisRun" = Relationship(back_populates="competitor_analyses")
 
     # Relationships
     analysis_run: "AnalysisRun" = Relationship(back_populates="competitor_analyses")

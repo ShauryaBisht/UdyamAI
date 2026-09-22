@@ -1,6 +1,6 @@
 """Unit tests for MarketService query functions."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -240,7 +240,10 @@ class TestMarketAPIEndpoints:
         with patch("app.api.routes.markets.MarketService.get_markets") as mock_fn:
             mock_fn.return_value = [
                 Market(
-                    id=uuid4(), name="Mandi A", market_type="mandi", created_at=datetime.utcnow()
+                    id=uuid4(),
+                    name="Mandi A",
+                    market_type="mandi",
+                    created_at=datetime.now(timezone.utc),
                 ),
             ]
             response = client.get("/markets")
@@ -253,7 +256,10 @@ class TestMarketAPIEndpoints:
         market_id = uuid4()
         with patch("app.api.routes.markets.MarketService.get_market_by_id") as mock_fn:
             mock_fn.return_value = Market(
-                id=market_id, name="Mandi A", market_type="mandi", created_at=datetime.utcnow()
+                id=market_id,
+                name="Mandi A",
+                market_type="mandi",
+                created_at=datetime.now(timezone.utc),
             )
             response = client.get(f"/markets/{market_id}")
             assert response.status_code == 200
@@ -274,7 +280,7 @@ class TestMarketAPIEndpoints:
                     commodity="Wheat",
                     modal_price=2500.0,
                     recorded_date=date(2026, 3, 1),
-                    created_at=datetime.utcnow(),
+                    created_at=datetime.now(timezone.utc),
                 ),
             ]
             response = client.get("/markets/prices?commodity=Wheat")
@@ -304,7 +310,10 @@ class TestMarketAPIEndpoints:
         with patch("app.api.routes.markets.MarketService.get_market_analyses") as mock_fn:
             mock_fn.return_value = [
                 MarketAnalysis(
-                    id=uuid4(), analysis_run_id=run_id, radius_km=10.0, created_at=datetime.utcnow()
+                    id=uuid4(),
+                    analysis_run_id=run_id,
+                    radius_km=10.0,
+                    created_at=datetime.now(timezone.utc),
                 ),
             ]
             response = client.get(f"/markets/analyses/{run_id}")
@@ -320,7 +329,7 @@ class TestMarketAPIEndpoints:
                     id=uuid4(),
                     analysis_run_id=run_id,
                     competitor_count=5,
-                    created_at=datetime.utcnow(),
+                    created_at=datetime.now(timezone.utc),
                 ),
             ]
             response = client.get(f"/markets/competitors/{run_id}")

@@ -23,7 +23,9 @@ class Weather(SQLModel, table=True):
     source: str | None = Field(default=None)
     source_url: str | None = Field(default=None)
     data_year: int | None = Field(default=None)
-    created_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+    created_at: datetime.datetime = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc)
+    )
 
     # Relationships
     location: Optional["Village"] = Relationship(back_populates="weather_records")

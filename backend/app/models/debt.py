@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -30,8 +30,8 @@ class Debt(SQLModel, table=True):
     scheme_name: str | None = Field(default=None, description="If linked to a government scheme")
     notes: str | None = Field(default=None)
     deleted: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     profile: "Profile" = Relationship(back_populates="debts")
@@ -46,10 +46,10 @@ class DebtPayment(SQLModel, table=True):
     amount: float = Field(nullable=False, ge=0)
     principal_portion: float = Field(default=0.0, ge=0)
     interest_portion: float = Field(default=0.0, ge=0)
-    payment_date: datetime = Field(default_factory=datetime.utcnow)
+    payment_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     payment_mode: str | None = Field(default=None, description="neft, upi, cash, cheque")
     notes: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     debt: "Debt" = Relationship(back_populates="payments")

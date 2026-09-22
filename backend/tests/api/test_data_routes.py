@@ -1,6 +1,6 @@
 """Tests for the new data query routes: agriculture, economic, infrastructure, livestock, population, weather."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -56,7 +56,7 @@ def test_list_agriculture(client):
         "source": "gov",
         "source_url": None,
         "data_year": 2023,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.agriculture.AgricultureService.get_agriculture_records",
@@ -75,7 +75,7 @@ def test_get_agriculture_found(client):
         "id": str(ag_id),
         "location_id": str(uuid4()),
         "crop_name": "Wheat",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.agriculture.AgricultureService.get_agriculture_by_id",
@@ -123,7 +123,7 @@ def test_list_economic_indicators(client):
         "source": "gov",
         "source_url": None,
         "data_year": 2023,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.economic.EconomicService.get_economic_indicators",
@@ -139,7 +139,7 @@ def test_get_economic_indicator_found(client):
     dummy = {
         "id": str(ind_id),
         "indicator_name": "GDP_per_capita",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.economic.EconomicService.get_economic_indicator_by_id",
@@ -188,7 +188,7 @@ def test_list_infrastructure(client):
         "source": "gov",
         "source_url": None,
         "data_year": 2023,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.infrastructure.InfrastructureService.get_infrastructure",
@@ -205,7 +205,7 @@ def test_get_infrastructure_found(client):
     dummy = {
         "id": str(infra_id),
         "name": "PHC",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.infrastructure.InfrastructureService.get_infrastructure_by_id",
@@ -252,7 +252,7 @@ def test_list_livestock(client):
         "source": "gov",
         "source_url": None,
         "data_year": 2023,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.livestock.LivestockService.get_livestock_records",
@@ -270,7 +270,7 @@ def test_get_livestock_found(client):
         "id": str(live_id),
         "location_id": str(uuid4()),
         "animal_type": "cattle",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.livestock.LivestockService.get_livestock_by_id",
@@ -319,7 +319,7 @@ def test_list_population(client):
         "source": "census",
         "source_url": None,
         "data_year": 2021,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.population.PopulationService.get_population_records",
@@ -338,7 +338,7 @@ def test_get_population_found(client):
         "location_id": str(uuid4()),
         "year": 2021,
         "population_total": 5000,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.population.PopulationService.get_population_by_id",
@@ -376,7 +376,7 @@ def test_list_weather(client):
         "source": "imd",
         "source_url": None,
         "data_year": 2023,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.weather.WeatherService.get_weather_records",
@@ -393,7 +393,7 @@ def test_get_weather_found(client):
         "id": str(weather_id),
         "date": date(2023, 6, 15).isoformat(),
         "rainfall_mm": 12.5,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with patch(
         "app.api.routes.weather.WeatherService.get_weather_by_id",

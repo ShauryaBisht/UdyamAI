@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 from uuid import UUID, uuid4
 
@@ -19,8 +19,8 @@ class Conversation(SQLModel, table=True):
     )
     language: str | None = Field(default=None)
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     user: "Profile" = Relationship(back_populates="conversations")
@@ -35,7 +35,7 @@ class Message(SQLModel, table=True):
     conversation_id: UUID = Field(foreign_key="conversations.id", nullable=False)
     role: str = Field(nullable=False)  # user, assistant, system, tool
     content: str = Field(nullable=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     conversation: Conversation = Relationship(back_populates="messages")

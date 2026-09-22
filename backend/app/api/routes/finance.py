@@ -7,7 +7,7 @@ profile's data.
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -160,7 +160,7 @@ def update_expense(
     expense = _owned_or_404(session, Expense, expense_id, profile, "Expense")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(expense, k, v)
-    expense.updated_at = datetime.utcnow()
+    expense.updated_at = datetime.now(timezone.utc)
     session.add(expense)
     session.commit()
     session.refresh(expense)
@@ -189,7 +189,7 @@ def delete_expense(
                 "notes": expense.notes,
             }
         ),
-        expires_at=datetime.utcnow() + timedelta(days=30),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=30),
     )
     session.add(item)
     expense.deleted = True
@@ -318,7 +318,7 @@ def update_savings_goal(
     goal = _owned_or_404(session, SavingsGoal, goal_id, profile, "Savings goal")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(goal, k, v)
-    goal.updated_at = datetime.utcnow()
+    goal.updated_at = datetime.now(timezone.utc)
     session.add(goal)
     session.commit()
     session.refresh(goal)
@@ -339,7 +339,7 @@ def create_savings_transaction(
         if data.amount > goal.current_amount:
             raise HTTPException(status_code=400, detail="Withdrawal exceeds available amount")
         goal.current_amount -= data.amount
-    goal.updated_at = datetime.utcnow()
+    goal.updated_at = datetime.now(timezone.utc)
     session.add(goal)
     txn = SavingsTransaction(
         goal_id=goal_id,
@@ -453,7 +453,7 @@ def update_budget(
     budget = _owned_or_404(session, Budget, budget_id, profile, "Budget")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(budget, k, v)
-    budget.updated_at = datetime.utcnow()
+    budget.updated_at = datetime.now(timezone.utc)
     session.add(budget)
     session.commit()
     session.refresh(budget)
@@ -534,7 +534,7 @@ def update_debt(
     debt = _owned_or_404(session, Debt, debt_id, profile, "Debt")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(debt, k, v)
-    debt.updated_at = datetime.utcnow()
+    debt.updated_at = datetime.now(timezone.utc)
     session.add(debt)
     session.commit()
     session.refresh(debt)
@@ -624,7 +624,7 @@ def update_borrowing(
     borrowing = _owned_or_404(session, Borrowing, borrowing_id, profile, "Borrowing")
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(borrowing, k, v)
-    borrowing.updated_at = datetime.utcnow()
+    borrowing.updated_at = datetime.now(timezone.utc)
     session.add(borrowing)
     session.commit()
     session.refresh(borrowing)
@@ -807,11 +807,11 @@ def update_privacy_consent(
     if existing:
         existing.granted = data.granted
         if data.granted:
-            existing.granted_at = datetime.utcnow()
+            existing.granted_at = datetime.now(timezone.utc)
             existing.revoked_at = None
         else:
-            existing.revoked_at = datetime.utcnow()
-        existing.updated_at = datetime.utcnow()
+            existing.revoked_at = datetime.now(timezone.utc)
+        existing.updated_at = datetime.now(timezone.utc)
         session.add(existing)
         session.commit()
         session.refresh(existing)
@@ -820,7 +820,7 @@ def update_privacy_consent(
         profile_id=profile.id,
         consent_type=data.consent_type,
         granted=data.granted,
-        granted_at=datetime.utcnow() if data.granted else None,
+        granted_at=datetime.now(timezone.utc) if data.granted else None,
     )
     session.add(consent)
     session.commit()
@@ -861,7 +861,7 @@ def update_settings(
         settings = UserSettings(profile_id=profile.id)
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(settings, k, v)
-    settings.updated_at = datetime.utcnow()
+    settings.updated_at = datetime.now(timezone.utc)
     session.add(settings)
     session.commit()
     session.refresh(settings)
@@ -888,7 +888,7 @@ def update_profile(
 ):
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(profile, k, v)
-    profile.updated_at = datetime.utcnow()
+    profile.updated_at = datetime.now(timezone.utc)
     session.add(profile)
     session.commit()
     session.refresh(profile)
@@ -909,7 +909,7 @@ def create_profile(
     """
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(profile, k, v)
-    profile.updated_at = datetime.utcnow()
+    profile.updated_at = datetime.now(timezone.utc)
     session.add(profile)
     session.commit()
     session.refresh(profile)
