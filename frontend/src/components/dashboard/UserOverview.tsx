@@ -217,10 +217,18 @@ export default function UserOverview() {
   const router = useRouter();
   const { t } = useTranslation();
   const { profile, user, loading: authLoading } = useAuth();
-  
+
+  const profileId =
+    profile?.id ||
+    (typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') : null) ||
+    '00000000-0000-0000-0000-000000000001';
+
   const [overview, setOverview] = useState<DashboardOverviewData | null>(() => {
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('udyam_cached_dashboard_overview');
+      const activeId = profile?.id || localStorage.getItem('udyam_profile_id');
+      const cached = activeId
+        ? localStorage.getItem(`udyam_cached_dashboard_overview_${activeId}`)
+        : null;
       if (cached) {
         try {
           return JSON.parse(cached);
@@ -230,10 +238,27 @@ export default function UserOverview() {
     return null;
   });
 
-  const [expensesList, setExpensesList] = useState<any[]>([]);
+  const [expensesList, setExpensesList] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const activeId = profile?.id || localStorage.getItem('udyam_profile_id');
+      const cached = activeId
+        ? localStorage.getItem(`udyam_cached_expenses_list_${activeId}`)
+        : null;
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (e) {}
+      }
+    }
+    return [];
+  });
+
   const [expenseSummary, setExpenseSummary] = useState<any>(() => {
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('udyam_cached_expense_summary');
+      const activeId = profile?.id || localStorage.getItem('udyam_profile_id');
+      const cached = activeId
+        ? localStorage.getItem(`udyam_cached_expense_summary_${activeId}`)
+        : null;
       if (cached) {
         try {
           return JSON.parse(cached);
@@ -245,7 +270,8 @@ export default function UserOverview() {
 
   const [loading, setLoading] = useState(() => {
     if (typeof window !== 'undefined') {
-      return !localStorage.getItem('udyam_cached_dashboard_overview');
+      const activeId = profile?.id || localStorage.getItem('udyam_profile_id');
+      return !activeId || !localStorage.getItem(`udyam_cached_dashboard_overview_${activeId}`);
     }
     return true;
   });
@@ -254,25 +280,44 @@ export default function UserOverview() {
   const [downloadSuccessId, setDownloadSuccessId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
-  const profileId = typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') || '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000001';
-
   async function loadData() {
+    const targetProfileId =
+      profile?.id ||
+      (typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') : null) ||
+      '00000000-0000-0000-0000-000000000001';
+
     try {
-      const [ovData, expSum] = await Promise.allSettled([
+      const [ovData, expList, expSum] = await Promise.allSettled([
         getDashboardOverview(),
-        getExpenseSummary(profileId),
+        getExpenses(targetProfileId),
+        getExpenseSummary(targetProfileId),
       ]);
 
       if (ovData.status === 'fulfilled' && ovData.value) {
         setOverview(ovData.value);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('udyam_cached_dashboard_overview', JSON.stringify(ovData.value));
+          localStorage.setItem(
+            `udyam_cached_dashboard_overview_${targetProfileId}`,
+            JSON.stringify(ovData.value)
+          );
+        }
+      }
+      if (expList.status === 'fulfilled' && Array.isArray(expList.value)) {
+        setExpensesList(expList.value);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(
+            `udyam_cached_expenses_list_${targetProfileId}`,
+            JSON.stringify(expList.value)
+          );
         }
       }
       if (expSum.status === 'fulfilled' && expSum.value) {
         setExpenseSummary(expSum.value);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('udyam_cached_expense_summary', JSON.stringify(expSum.value));
+          localStorage.setItem(
+            `udyam_cached_expense_summary_${targetProfileId}`,
+            JSON.stringify(expSum.value)
+          );
         }
       }
     } catch (err) {
@@ -283,8 +328,23 @@ export default function UserOverview() {
   }
 
   useEffect(() => {
+    if (authLoading) return;
+    const uid =
+      profile?.id ||
+      (typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') : null);
+
+    if (uid && typeof window !== 'undefined') {
+      try {
+        const cachedOv = localStorage.getItem(`udyam_cached_dashboard_overview_${uid}`);
+        if (cachedOv) setOverview(JSON.parse(cachedOv));
+        const cachedSum = localStorage.getItem(`udyam_cached_expense_summary_${uid}`);
+        if (cachedSum) setExpenseSummary(JSON.parse(cachedSum));
+        const cachedList = localStorage.getItem(`udyam_cached_expenses_list_${uid}`);
+        if (cachedList) setExpensesList(JSON.parse(cachedList));
+      } catch (e) {}
+    }
     void loadData();
-  }, [user]);
+  }, [authLoading, profile?.id, user?.id]);
 
   async function handleDownloadReport(analysisId: string) {
     try {

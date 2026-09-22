@@ -71,17 +71,16 @@ function DashboardContent() {
         return;
       }
 
+      setData(null);
       setResolvedAnalysisId(analysisId);
 
-      // Check client-side cache first for instant render
+      // Check client-side cache strictly for this specific analysisId
       if (typeof window !== 'undefined') {
-        const cached =
-          localStorage.getItem(`udyam_cached_analysis_${analysisId}`) ||
-          localStorage.getItem('udyam_latest_cached_analysis');
+        const cached = localStorage.getItem(`udyam_cached_analysis_${analysisId}`);
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
-            if (isValidAnalysisData(parsed) && (parsed.analysis_id === analysisId || !parsed.analysis_id)) {
+            if (isValidAnalysisData(parsed) && parsed.analysis_id === analysisId) {
               setData(parsed);
             }
           } catch (e) {}
