@@ -8,6 +8,7 @@ import Card from '@/components/ui/Card';
 import MetricDisplay from '@/components/ui/MetricDisplay';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { useTranslation } from '@/stores/languageStore';
+import CreditHealthGauge from '@/components/charts/CreditHealthGauge';
 
 export default function CreditPage() {
   const { t } = useTranslation();
@@ -149,6 +150,12 @@ export default function CreditPage() {
             <p className="text-sm text-foreground-muted mt-1 max-w-sm mx-auto">Record your estimated or official bureau credit score to start monitoring eligibility.</p>
           </div>
         )}
+
+        {/* Credit Health Gauge Visualizer */}
+        <CreditHealthGauge
+          score={data?.latest_score?.score ?? 720}
+          utilizationRate={data?.utilization_rate ?? 28}
+        />
 
         {/* Score History */}
         {data?.history?.length > 1 && (

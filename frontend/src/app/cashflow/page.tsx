@@ -7,6 +7,7 @@ import { ArrowDownLeft, ArrowUpRight, Banknote, Plus, X, Loader2 } from 'lucide-
 import Card from '@/components/ui/Card';
 import MetricDisplay from '@/components/ui/MetricDisplay';
 import { useTranslation } from '@/stores/languageStore';
+import CashFlowTrendChart from '@/components/charts/CashFlowTrendChart';
 
 const CATEGORIES = {
   income: ['sales', 'loan_disbursement', 'subsidy_received', 'investment', 'refund', 'other_income'],
@@ -66,6 +67,35 @@ export default function CashFlowPage() {
 
   const entries = data?.entries || [];
 
+  const cashFlowChartData = React.useMemo(() => {
+    if (!entries || entries.length === 0) {
+      if (data?.total_income || data?.total_expenses) {
+        return [
+          {
+            period: 'Current Period',
+            inflow: Number(data.total_income) || 0,
+            outflow: Number(data.total_expenses) || 0,
+            net: (Number(data.total_income) || 0) - (Number(data.total_expenses) || 0),
+          },
+        ];
+      }
+      return [];
+    }
+    const grouped: Record<string, { inflow: number; outflow: number }> = {};
+    entries.forEach((e: any) => {
+      const period = new Date(e.date || Date.now()).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+      if (!grouped[period]) grouped[period] = { inflow: 0, outflow: 0 };
+      if (e.entry_type === 'income') grouped[period].inflow += Number(e.amount) || 0;
+      else grouped[period].outflow += Number(e.amount) || 0;
+    });
+    return Object.entries(grouped).map(([period, val]) => ({
+      period,
+      inflow: val.inflow,
+      outflow: val.outflow,
+      net: val.inflow - val.outflow,
+    }));
+  }, [entries, data]);
+
   return (
     <AppShell>
       <main className="flex-1 max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 w-full flex flex-col gap-8">
@@ -110,6 +140,11 @@ export default function CashFlowPage() {
             />
           </Card>
         </div>
+
+        {/* Cash Flow Dynamics Trend Chart */}
+        {cashFlowChartData.length > 0 && (
+          <CashFlowTrendChart data={cashFlowChartData} />
+        )}
 
         {/* Action Button */}
         <div className="flex justify-end">

@@ -7,6 +7,7 @@ import { CreditCard, Plus, Loader2, X, Landmark } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import MetricDisplay from '@/components/ui/MetricDisplay';
 import { useTranslation } from '@/stores/languageStore';
+import DebtRepaymentChart from '@/components/charts/DebtRepaymentChart';
 
 export default function DebtsPage() {
   const { t } = useTranslation();
@@ -133,6 +134,18 @@ export default function DebtsPage() {
             />
           </Card>
         </div>
+
+        {/* Debt Repayment Portfolio Chart */}
+        {data?.debts && data.debts.length > 0 && (
+          <DebtRepaymentChart
+            debts={data.debts.map((d: any) => ({
+              name: d.lender_name || d.loan_type || 'Loan Facility',
+              totalAmount: Number(d.principal_amount) || 0,
+              remainingAmount: Number(d.outstanding_amount ?? d.principal_amount) || 0,
+              interestRate: d.interest_rate,
+            }))}
+          />
+        )}
 
         {/* Action Button */}
         <div className="flex justify-end">
