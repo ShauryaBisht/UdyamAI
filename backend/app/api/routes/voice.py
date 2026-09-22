@@ -1,5 +1,6 @@
 import logging
-from typing import Optional
+from typing import Annotated
+
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 
@@ -11,11 +12,17 @@ router = APIRouter()
 
 
 class TTSRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=5000, description="Text to synthesize to speech")
-    language_code: str = Field("hi-IN", description="BCP-47 target language code (hi-IN, mr-IN, en-IN, etc.)")
-    speaker: Optional[str] = Field(None, description="Optional speaker identifier (meera, pavithra, maitreyi, arvind, amartya)")
-    pitch: Optional[float] = Field(0.0, description="Voice pitch adjustment")
-    pace: Optional[float] = Field(1.0, description="Voice pace adjustment (0.5 to 2.0)")
+    text: str = Field(
+        ..., min_length=1, max_length=5000, description="Text to synthesize to speech"
+    )
+    language_code: str = Field(
+        "hi-IN", description="BCP-47 target language code (hi-IN, mr-IN, en-IN, etc.)"
+    )
+    speaker: str | None = Field(
+        None, description="Optional speaker identifier (meera, pavithra, maitreyi, arvind, amartya)"
+    )
+    pitch: float | None = Field(0.0, description="Voice pitch adjustment")
+    pace: float | None = Field(1.0, description="Voice pace adjustment (0.5 to 2.0)")
 
 
 class TTSResponse(BaseModel):
@@ -50,8 +57,8 @@ async def get_voice_status():
 
 @router.post("/stt", response_model=STTResponse)
 async def speech_to_text(
-    file: UploadFile = File(..., description="Audio file blob from client microphone"),
-    language_code: str = Form("hi-IN", description="BCP-47 language code"),
+    file: Annotated[UploadFile, File(description="Audio file blob from client microphone")],
+    language_code: Annotated[str, Form(description="BCP-47 language code")] = "hi-IN",
 ):
     """Transcribe user audio to text using Sarvam AI Saaras model."""
     if not sarvam_voice_service.is_configured():
@@ -63,7 +70,9 @@ async def speech_to_text(
     try:
         audio_bytes = await file.read()
         if not audio_bytes or len(audio_bytes) < 500:
-            logger.info(f"[VoiceAPI] Received audio file too small or empty ({len(audio_bytes) if audio_bytes else 0} bytes), skipping Sarvam STT request.")
+            logger.info(
+                f"[VoiceAPI] Received audio file too small or empty ({len(audio_bytes) if audio_bytes else 0} bytes), skipping Sarvam STT request."
+            )
             return STTResponse(
                 transcript="",
                 language_code=language_code,

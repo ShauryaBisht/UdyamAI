@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -60,7 +61,9 @@ async def test_sarvam_service_tts_success():
 
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = mock_response
-        result = await service.text_to_speech("UdyamAI मध्ये आपले स्वागत आहे", language_code="mr-IN", speaker="meera")
+        result = await service.text_to_speech(
+            "UdyamAI मध्ये आपले स्वागत आहे", language_code="mr-IN", speaker="meera"
+        )
 
         assert result["audio_base64"] == "UklGRiQAAABXQVZFZm10IBAAAAABAAEA"
         assert result["language_code"] == "mr-IN"
@@ -81,6 +84,7 @@ def test_voice_status_route():
 
 def test_voice_tts_unconfigured(monkeypatch):
     from app.services.sarvam_service import sarvam_voice_service
+
     monkeypatch.setattr(sarvam_voice_service, "api_key", None)
 
     client = TestClient(app)

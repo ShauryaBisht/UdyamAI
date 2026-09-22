@@ -6,6 +6,7 @@ import wave
 from typing import Any
 
 import httpx
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -241,8 +242,12 @@ class SarvamVoiceService:
                 "raw_response": result,
             }
         except httpx.HTTPStatusError as exc:
-            logger.error(f"[SarvamVoiceService] STT HTTP error {exc.response.status_code}: {exc.response.text}")
-            raise RuntimeError(f"Sarvam STT failed ({exc.response.status_code}): {exc.response.text}") from exc
+            logger.error(
+                f"[SarvamVoiceService] STT HTTP error {exc.response.status_code}: {exc.response.text}"
+            )
+            raise RuntimeError(
+                f"Sarvam STT failed ({exc.response.status_code}): {exc.response.text}"
+            ) from exc
         except Exception as exc:
             logger.error(f"[SarvamVoiceService] STT unexpected error: {exc}")
             raise RuntimeError(f"Sarvam STT request failed: {exc}") from exc
@@ -320,8 +325,12 @@ class SarvamVoiceService:
                 "language_code": lang,
             }
         except httpx.HTTPStatusError as exc:
-            logger.error(f"[SarvamVoiceService] TTS HTTP error {exc.response.status_code}: {exc.response.text}")
-            raise RuntimeError(f"Sarvam TTS failed ({exc.response.status_code}): {exc.response.text}") from exc
+            logger.error(
+                f"[SarvamVoiceService] TTS HTTP error {exc.response.status_code}: {exc.response.text}"
+            )
+            raise RuntimeError(
+                f"Sarvam TTS failed ({exc.response.status_code}): {exc.response.text}"
+            ) from exc
         except Exception as exc:
             logger.error(f"[SarvamVoiceService] TTS unexpected error: {exc}")
             raise RuntimeError(f"Sarvam TTS request failed: {exc}") from exc
