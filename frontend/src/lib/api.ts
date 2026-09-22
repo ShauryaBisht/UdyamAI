@@ -332,9 +332,22 @@ export async function getDashboardOverview(): Promise<DashboardOverviewData> {
   return res.json();
 }
 
-export async function getDistricts(): Promise<District[]> {
+export async function getStates(): Promise<string[]> {
   try {
-    const res = await apiFetch(`${API_BASE_URL}/api/v1/locations/districts`);
+    const res = await apiFetch(`${API_BASE_URL}/api/v1/locations/states`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('Failed to fetch states from API, using fallback:', err);
+    return [];
+  }
+}
+
+export async function getDistricts(state?: string): Promise<District[]> {
+  try {
+    const query = state && state.trim() ? `?state=${encodeURIComponent(state.trim())}` : '';
+    const res = await apiFetch(`${API_BASE_URL}/api/v1/locations/districts${query}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
