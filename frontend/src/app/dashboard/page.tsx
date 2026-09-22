@@ -47,7 +47,7 @@ function DashboardContent() {
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
   const [data, setData] = useState<ConsolidatedAnalysisData | null>(null);
   const [resolvedAnalysisId, setResolvedAnalysisId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const { t } = useTranslation();
@@ -62,59 +62,49 @@ function DashboardContent() {
 
   useEffect(() => {
     async function loadAnalysis() {
-      const targetId =
-        analysisId ||
-        (typeof window !== 'undefined' ? localStorage.getItem('udyam_active_analysis_id') : null);
-
-      if (!targetId) {
-        // Try fallback to last cached analysis if available
-        if (typeof window !== 'undefined') {
-          const lastSaved = localStorage.getItem('udyam_latest_cached_analysis');
-          if (lastSaved) {
-            try {
-              const parsed = JSON.parse(lastSaved);
-              if (isValidAnalysisData(parsed)) {
-                setData(parsed);
-                setResolvedAnalysisId(parsed.analysis_id || null);
-              }
-            } catch (e) {
-              console.warn('Could not parse cached analysis:', e);
-            }
-          }
-        }
+      // Only fetch consolidated analysis if an analysisId is explicitly requested in URL
+      // or if viewing a detailed analysis section
+      if (!analysisId) {
+        setData(null);
+        setResolvedAnalysisId(null);
         setLoading(false);
         return;
       }
 
-      setResolvedAnalysisId(targetId);
+      setResolvedAnalysisId(analysisId);
+
+      // Check client-side cache first for instant render
+      if (typeof window !== 'undefined') {
+        const cached =
+          localStorage.getItem(`udyam_cached_analysis_${analysisId}`) ||
+          localStorage.getItem('udyam_latest_cached_analysis');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (isValidAnalysisData(parsed) && (parsed.analysis_id === analysisId || !parsed.analysis_id)) {
+              setData(parsed);
+            }
+          } catch (e) {}
+        }
+      }
 
       try {
         setLoading(true);
-        const res = await getConsolidatedAnalysis(targetId);
+        const res = await getConsolidatedAnalysis(analysisId);
         if (isValidAnalysisData(res)) {
           setData(res);
           if (typeof window !== 'undefined') {
-            localStorage.setItem(`udyam_cached_analysis_${targetId}`, JSON.stringify(res));
+            localStorage.setItem(`udyam_cached_analysis_${analysisId}`, JSON.stringify(res));
             localStorage.setItem('udyam_latest_cached_analysis', JSON.stringify(res));
-            localStorage.setItem('udyam_active_analysis_id', targetId);
+            localStorage.setItem('udyam_active_analysis_id', analysisId);
           }
         }
-      } catch (err) {
-        console.warn('Failed to fetch fresh consolidated analysis, attempting offline cache fallback:', err);
-        if (typeof window !== 'undefined') {
-          const cached =
-            localStorage.getItem(`udyam_cached_analysis_${targetId}`) ||
-            localStorage.getItem('udyam_latest_cached_analysis');
-          if (cached) {
-            try {
-              const parsed = JSON.parse(cached);
-              if (isValidAnalysisData(parsed)) {
-                setData(parsed);
-              }
-            } catch (e) {
-              console.warn('Could not parse offline cached analysis:', e);
-            }
-          }
+      } catch (err: any) {
+        console.warn('Failed to fetch fresh consolidated analysis:', err);
+        // If analysis not found (404), purge stale keys from localStorage
+        if (typeof window !== 'undefined' && err?.message?.includes('404')) {
+          localStorage.removeItem('udyam_active_analysis_id');
+          localStorage.removeItem(`udyam_cached_analysis_${analysisId}`);
         }
       } finally {
         setLoading(false);
