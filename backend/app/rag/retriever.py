@@ -117,6 +117,45 @@ def _detect_metric_conflicts(chunk_doc_tuples: list[tuple[DocumentChunk, Documen
     return False
 
 
+def _merge_results(
+    vector_results: list[tuple[DocumentChunk, Document, float]],
+    keyword_results: list[tuple[DocumentChunk, Document, float]],
+    vector_weight: float = 0.7,
+    keyword_weight: float = 0.3,
+    top_k: int = 5,
+    threshold: float = 0.0,
+) -> list[tuple[DocumentChunk, Document, float]]:
+    """
+    Merges and deduplicates vector similarity and keyword search results using weighted score fusion.
+    """
+    scores: dict[UUID, float] = {}
+    items: dict[UUID, tuple[DocumentChunk, Document]] = {}
+    in_vector: set[UUID] = set()
+    in_keyword: set[UUID] = set()
+
+    for chunk, doc, score in vector_results:
+        scores[chunk.id] = score
+        items[chunk.id] = (chunk, doc)
+        in_vector.add(chunk.id)
+
+    for chunk, doc, score in keyword_results:
+        items[chunk.id] = (chunk, doc)
+        in_keyword.add(chunk.id)
+        if chunk.id in in_vector:
+            scores[chunk.id] = (scores[chunk.id] * vector_weight) + (score * keyword_weight)
+        else:
+            scores[chunk.id] = score
+
+    merged: list[tuple[DocumentChunk, Document, float]] = []
+    for chunk_id, combined_score in scores.items():
+        if combined_score >= threshold:
+            chunk, doc = items[chunk_id]
+            merged.append((chunk, doc, combined_score))
+
+    merged.sort(key=lambda x: x[2], reverse=True)
+    return merged[:top_k]
+
+
 def retrieve_evidence(
     db: Session,
     query: str | RAGQueryRequest,
