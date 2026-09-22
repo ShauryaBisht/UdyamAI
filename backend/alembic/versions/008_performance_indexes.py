@@ -1,7 +1,7 @@
 """Add performance B-tree indexes on foreign keys and compound query filters
 
-Revision ID: 007_performance_indexes
-Revises: 006_whatsapp_conversation_unique
+Revision ID: 008_performance_indexes
+Revises: 007_whatsapp_conversation_unique
 Create Date: 2026-09-23 00:05:00.000000
 
 """
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = "007_performance_indexes"
-down_revision = "006_whatsapp_conversation_unique"
+revision = "008_performance_indexes"
+down_revision = "007_whatsapp_conversation_unique"
 branch_labels = None
 depends_on = None
 
