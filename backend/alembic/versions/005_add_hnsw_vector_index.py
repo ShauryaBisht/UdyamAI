@@ -25,20 +25,24 @@ depends_on = None
 
 
 def upgrade():
-    # Ensure pgvector extension exists
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    bind = op.get_bind()
+    if bind is not None and bind.dialect.name == "postgresql":
+        # Ensure pgvector extension exists
+        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
-    # Create HNSW index for cosine similarity search
-    # Uses vector_cosine_ops to match the <=> operator in retrieval queries
-    op.execute(
-        """
-        CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding_hnsw
-        ON document_chunks
-        USING hnsw (embedding vector_cosine_ops)
-        WITH (m = 16, ef_construction = 64)
-        """
-    )
+        # Create HNSW index for cosine similarity search
+        # Uses vector_cosine_ops to match the <=> operator in retrieval queries
+        op.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding_hnsw
+            ON document_chunks
+            USING hnsw (embedding vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64)
+            """
+        )
 
 
 def downgrade():
-    op.execute("DROP INDEX IF EXISTS idx_document_chunks_embedding_hnsw")
+    bind = op.get_bind()
+    if bind is not None and bind.dialect.name == "postgresql":
+        op.execute("DROP INDEX IF EXISTS idx_document_chunks_embedding_hnsw")
