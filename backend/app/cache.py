@@ -23,20 +23,16 @@ class CacheBackend(ABC):
     """Abstract cache interface."""
 
     @abstractmethod
-    def get(self, key: str) -> Any | None:
-        ...
+    def get(self, key: str) -> Any | None: ...
 
     @abstractmethod
-    def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-        ...
+    def set(self, key: str, value: Any, ttl: int | None = None) -> None: ...
 
     @abstractmethod
-    def delete(self, key: str) -> None:
-        ...
+    def delete(self, key: str) -> None: ...
 
     @abstractmethod
-    def clear(self) -> None:
-        ...
+    def clear(self) -> None: ...
 
 
 class InMemoryCache(CacheBackend):
@@ -68,7 +64,11 @@ class InMemoryCache(CacheBackend):
                     for k, _ in oldest:
                         del self._store[k]
 
-            expires_at = time.monotonic() + (ttl or settings.CACHE_TTL) if (ttl or settings.CACHE_TTL) > 0 else 0
+            expires_at = (
+                time.monotonic() + (ttl or settings.CACHE_TTL)
+                if (ttl or settings.CACHE_TTL) > 0
+                else 0
+            )
             self._store[key] = (value, expires_at)
 
     def delete(self, key: str) -> None:
@@ -92,6 +92,7 @@ class RedisCache(CacheBackend):
     def __init__(self, url: str):
         try:
             import importlib
+
             redis = importlib.import_module("redis")
             self._client = redis.from_url(url, decode_responses=True)
             self._client.ping()
