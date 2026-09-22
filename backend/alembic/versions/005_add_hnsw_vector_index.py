@@ -15,7 +15,11 @@ Tuning parameters:
   Higher values improve recall at the cost of build time
 """
 
+import logging
+
 from alembic import op
+
+logger = logging.getLogger("alembic.runtime.migration")
 
 # revision identifiers
 revision = "005_add_hnsw_vector_index"
@@ -27,22 +31,37 @@ depends_on = None
 def upgrade():
     bind = op.get_bind()
     if bind is not None and bind.dialect.name == "postgresql":
-        # Ensure pgvector extension exists
-        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        try:
+            # Ensure pgvector extension exists if user has privileges
+            op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        except Exception as exc:
+            logger.warning(
+                "Could not execute CREATE EXTENSION IF NOT EXISTS vector: %s. Proceeding assuming extension is pre-installed.",
+                exc,
+            )
 
-        # Create HNSW index for cosine similarity search
-        # Uses vector_cosine_ops to match the <=> operator in retrieval queries
-        op.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding_hnsw
-            ON document_chunks
-            USING hnsw (embedding vector_cosine_ops)
-            WITH (m = 16, ef_construction = 64)
-            """
-        )
+        try:
+            # Create HNSW index for cosine similarity search
+            # Uses vector_cosine_ops to match the <=> operator in retrieval queries
+            op.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding_hnsw
+                ON document_chunks
+                USING hnsw (embedding vector_cosine_ops)
+                WITH (m = 16, ef_construction = 64)
+                """
+            )
+        except Exception as exc:
+            logger.warning(
+                "Could not create HNSW vector index on document_chunks (pgvector <0.5 or missing extension): %s. Retrieval will use table-scan fallback.",
+                exc,
+            )
 
 
 def downgrade():
     bind = op.get_bind()
     if bind is not None and bind.dialect.name == "postgresql":
-        op.execute("DROP INDEX IF EXISTS idx_document_chunks_embedding_hnsw")
+        try:
+            op.execute("DROP INDEX IF EXISTS idx_document_chunks_embedding_hnsw")
+        except Exception as exc:
+            logger.warning("Could not drop HNSW vector index: %s", exc)

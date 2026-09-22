@@ -137,7 +137,7 @@ class ScoreBasedReranker(Reranker):
 
 def get_reranker() -> Reranker:
     """Return the configured reranker instance."""
-    reranker_type = settings.RERANKER_TYPE
+    reranker_type = getattr(settings, "RERANKER_TYPE", "score_based") or "score_based"
     if reranker_type == "score_based":
         return ScoreBasedReranker()
     # Future: add cross-encoder support

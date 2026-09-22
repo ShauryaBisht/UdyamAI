@@ -165,17 +165,32 @@ def detect_language(text: str) -> str | None:
         "en": latin,
     }
 
-    max_lang = max(counts, key=counts.get)
     total_chars = sum(counts.values())
     if total_chars == 0:
         return None
 
-    # Mixed language detection
-    has_indic = any(v > 0 for k, v in counts.items() if k != "en")
-    if has_indic and latin > 0:
-        return "mixed"
-
+    max_lang = max(counts, key=counts.get)
     return max_lang if counts[max_lang] > 0 else None
+
+
+def _is_mixed_script(text: str) -> bool:
+    """Check if query contains substantial mix of Indic and Latin scripts."""
+    latin = len(re.findall(r"[a-zA-Z]", text))
+    indic = len(
+        _DEVANAGARI_RANGE.findall(text)
+        + _BENGALI_RANGE.findall(text)
+        + _TAMIL_RANGE.findall(text)
+        + _TELUGU_RANGE.findall(text)
+        + _KANNADA_RANGE.findall(text)
+        + _MALAYALAM_RANGE.findall(text)
+        + _GUJARATI_RANGE.findall(text)
+        + _GURMUKHI_RANGE.findall(text)
+        + _ODIA_RANGE.findall(text)
+    )
+    total = latin + indic
+    if total < 4:
+        return False
+    return (latin / total >= 0.15) and (indic / total >= 0.15)
 
 
 def _extract_preserved_terms(text: str) -> list[str]:
@@ -208,21 +223,26 @@ def _normalize(text: str) -> str:
     return text
 
 
-def _expand_query(text: str) -> str:
-    """Expand vernacular/abbreviated terms for better retrieval."""
+def _expand_query(text: str, max_expansions: int = 4) -> str:
+    """Expand key vernacular/abbreviated domain terms conservatively without diluting retrieval."""
     words = text.split()
-    expanded_words = list(words)  # Start with original words
+    expanded_words = list(words)
+    expansions_added = 0
 
     for word in words:
-        lower = word.lower().strip("?.,!")
+        if expansions_added >= max_expansions:
+            break
+        lower = word.lower().strip("?.,!\"'()[]{}")
         if lower in _STOPWORDS or len(lower) < 2:
             continue
         expansion = _TERM_EXPANSIONS.get(lower)
         if expansion:
-            # Add expansion terms, keeping the original
             for exp_word in expansion.split():
                 if exp_word.lower() not in {w.lower() for w in expanded_words}:
                     expanded_words.append(exp_word)
+                    expansions_added += 1
+                    if expansions_added >= max_expansions:
+                        break
 
     return " ".join(expanded_words)
 
@@ -232,15 +252,14 @@ def process_query(query: str) -> ProcessedQuery:
 
     Pipeline:
       1. Normalize whitespace
-      2. Detect language
+      2. Detect dominant language and mixed-script presence
       3. Extract preserved terms (scheme names, numbers, acronyms)
-      4. Expand vernacular terms
+      4. Expand vernacular terms conservatively
       5. Return original + expanded for hybrid search
-
-    The original query is always preserved for keyword matching.
     """
     normalized = _normalize(query)
     detected_lang = detect_language(normalized)
+    mixed_script = _is_mixed_script(normalized)
     preserved = _extract_preserved_terms(normalized)
     expanded = _expand_query(normalized)
 
@@ -250,12 +269,13 @@ def process_query(query: str) -> ProcessedQuery:
         expanded=expanded,
         detected_language=detected_lang,
         preserved_terms=preserved,
-        is_mixed_language=detected_lang == "mixed",
+        is_mixed_language=mixed_script,
     )
 
     logger.debug(
-        "Query processed: lang=%s, preserved=%s, expanded='%s...'",
+        "Query processed: lang=%s, mixed=%s, preserved=%s, expanded='%s...'",
         detected_lang,
+        mixed_script,
         preserved[:3],
         expanded[:50],
     )

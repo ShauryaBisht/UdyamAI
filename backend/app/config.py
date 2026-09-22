@@ -88,7 +88,6 @@ class Settings(BaseSettings):
 
     # Feature Flags
     VOICE_ENABLED: bool = True
-    WHATSAPP_ENABLED: bool = False  # Intentionally not yet implemented
     SUPPORTED_LANGUAGES: str = "en,hi,mr,bn,ta,te,kn,ml,gu,pa,or,as"
 
     # API Rate Limiting Configuration
