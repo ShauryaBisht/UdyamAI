@@ -21,6 +21,7 @@ from app.api.routes import (
     reports,
     schemes,
     users,
+    voice,
     weather,
     whatsapp,
 )
@@ -297,6 +298,19 @@ app.include_router(
     economic.router,
     prefix="/api/v1/economic",
     tags=["Economic"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    voice.router,
+    prefix="/voice",
+    tags=["Voice"],
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    voice.router,
+    prefix="/api/v1/voice",
+    tags=["Voice"],
     include_in_schema=False,
     dependencies=[Depends(default_limiter)],
 )

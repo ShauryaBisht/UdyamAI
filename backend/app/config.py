@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     AI_MODEL: str | None = "gemini-3.6-flash"
     OPENAI_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
+    SARVAM_API_KEY: str | None = None
+    SARVAM_STT_MODEL: str = "saaras:v3"
+    SARVAM_TTS_MODEL: str = "bulbul:v3"
+    SARVAM_TTS_DEFAULT_SPEAKER: str = "shubh"
 
     # WhatsApp / Twilio access channel
     WHATSAPP_ENABLED: bool = False
