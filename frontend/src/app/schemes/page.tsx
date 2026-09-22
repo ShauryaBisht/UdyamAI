@@ -14,11 +14,16 @@ import {
   Landmark,
   ShieldCheck,
   CheckCircle2,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import AppShell from '@/components/ui/AppShell';
 import { getSchemes } from '@/lib/api';
 import { useTranslation } from '@/stores/languageStore';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { useSpeech } from '@/hooks/useSpeech';
 
 export interface GovernmentScheme {
   id: string;
@@ -96,6 +101,15 @@ export default function SchemesPage() {
   const [selectedType, setSelectedType] = useState<string>('all');
   const { t } = useTranslation();
 
+  const {
+    isListening,
+    isSTTSupported,
+    toggleListening,
+    isSpeaking,
+    speakingId,
+    toggleSpeak,
+  } = useSpeech();
+
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -126,6 +140,12 @@ export default function SchemesPage() {
     }
     load();
   }, []);
+
+  const handleVoiceSearch = () => {
+    toggleListening((spokenText) => {
+      setQuery(spokenText);
+    });
+  };
 
   const filteredSchemes = schemes.filter((s) => {
     const searchStr = `${s.name} ${s.description || ''} ${s.agency_name || ''}`.toLowerCase();
@@ -162,15 +182,30 @@ export default function SchemesPage() {
 
         {/* Search & Filter Bar */}
         <div className="bg-white dark:bg-[#161B22] rounded-2xl border border-border p-4 sm:p-5 shadow-subtle flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="relative w-full md:w-96">
+          <div className="relative w-full md:w-96 flex items-center">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground-muted" />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('schemes.search')}
-              className="w-full pl-11 pr-4 py-2.5 bg-neutral-50/70 dark:bg-[#1F242C] border border-border rounded-xl text-sm outline-none focus:bg-white dark:focus:bg-[#161B22] focus:border-primary focus:ring-4 focus:ring-primary/10 transition text-foreground"
+              placeholder={isListening ? 'Listening for scheme name...' : t('schemes.search')}
+              className="w-full pl-11 pr-11 py-2.5 bg-neutral-50/70 dark:bg-[#1F242C] border border-border rounded-xl text-sm outline-none focus:bg-white dark:focus:bg-[#161B22] focus:border-primary focus:ring-4 focus:ring-primary/10 transition text-foreground"
             />
+            {/* Voice Search Button */}
+            {isSTTSupported && (
+              <button
+                type="button"
+                onClick={handleVoiceSearch}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition ${
+                  isListening
+                    ? 'bg-rose-500 text-white animate-pulse'
+                    : 'text-foreground-muted hover:text-primary hover:bg-primary/10'
+                }`}
+                title={isListening ? 'Stop listening' : 'Voice search'}
+              >
+                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </button>
+            )}
           </div>
           
           <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
@@ -198,61 +233,102 @@ export default function SchemesPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredSchemes.map((s, idx) => (
-              <div
-                key={s.id || idx}
-                className="bg-white dark:bg-[#161B22] rounded-2xl border border-border p-6 shadow-subtle hover:border-primary/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
-                        <Landmark className="h-5 w-5" />
+            {filteredSchemes.map((s, idx) => {
+              const schemeCardId = `scheme-${s.id || idx}`;
+              const isCardSpeaking = isSpeaking && speakingId === schemeCardId;
+              const spokenText = `${s.name}. Agency: ${s.agency_name || ''}. ${s.description || ''}. Maximum subsidy: ${s.max_subsidy_percentage || 0} percent. Maximum loan: ₹${s.max_loan_amount ? s.max_loan_amount.toLocaleString('en-IN') : 'As per norms'}.`;
+
+              return (
+                <div
+                  key={s.id || idx}
+                  className="bg-white dark:bg-[#161B22] rounded-2xl border border-border p-6 shadow-subtle hover:border-primary/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
+                          <Landmark className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-foreground text-base leading-snug group-hover:text-primary transition-colors">{s.name}</h3>
+                          <p className="text-xs text-foreground-muted font-medium mt-0.5">{s.agency_name}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* Read Aloud Button */}
+                        <button
+                          type="button"
+                          onClick={() => toggleSpeak(spokenText, schemeCardId)}
+                          className={`p-1.5 rounded-lg text-xs transition ${
+                            isCardSpeaking
+                              ? 'bg-primary text-white animate-pulse'
+                              : 'text-foreground-muted hover:text-primary hover:bg-primary/10'
+                          }`}
+                          title={isCardSpeaking ? 'Stop audio' : 'Listen to scheme details'}
+                        >
+                          {isCardSpeaking ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                        </button>
+
+                        <span className="px-3 py-1 text-xs font-semibold rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shrink-0">
+                          Active
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-foreground-muted leading-relaxed mb-6">
+                      {s.description}
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="grid grid-cols-2 gap-3 p-4 bg-neutral-50/70 dark:bg-[#1F242C] rounded-xl border border-border/60 mb-5">
+                      <div>
+                        <span className="text-[11px] font-bold text-foreground-muted uppercase tracking-wider block">Max Subsidy</span>
+                        <span className="text-base font-black text-primary font-financial mt-0.5 block">
+                          {s.max_subsidy_percentage ? `${s.max_subsidy_percentage}%` : 'N/A'}
+                        </span>
                       </div>
                       <div>
-                        <h3 className="font-bold text-foreground text-base leading-snug group-hover:text-primary transition-colors">{s.name}</h3>
-                        <p className="text-xs text-foreground-muted font-medium mt-0.5">{s.agency_name}</p>
+                        <span className="text-[11px] font-bold text-foreground-muted uppercase tracking-wider block">Max Loan Limit</span>
+                        <span className="text-base font-black text-foreground font-financial mt-0.5 block">
+                          {s.max_loan_amount ? `₹${(s.max_loan_amount / 100000).toFixed(1)}L` : 'As per project'}
+                        </span>
                       </div>
                     </div>
-                    <span className="px-3 py-1 text-xs font-semibold rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shrink-0">
-                      Active
-                    </span>
-                  </div>
 
-                  <p className="text-sm text-foreground-muted leading-relaxed mb-6">
-                    {s.description}
-                  </p>
+                    {s.target_sectors && s.target_sectors.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-5">
+                        {s.target_sectors.map((sec, sIdx) => (
+                          <span
+                            key={sIdx}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-neutral-100 dark:bg-[#272D37] text-foreground-muted"
+                          >
+                            {sec.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
-                  <div className="grid grid-cols-2 gap-3 p-4 rounded-xl bg-neutral-50 dark:bg-[#1F242C] border border-border mb-6 group-hover:border-primary/20 transition-colors">
-                    <div>
-                      <span className="text-foreground-muted font-semibold block text-[11px] uppercase tracking-wider">Subsidies / Support</span>
-                      <strong className="text-primary font-black text-base mt-0.5 block">
-                        {s.max_subsidy_percentage ? `${s.max_subsidy_percentage}% Grant` : 'Subvention Support'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-foreground-muted font-semibold block text-[11px] uppercase tracking-wider">Max Assistance</span>
-                      <strong className="text-foreground font-black text-base mt-0.5 block">
-                        {s.max_loan_amount ? `Up to ₹${(s.max_loan_amount / 100000).toFixed(0)}L` : 'Flexible Limit'}
-                      </strong>
+                    <div className="pt-4 border-t border-border flex items-center justify-between">
+                      <span className="text-xs font-medium text-foreground-muted flex items-center gap-1.5">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Eligible for MSME/Rural
+                      </span>
+                      <Link
+                        href="/onboarding"
+                        className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary-600 transition group-hover:translate-x-1 duration-200"
+                      >
+                        Check Eligibility <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
                     </div>
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between pt-4 border-t border-border text-xs">
-                  <span className="text-foreground-muted font-semibold uppercase tracking-wider">{s.scheme_type?.replace(/_/g, ' ')}</span>
-                  <Link
-                    href="/onboarding"
-                    className="inline-flex items-center gap-1.5 font-bold text-primary hover:text-primary-700 transition group/link"
-                  >
-                    Check Eligibility <ArrowRight className="h-3.5 w-3.5 group-hover/link:translate-x-1 transition-transform" />
-                  </Link>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
     </AppShell>
   );
 }
+

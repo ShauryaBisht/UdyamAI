@@ -24,6 +24,8 @@ import {
   Award,
   Layers,
   Building2,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 import AppShell from '@/components/ui/AppShell';
@@ -35,10 +37,12 @@ import {
   type DashboardOverviewData,
 } from '@/lib/api';
 import { useTranslation } from '@/stores/languageStore';
+import { useSpeech } from '@/hooks/useSpeech';
 
 export default function ReportsPage() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { isSpeaking, speakingId, toggleSpeak } = useSpeech();
 
   const [overview, setOverview] = useState<DashboardOverviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -450,7 +454,7 @@ export default function ReportsPage() {
                     </div>
                   </div>
 
-                  {/* Action Buttons Footer */}
+                    {/* Action Buttons Footer */}
                   <div className="mt-6 pt-4 border-t border-border flex flex-col sm:flex-row gap-2">
                     <button
                       type="button"
@@ -458,6 +462,27 @@ export default function ReportsPage() {
                       className="flex-1 py-2.5 px-4 rounded-full bg-primary hover:bg-primary-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:shadow transition-all duration-200 active:scale-95"
                     >
                       <BarChart3 className="h-3.5 w-3.5" /> View Report
+                    </button>
+
+                    {/* Read Aloud Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const speechText = `${report.title} for ${report.businessName} in ${report.location}. Feasibility score: ${score !== null ? score : 'Pending'} out of 100. Status: ${scoreLabel}.`;
+                        toggleSpeak(speechText, `report-${report.id}`);
+                      }}
+                      className={`py-2.5 px-3 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-95 ${
+                        isSpeaking && speakingId === `report-${report.id}`
+                          ? 'bg-primary text-white animate-pulse'
+                          : 'bg-neutral-100 dark:bg-[#1F242C] hover:bg-neutral-200 dark:hover:bg-[#272D37] text-foreground'
+                      }`}
+                      title="Listen to report summary"
+                    >
+                      {isSpeaking && speakingId === `report-${report.id}` ? (
+                        <VolumeX className="h-3.5 w-3.5 text-white" />
+                      ) : (
+                        <Volume2 className="h-3.5 w-3.5 text-primary" />
+                      )}
                     </button>
 
                     <button
