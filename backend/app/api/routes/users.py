@@ -3,7 +3,7 @@
 import json
 import logging
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -152,7 +152,7 @@ def update_current_user_profile(
         profile_updated = True
 
     if profile_updated:
-        profile.updated_at = datetime.utcnow()
+        profile.updated_at = datetime.now(timezone.utc)
         session.add(profile)
 
     # 2. Update UserSettings fields
@@ -200,7 +200,7 @@ def update_current_user_profile(
             settings_updated = True
 
     if settings_updated:
-        settings_obj.updated_at = datetime.utcnow()
+        settings_obj.updated_at = datetime.now(timezone.utc)
         session.add(settings_obj)
 
     session.commit()
