@@ -33,7 +33,21 @@ export default function CashFlowTrendChart({
 }: CashFlowTrendChartProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
-  if (!data || data.length === 0) {
+  const safeData = (data || [])
+    .filter(Boolean)
+    .map((d) => {
+      const inflow = Math.max(0, Number(d?.inflow) || 0);
+      const outflow = Math.max(0, Number(d?.outflow) || 0);
+      const net = d?.net !== undefined ? Number(d.net) : inflow - outflow;
+      return {
+        period: String(d?.period || 'Cycle'),
+        inflow,
+        outflow,
+        net,
+      };
+    });
+
+  if (safeData.length === 0) {
     return (
       <ChartCard
         title={title}
@@ -51,8 +65,8 @@ export default function CashFlowTrendChart({
   const innerWidth = svgWidth - padding.left - padding.right;
   const innerHeight = svgHeight - padding.top - padding.bottom;
 
-  const maxVal = Math.max(...data.flatMap((d) => [d.inflow, d.outflow, Math.abs(d.net)]), 1000);
-  const stepX = innerWidth / data.length;
+  const maxVal = Math.max(...safeData.flatMap((d) => [d.inflow, d.outflow, Math.abs(d.net)]), 1000);
+  const stepX = innerWidth / safeData.length;
   const barWidth = Math.max(6, Math.min(22, stepX * 0.35));
 
   return (

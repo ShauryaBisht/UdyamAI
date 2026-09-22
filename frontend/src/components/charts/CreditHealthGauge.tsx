@@ -19,7 +19,8 @@ export default function CreditHealthGauge({
   className = '',
 }: CreditHealthGaugeProps) {
   // Score ranges: 300 to 900
-  const normalizedScore = Math.max(300, Math.min(900, score));
+  const normalizedScore = Math.max(300, Math.min(900, Number(score) || 720));
+  const safeUtilization = Math.max(0, Math.min(100, Number(utilizationRate) || 0));
   const scorePercent = ((normalizedScore - 300) / 600) * 100;
 
   let tier = 'Excellent';
@@ -97,10 +98,10 @@ export default function CreditHealthGauge({
             </div>
             <span
               className={`text-sm font-extrabold ${
-                utilizationRate <= 30 ? 'text-emerald-600' : 'text-amber-600'
+                safeUtilization <= 30 ? 'text-emerald-600' : 'text-amber-600'
               }`}
             >
-              {utilizationRate}%
+              {safeUtilization}%
             </span>
           </div>
 

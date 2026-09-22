@@ -80,7 +80,7 @@ export default function OnboardingPage() {
 
   // Demo sample scenario button using verified seeded data from Maharashtra database
   const handleDemo = () => {
-    setStateCode("MH");
+    setStateCode("Maharashtra");
     setStateName("Maharashtra");
     setDistrictId("624a9c93-78e1-4f68-b79b-0b865a45c1bf");
     setDistrictName("Pune");

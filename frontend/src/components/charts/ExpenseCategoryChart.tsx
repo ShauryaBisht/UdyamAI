@@ -41,7 +41,16 @@ export default function ExpenseCategoryChart({
   subtitle = 'Breakdown of operational spend across business activities',
   className = '',
 }: ExpenseCategoryChartProps) {
-  if (!categories || categories.length === 0) {
+  const safeCategories = (categories || [])
+    .filter(Boolean)
+    .map((c) => ({
+      category: String(c?.category || 'Operational'),
+      amount: Math.max(0, Number(c?.amount) || 0),
+      count: c?.count !== undefined ? Number(c.count) : undefined,
+    }))
+    .filter((c) => c.amount > 0);
+
+  if (safeCategories.length === 0) {
     return (
       <ChartCard
         title={title}
@@ -53,8 +62,8 @@ export default function ExpenseCategoryChart({
     );
   }
 
-  const total = categories.reduce((sum, c) => sum + c.amount, 0);
-  const sorted = [...categories].sort((a, b) => b.amount - a.amount);
+  const total = safeCategories.reduce((sum, c) => sum + c.amount, 0);
+  const sorted = [...safeCategories].sort((a, b) => b.amount - a.amount);
 
   return (
     <ChartCard title={title} subtitle={subtitle} className={className}>

@@ -31,7 +31,20 @@ export default function SavingsProgressChart({
   subtitle = 'Progress toward target reserve capital and expansion funds',
   className = '',
 }: SavingsProgressChartProps) {
-  if (!goals || goals.length === 0) {
+  const safeGoals = (goals || [])
+    .filter(Boolean)
+    .map((g) => {
+      const targetAmount = Math.max(0, Number(g?.targetAmount) || 0);
+      const currentAmount = Math.max(0, Number(g?.currentAmount) || 0);
+      return {
+        title: String(g?.title || 'Savings Goal'),
+        targetAmount,
+        currentAmount,
+        targetDate: g?.targetDate ? String(g.targetDate) : undefined,
+      };
+    });
+
+  if (safeGoals.length === 0) {
     return (
       <ChartCard
         title={title}
@@ -43,8 +56,8 @@ export default function SavingsProgressChart({
     );
   }
 
-  const totalTarget = goals.reduce((s, g) => s + g.targetAmount, 0);
-  const totalSaved = goals.reduce((s, g) => s + g.currentAmount, 0);
+  const totalTarget = safeGoals.reduce((s, g) => s + g.targetAmount, 0);
+  const totalSaved = safeGoals.reduce((s, g) => s + g.currentAmount, 0);
   const totalPct = totalTarget > 0 ? Math.min(100, Math.round((totalSaved / totalTarget) * 100)) : 0;
 
   return (

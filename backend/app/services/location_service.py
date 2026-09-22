@@ -271,7 +271,12 @@ class LocationService:
         c_lat, c_lng = STATE_CENTROIDS.get(st_name, (19.7515, 75.7139))
         village.latitude = c_lat
         village.longitude = c_lng
-        village.geom = f"SRID=4326;POINT({c_lng} {c_lat})"
+        try:
+            from geoalchemy2.elements import WKTElement
+            village.geom = WKTElement(f"POINT({c_lng} {c_lat})", srid=4326)
+        except Exception:
+            village.geom = f"SRID=4326;POINT({c_lng} {c_lat})"
+
         db.add(village)
         try:
             if not _in_savepoint(db):
@@ -288,8 +293,20 @@ class LocationService:
             .where(District.state.isnot(None))
             .order_by(District.state)
         )
-        states = db.exec(statement).all()
-        return [s for s in states if s and str(s).strip()]
+        raw_states = db.exec(statement).all()
+        cleaned_states: list[str] = []
+        for item in raw_states:
+            val = (
+                item[0]
+                if isinstance(item, (tuple, list))
+                or (hasattr(item, "__getitem__") and not isinstance(item, str))
+                else item
+            )
+            if val and isinstance(val, str) and val.strip():
+                cleaned_states.append(val.strip())
+            elif val and str(val).strip():
+                cleaned_states.append(str(val).strip())
+        return cleaned_states
 
     @staticmethod
     def get_districts(db: Session, state: str | None = None) -> list[District]:

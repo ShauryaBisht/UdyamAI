@@ -30,7 +30,15 @@ export default function BudgetComparisonChart({
   subtitle = 'Category-level limits and variance tracking',
   className = '',
 }: BudgetComparisonChartProps) {
-  if (!items || items.length === 0) {
+  const safeItems = (items || [])
+    .filter(Boolean)
+    .map((it) => ({
+      category: String(it?.category || 'Operational Allocation'),
+      budgetLimit: Math.max(0, Number(it?.budgetLimit) || 0),
+      actualSpent: Math.max(0, Number(it?.actualSpent) || 0),
+    }));
+
+  if (safeItems.length === 0) {
     return (
       <ChartCard
         title={title}
@@ -42,12 +50,12 @@ export default function BudgetComparisonChart({
     );
   }
 
-  const maxVal = Math.max(...items.flatMap((i) => [i.budgetLimit, i.actualSpent]), 1000);
+  const maxVal = Math.max(...safeItems.flatMap((i) => [i.budgetLimit, i.actualSpent]), 1000);
 
   return (
     <ChartCard title={title} subtitle={subtitle} className={className}>
       <div className="flex flex-col gap-4">
-        {items.map((item, idx) => {
+        {safeItems.map((item, idx) => {
           const limitPct = (item.budgetLimit / maxVal) * 100;
           const spentPct = (item.actualSpent / maxVal) * 100;
           const isOverBudget = item.actualSpent > item.budgetLimit;

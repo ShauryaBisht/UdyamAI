@@ -31,7 +31,20 @@ export default function DebtRepaymentChart({
   subtitle = 'Principal reduction and paid-off status across active loans',
   className = '',
 }: DebtRepaymentChartProps) {
-  if (!debts || debts.length === 0) {
+  const safeDebts = (debts || [])
+    .filter(Boolean)
+    .map((d) => {
+      const totalAmount = Math.max(0, Number(d?.totalAmount) || 0);
+      const remainingAmount = Math.max(0, Math.min(totalAmount, Number(d?.remainingAmount ?? d?.totalAmount) || 0));
+      return {
+        name: String(d?.name || 'Loan Facility'),
+        totalAmount,
+        remainingAmount,
+        interestRate: d?.interestRate !== undefined ? Number(d.interestRate) : undefined,
+      };
+    });
+
+  if (safeDebts.length === 0) {
     return (
       <ChartCard
         title={title}
@@ -43,8 +56,8 @@ export default function DebtRepaymentChart({
     );
   }
 
-  const totalDebt = debts.reduce((sum, d) => sum + d.totalAmount, 0);
-  const remainingDebt = debts.reduce((sum, d) => sum + d.remainingAmount, 0);
+  const totalDebt = safeDebts.reduce((sum, d) => sum + d.totalAmount, 0);
+  const remainingDebt = safeDebts.reduce((sum, d) => sum + d.remainingAmount, 0);
   const paidDebt = Math.max(0, totalDebt - remainingDebt);
   const overallProgress = totalDebt > 0 ? Math.round((paidDebt / totalDebt) * 100) : 0;
 

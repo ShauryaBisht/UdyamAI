@@ -39,6 +39,45 @@ const DEFAULT_INDIAN_STATES = [
   'Himachal Pradesh',
 ];
 
+const STATE_CODE_TO_NAME: Record<string, string> = {
+  AP: 'Andhra Pradesh',
+  AR: 'Arunachal Pradesh',
+  AS: 'Assam',
+  BR: 'Bihar',
+  CG: 'Chhattisgarh',
+  GA: 'Goa',
+  GJ: 'Gujarat',
+  HR: 'Haryana',
+  HP: 'Himachal Pradesh',
+  JH: 'Jharkhand',
+  KA: 'Karnataka',
+  KL: 'Kerala',
+  MP: 'Madhya Pradesh',
+  MH: 'Maharashtra',
+  MN: 'Manipur',
+  ML: 'Meghalaya',
+  MZ: 'Mizoram',
+  NL: 'Nagaland',
+  OD: 'Odisha',
+  PB: 'Punjab',
+  RJ: 'Rajasthan',
+  SK: 'Sikkim',
+  TN: 'Tamil Nadu',
+  TS: 'Telangana',
+  TR: 'Tripura',
+  UP: 'Uttar Pradesh',
+  UK: 'Uttarakhand',
+  WB: 'West Bengal',
+};
+
+function canonicalState(input?: string): string {
+  if (!input) return 'Maharashtra';
+  const trimmed = input.trim();
+  const upper = trimmed.toUpperCase();
+  if (STATE_CODE_TO_NAME[upper]) return STATE_CODE_TO_NAME[upper];
+  return trimmed;
+}
+
 export default function LocationSelector({
   districtId,
   talukaId,
@@ -50,7 +89,7 @@ export default function LocationSelector({
   setStateCode,
 }: LocationSelectorProps) {
   const [states, setStates] = useState<string[]>(DEFAULT_INDIAN_STATES);
-  const [selectedState, setSelectedState] = useState<string>(stateCode || 'Maharashtra');
+  const [selectedState, setSelectedState] = useState<string>(canonicalState(stateCode));
   const [districts, setDistricts] = useState<District[]>([]);
   const [talukas, setTalukas] = useState<Taluka[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
@@ -63,8 +102,9 @@ export default function LocationSelector({
 
   // Sync selectedState if parent stateCode changes
   useEffect(() => {
-    if (stateCode && stateCode !== selectedState) {
-      setSelectedState(stateCode);
+    const canon = canonicalState(stateCode);
+    if (canon && canon !== selectedState) {
+      setSelectedState(canon);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stateCode]);
@@ -77,8 +117,9 @@ export default function LocationSelector({
         const apiStates = await getStates();
         if (apiStates && apiStates.length > 0) {
           setStates(apiStates);
-          if (!apiStates.includes(selectedState)) {
-            const initial = apiStates.includes(stateCode) ? stateCode : apiStates[0];
+          const currentCanon = canonicalState(selectedState);
+          if (!apiStates.includes(currentCanon)) {
+            const initial = apiStates.includes(canonicalState(stateCode)) ? canonicalState(stateCode) : apiStates[0];
             setSelectedState(initial);
             if (setStateCode) setStateCode(initial, initial);
           }

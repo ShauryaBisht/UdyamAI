@@ -27,7 +27,9 @@ function formatINR(val: number): string {
 const STATUS_COLORS: Record<string, string> = {
   exploring: '#94A3B8',
   applied: '#3B82F6',
+  under_review: '#6366F1',
   approved: '#10B981',
+  disbursed: '#059669',
   rejected: '#EF4444',
 };
 
@@ -37,7 +39,8 @@ export default function BorrowingDistributionChart({
   subtitle = 'Status of active credit requests and applications',
   className = '',
 }: BorrowingDistributionChartProps) {
-  if (!records || records.length === 0) {
+  const safeRecords = (records || []).filter(Boolean);
+  if (safeRecords.length === 0) {
     return (
       <ChartCard
         title={title}
@@ -50,8 +53,17 @@ export default function BorrowingDistributionChart({
   }
 
   const statusSums: Record<string, number> = { exploring: 0, applied: 0, approved: 0, rejected: 0 };
-  for (const r of records) {
-    statusSums[r.status] = (statusSums[r.status] || 0) + r.amount;
+  for (const r of safeRecords) {
+    const rawStatus = (r?.status || 'exploring').toLowerCase();
+    const statusKey = ['approved', 'disbursed'].includes(rawStatus)
+      ? 'approved'
+      : ['applied', 'under_review'].includes(rawStatus)
+      ? 'applied'
+      : rawStatus === 'rejected'
+      ? 'rejected'
+      : 'exploring';
+    const amt = Math.max(0, Number(r?.amount) || 0);
+    statusSums[statusKey] = (statusSums[statusKey] || 0) + amt;
   }
   const total = Object.values(statusSums).reduce((a, b) => a + b, 0);
 
