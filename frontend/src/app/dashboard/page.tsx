@@ -51,18 +51,45 @@ function DashboardContent() {
 
   useEffect(() => {
     async function loadAnalysis() {
-      if (!analysisId) {
+      const targetId = analysisId || (typeof window !== 'undefined' ? localStorage.getItem('udyam_active_analysis_id') : null);
+
+      if (!targetId) {
+        // Try fallback to last cached analysis if available
+        if (typeof window !== 'undefined') {
+          const lastSaved = localStorage.getItem('udyam_latest_cached_analysis');
+          if (lastSaved) {
+            try {
+              setData(JSON.parse(lastSaved));
+            } catch (e) {
+              console.warn('Could not parse cached analysis:', e);
+            }
+          }
+        }
         setLoading(false);
         return;
       }
+
       try {
         setLoading(true);
-        const res = await getConsolidatedAnalysis(analysisId);
+        const res = await getConsolidatedAnalysis(targetId);
         setData(res);
-      } catch (err) {
-        console.warn('Failed to fetch consolidated analysis:', err);
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('udyam_active_analysis_id');
+          localStorage.setItem(`udyam_cached_analysis_${targetId}`, JSON.stringify(res));
+          localStorage.setItem('udyam_latest_cached_analysis', JSON.stringify(res));
+        }
+      } catch (err) {
+        console.warn('Failed to fetch fresh consolidated analysis, attempting offline cache fallback:', err);
+        if (typeof window !== 'undefined') {
+          const cached =
+            localStorage.getItem(`udyam_cached_analysis_${targetId}`) ||
+            localStorage.getItem('udyam_latest_cached_analysis');
+          if (cached) {
+            try {
+              setData(JSON.parse(cached));
+            } catch (e) {
+              console.warn('Could not parse offline cached analysis:', e);
+            }
+          }
         }
       } finally {
         setLoading(false);
