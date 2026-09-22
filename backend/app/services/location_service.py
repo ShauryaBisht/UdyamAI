@@ -273,6 +273,7 @@ class LocationService:
         village.longitude = c_lng
         try:
             from geoalchemy2.elements import WKTElement
+
             village.geom = WKTElement(f"POINT({c_lng} {c_lat})", srid=4326)
         except Exception:
             village.geom = f"SRID=4326;POINT({c_lng} {c_lat})"
