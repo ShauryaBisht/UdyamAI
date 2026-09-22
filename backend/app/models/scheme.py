@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 from uuid import UUID, uuid4
 
@@ -26,7 +26,7 @@ class Scheme(SQLModel, table=True):
     official_url: str | None = Field(default=None)
     source: str | None = Field(default=None)
     last_verified_at: datetime | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     rules: list["SchemeRule"] = Relationship(back_populates="scheme")
@@ -68,7 +68,7 @@ class SchemeRule(SQLModel, table=True):
     effective_from: date | None = Field(default=None)
     effective_until: date | None = Field(default=None)
     source_document_id: UUID | None = Field(default=None, foreign_key="documents.id", nullable=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     scheme: Scheme = Relationship(back_populates="rules")
@@ -86,7 +86,7 @@ class SchemeEligibilityRule(SQLModel, table=True):
     expected_value: Any | None = Field(default=None, sa_column=Column(JSON))
     description: str | None = Field(default=None)
     source_document_id: UUID | None = Field(default=None, foreign_key="documents.id", nullable=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     scheme: Scheme = Relationship(back_populates="eligibility_rules")
@@ -116,7 +116,7 @@ class SchemeMatch(SQLModel, table=True):
     estimated_loan_amount: float | None = Field(default=None)
     estimated_project_cost: float | None = Field(default=None)
     verification_required: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     scheme: Scheme = Relationship(back_populates="matches")

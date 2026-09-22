@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -22,8 +22,8 @@ class Budget(SQLModel, table=True):
     notes: str | None = Field(default=None)
     status: str = Field(default="active", description="active, completed, archived")
     deleted: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     profile: "Profile" = Relationship(back_populates="budgets")
@@ -40,7 +40,7 @@ class BudgetItem(SQLModel, table=True):
     planned_amount: float = Field(nullable=False, ge=0)
     actual_amount: float = Field(default=0.0, ge=0)
     notes: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     budget: "Budget" = Relationship(back_populates="items")

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -19,13 +19,13 @@ class Expense(SQLModel, table=True):
     )
     description: str | None = Field(default=None)
     amount: float = Field(nullable=False, ge=0)
-    date: datetime = Field(default_factory=datetime.utcnow)
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_recurring: bool = Field(default=False)
     recurring_frequency: str | None = Field(default=None, description="monthly, weekly, yearly")
     notes: str | None = Field(default=None)
     deleted: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     profile: "Profile" = Relationship(back_populates="expenses")

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
 from uuid import UUID, uuid4
 
@@ -31,8 +31,8 @@ class Profile(SQLModel, table=True):
     preferred_language: str | None = Field(default=None)
     location_id: UUID | None = Field(default=None, foreign_key="villages.id", nullable=True)
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     location: Optional["Village"] = Relationship(back_populates="profiles")

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 from uuid import UUID, uuid4
 
@@ -19,7 +19,7 @@ class BusinessCategory(SQLModel, table=True):
     sector: str | None = Field(default=None)
     description: str | None = Field(default=None)
     active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     business_models: list["BusinessModel"] = Relationship(back_populates="business_category")
@@ -44,7 +44,7 @@ class BusinessModel(SQLModel, table=True):
     risk_assumptions: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
 
     active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     business_category: BusinessCategory = Relationship(back_populates="business_models")
@@ -77,7 +77,7 @@ class Business(SQLModel, table=True):
     source_url: str | None = Field(default=None)
     data_year: int | None = Field(default=None)
     verified_at: datetime | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     business_category: BusinessCategory | None = Relationship(back_populates="businesses")

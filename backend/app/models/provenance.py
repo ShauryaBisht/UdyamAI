@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, SQLModel
@@ -17,4 +17,4 @@ class DataSource(SQLModel, table=True):
 
     last_updated_at: datetime | None = Field(default=None)
     last_verified_at: datetime | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

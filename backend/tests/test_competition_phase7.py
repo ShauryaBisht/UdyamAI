@@ -1,6 +1,6 @@
 """Unit and integration tests for Phase 7 - Competition Analysis."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -26,7 +26,7 @@ class TestPhase7CompetitionAnalysis:
                 "business_category_id": dairy_cat_id,
                 "category": "Dairy Processing",
                 "distance_meters": 2000.0,
-                "verified_at": datetime.utcnow(),
+                "verified_at": datetime.now(timezone.utc),
                 "source": "MSME Directory",
             },
             {
@@ -34,7 +34,7 @@ class TestPhase7CompetitionAnalysis:
                 "business_category_id": dairy_cat_id,
                 "category": "Dairy Farm",
                 "distance_meters": 4500.0,
-                "verified_at": datetime.utcnow(),
+                "verified_at": datetime.now(timezone.utc),
                 "source": "MSME Directory",
             },
             {
@@ -139,13 +139,13 @@ class TestPhase7CompetitionAnalysis:
             {
                 "id": uuid4(),
                 "category": "Dairy",
-                "verified_at": datetime.utcnow(),
+                "verified_at": datetime.now(timezone.utc),
                 "source": "Official Registry",
             },
             {
                 "id": uuid4(),
                 "category": "Dairy",
-                "verified_at": datetime.utcnow(),
+                "verified_at": datetime.now(timezone.utc),
                 "source": "Official Registry",
             },
             {"id": uuid4(), "category": "Dairy", "verified_at": None, "source": "Unverified Feed"},
@@ -198,7 +198,7 @@ class TestMarketServiceCompetitionOrchestration:
                 "business_category_id": uuid4(),
                 "category": "Dairy Farm",
                 "distance_meters": 3000.0,
-                "verified_at": datetime.utcnow(),
+                "verified_at": datetime.now(timezone.utc),
                 "source": "MSME Directory",
             }
         ]

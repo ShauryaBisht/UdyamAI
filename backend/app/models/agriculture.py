@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -26,7 +26,7 @@ class Agriculture(SQLModel, table=True):
     source: str | None = Field(default=None)
     source_url: str | None = Field(default=None)
     data_year: int | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     location: "Village" = Relationship(back_populates="agriculture_records")

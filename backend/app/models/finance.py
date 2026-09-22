@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 from uuid import UUID, uuid4
 
@@ -40,7 +40,7 @@ class FinancialAnalysis(SQLModel, table=True):
     break_even_months: float | None = Field(default=None)
     repayment_capacity: float | None = Field(default=None)
     calculation_version: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     analysis_run: "AnalysisRun" = Relationship(back_populates="financial_analyses")
@@ -70,7 +70,7 @@ class RepaymentSchedule(SQLModel, table=True):
     remaining_principal: float | None = Field(default=None)
     is_moratorium: bool = Field(default=False)
     verification_required: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     financial_analysis: FinancialAnalysis = Relationship(back_populates="repayment_schedules")
@@ -88,7 +88,7 @@ class FinancialScenario(SQLModel, table=True):
     monthly_profit: float | None = Field(default=None)
     cash_flow: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     repayment_coverage: float | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     financial_analysis: FinancialAnalysis = Relationship(back_populates="financial_scenarios")

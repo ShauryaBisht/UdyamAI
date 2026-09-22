@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -20,11 +20,11 @@ class CashFlowEntry(SQLModel, table=True):
     )
     description: str | None = Field(default=None)
     amount: float = Field(nullable=False, ge=0)
-    date: datetime = Field(default_factory=datetime.utcnow)
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     notes: str | None = Field(default=None)
     deleted: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     profile: "Profile" = Relationship(back_populates="cash_flow_entries")
@@ -42,7 +42,7 @@ class CashFlowSummary(SQLModel, table=True):
     total_income: float = Field(default=0.0, ge=0)
     total_expenses: float = Field(default=0.0, ge=0)
     net_cash_flow: float = Field(default=0.0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     profile: "Profile" = Relationship(back_populates="cash_flow_summaries")

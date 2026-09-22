@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -21,10 +21,10 @@ class RecycleBinItem(SQLModel, table=True):
     )
     item_id: UUID = Field(nullable=False, description="Original item ID")
     item_data: str = Field(nullable=False, description="JSON serialized item data for recovery")
-    deleted_at: datetime = Field(default_factory=datetime.utcnow)
+    deleted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     expires_at: datetime | None = Field(default=None, description="Auto-purge date")
     restored: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     profile: "Profile" = Relationship(back_populates="recycle_bin_items")
@@ -46,8 +46,8 @@ class PrivacyConsent(SQLModel, table=True):
     revoked_at: datetime | None = Field(default=None)
     version: str = Field(default="1.0", description="Consent policy version")
     ip_address: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     profile: "Profile" = Relationship(back_populates="privacy_consents")
@@ -69,8 +69,8 @@ class UserSettings(SQLModel, table=True):
     theme: str = Field(default="light", description="light, dark, system")
     default_view: str = Field(default="dashboard", description="dashboard, expenses, cashflow")
     auto_backup: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     profile: "Profile" = Relationship(back_populates="settings")

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -35,8 +35,8 @@ class Borrowing(SQLModel, table=True):
     )
     notes: str | None = Field(default=None)
     deleted: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     profile: "Profile" = Relationship(back_populates="borrowings")
@@ -58,8 +58,8 @@ class CreditScore(SQLModel, table=True):
     suggestions: str | None = Field(
         default=None, description="JSON string of improvement suggestions"
     )
-    recorded_date: datetime = Field(default_factory=datetime.utcnow)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    recorded_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     profile: "Profile" = Relationship(back_populates="credit_scores")

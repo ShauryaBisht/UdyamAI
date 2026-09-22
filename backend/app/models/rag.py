@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Optional
 from uuid import UUID, uuid4
 
@@ -41,7 +41,7 @@ class Document(SQLModel, table=True):
     last_verified_at: datetime | None = Field(default=None)
     content_hash: str = Field(max_length=64, unique=True, index=True, nullable=False)
     active: bool = Field(default=True, index=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     chunks: list["DocumentChunk"] = Relationship(
@@ -76,7 +76,7 @@ class DocumentChunk(SQLModel, table=True):
     embedding: list[float] | None = Field(
         default=None, sa_column=Column("embedding", Vector(1536), nullable=True)
     )
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     # Relationships
     document: Document = Relationship(back_populates="chunks")
