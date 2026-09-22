@@ -277,9 +277,7 @@ class DashboardService:
     @staticmethod
     def _matched_schemes(db: Session, profile_id: UUID) -> list[SchemeOverviewItem]:
         run_ids_subquery = (
-            select(AnalysisRun.id)
-            .where(AnalysisRun.user_id == profile_id)
-            .scalar_subquery()
+            select(AnalysisRun.id).where(AnalysisRun.user_id == profile_id).scalar_subquery()
         )
 
         rows = db.exec(
