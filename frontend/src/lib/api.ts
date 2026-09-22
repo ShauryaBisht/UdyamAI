@@ -854,3 +854,57 @@ export async function createProfile(profileId: string | null | undefined, data: 
   if (!res.ok) throw new Error(`Failed to save profile (${res.status})`);
   return res.json();
 }
+
+// ---- Voice / Sarvam AI Services ----
+const VOICE_BASE = `${API_BASE_URL}/voice`;
+
+export async function getVoiceStatus(): Promise<{ available: boolean; stt_model?: string; tts_model?: string; default_speaker?: string }> {
+  try {
+    const res = await apiFetch(`${VOICE_BASE}/status`);
+    if (!res.ok) return { available: false };
+    return res.json();
+  } catch {
+    return { available: false };
+  }
+}
+
+export async function transcribeAudio(audioBlob: Blob, languageCode: string = 'hi-IN'): Promise<{ transcript: string; language_code: string }> {
+  const formData = new FormData();
+  formData.append('file', audioBlob, 'recording.webm');
+  formData.append('language_code', languageCode);
+
+  const res = await apiFetch(`${VOICE_BASE}/stt`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Speech transcription failed' }));
+    throw new Error(err.detail || `Speech transcription failed with status ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function synthesizeSpeech(
+  text: string,
+  languageCode: string = 'hi-IN',
+  speaker?: string,
+  signal?: AbortSignal
+): Promise<{ audio_base64: string; format: string; speaker: string; language_code: string }> {
+  const res = await apiFetch(`${VOICE_BASE}/tts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      language_code: languageCode,
+      speaker: speaker || undefined,
+    }),
+    signal,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Speech synthesis failed' }));
+    throw new Error(err.detail || `Speech synthesis failed with status ${res.status}`);
+  }
+  return res.json();
+}
