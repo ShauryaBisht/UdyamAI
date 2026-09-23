@@ -73,35 +73,60 @@ function DashboardContent() {
     }
 
     let isCancelled = false;
+    const requestedId = analysisId;
+    const cacheKey = `udyam_cached_analysis_${userScope}_${requestedId}`;
+    const legacyKey = `udyam_cached_analysis_${requestedId}`;
+
+    // Clear prior data before fetching new ID to avoid showing stale report from previous ID
+    setData(null);
+    setLoading(true);
+
+    // If valid user-scoped cached data is available for this requestedId, prime it immediately
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem(cacheKey) || localStorage.getItem(legacyKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (isValidAnalysisData(parsed) && (parsed.analysis_id === requestedId || !parsed.analysis_id)) {
+            setData(parsed);
+          }
+        } catch (e) {
+          console.warn('Could not parse offline cached analysis:', e);
+        }
+      }
+    }
 
     async function loadAnalysis() {
-      setLoading(true);
       try {
-        const res = await getConsolidatedAnalysis(analysisId as string);
-        if (!isCancelled && isValidAnalysisData(res)) {
+        const res = await getConsolidatedAnalysis(requestedId);
+        if (
+          !isCancelled &&
+          searchParams.get('analysis_id') === requestedId &&
+          isValidAnalysisData(res)
+        ) {
           setData(res);
           if (typeof window !== 'undefined') {
-            localStorage.setItem(`udyam_cached_analysis_${analysisId}`, JSON.stringify(res));
-            localStorage.setItem('udyam_latest_cached_analysis', JSON.stringify(res));
-            localStorage.setItem('udyam_active_analysis_id', analysisId as string);
+            localStorage.setItem(cacheKey, JSON.stringify(res));
+            localStorage.setItem(`udyam_latest_cached_analysis_${userScope}`, JSON.stringify(res));
+            localStorage.setItem(`udyam_active_analysis_id_${userScope}`, requestedId);
           }
         }
       } catch (err: any) {
-        console.warn('Failed to fetch fresh consolidated analysis, attempting offline cache fallback:', err);
-        if (typeof window !== 'undefined') {
-          const cached =
-            localStorage.getItem(`udyam_cached_analysis_${analysisId}`) ||
-            localStorage.getItem('udyam_latest_cached_analysis');
-          if (cached && !isCancelled) {
-            try {
-              const parsed = JSON.parse(cached);
-              if (isValidAnalysisData(parsed)) {
-                setData(parsed);
-              }
-            } catch (e) {
-              console.warn('Could not parse offline cached analysis:', e);
+        console.warn('Failed to fetch fresh consolidated analysis:', err);
+        // If analysis not found (404), purge stale keys from localStorage
+        if (typeof window !== 'undefined' && err?.message?.includes('404')) {
+          localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
+          localStorage.removeItem(cacheKey);
+          localStorage.removeItem(legacyKey);
+        }
+        if (!isCancelled) {
+          // If no valid data is already loaded for requestedId, ensure data is null
+          setData((prev) => {
+            if (prev && isValidAnalysisData(prev) && (prev.analysis_id === requestedId || !prev.analysis_id)) {
+              return prev;
             }
-          }
+            return null;
+          });
         }
       } finally {
         if (!isCancelled) {
@@ -114,7 +139,7 @@ function DashboardContent() {
     return () => {
       isCancelled = true;
     };
-  }, [analysisId]);
+  }, [analysisId, userScope, searchParams]);
 
   const feas = data?.feasibility || {};
   const overallScore = feas.overall_score != null ? Math.round(feas.overall_score) : null;
@@ -231,10 +256,11 @@ function DashboardContent() {
               type="button"
               onClick={() => {
                 if (typeof window !== 'undefined') {
+                  localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
                   localStorage.removeItem('udyam_active_analysis_id');
                 }
                 setData(null);
-                router.replace('/dashboard');
+                router.push('/dashboard');
               }}
               className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-[#1F242C] hover:bg-slate-200 dark:hover:bg-[#272D37] border border-slate-200 dark:border-[#2B313C] px-3.5 py-1 text-xs font-semibold text-foreground transition"
             >
