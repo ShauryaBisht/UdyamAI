@@ -97,8 +97,8 @@ class SchemeMatch(SQLModel, table=True):
     __tablename__ = "scheme_matches"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    analysis_run_id: UUID = Field(foreign_key="analysis_runs.id", nullable=False)
-    scheme_id: UUID = Field(foreign_key="schemes.id", nullable=False)
+    analysis_run_id: UUID = Field(foreign_key="analysis_runs.id", nullable=False, index=True)
+    scheme_id: UUID = Field(foreign_key="schemes.id", nullable=False, index=True)
 
     match_status: SchemeMatchStatus = Field(
         sa_column=Column(

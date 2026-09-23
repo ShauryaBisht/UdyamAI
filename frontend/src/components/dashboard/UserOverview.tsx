@@ -217,39 +217,131 @@ export default function UserOverview() {
   const router = useRouter();
   const { t } = useTranslation();
   const { profile, user, loading: authLoading } = useAuth();
-  const [overview, setOverview] = useState<DashboardOverviewData | null>(null);
-  const [expensesList, setExpensesList] = useState<any[]>([]);
-  const [expenseSummary, setExpenseSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+
+  const profileId = profile?.id || '';
+
+  const [overview, setOverview] = useState<DashboardOverviewData | null>(() => {
+    if (typeof window !== 'undefined' && profile?.id) {
+      const cached = localStorage.getItem(`udyam_cached_dashboard_overview_${profile.id}`);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (e) {}
+      }
+    }
+    return null;
+  });
+
+  const [expensesList, setExpensesList] = useState<any[]>(() => {
+    if (typeof window !== 'undefined' && profile?.id) {
+      const cached = localStorage.getItem(`udyam_cached_expenses_list_${profile.id}`);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (e) {}
+      }
+    }
+    return [];
+  });
+
+  const [expenseSummary, setExpenseSummary] = useState<any>(() => {
+    if (typeof window !== 'undefined' && profile?.id) {
+      const cached = localStorage.getItem(`udyam_cached_expense_summary_${profile.id}`);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (e) {}
+      }
+    }
+    return null;
+  });
+
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined' && profile?.id) {
+      return !localStorage.getItem(`udyam_cached_dashboard_overview_${profile.id}`);
+    }
+    return true;
+  });
+
   const [downloadingReportId, setDownloadingReportId] = useState<string | null>(null);
   const [downloadSuccessId, setDownloadSuccessId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
-  const profileId = typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') || '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000001';
-
-  async function loadData() {
-    setLoading(true);
-    try {
-      const [ovData, expList, expSum] = await Promise.allSettled([
-        getDashboardOverview(),
-        getExpenses(profileId),
-        getExpenseSummary(profileId),
-      ]);
-
-      if (ovData.status === 'fulfilled') setOverview(ovData.value);
-      if (expList.status === 'fulfilled' && Array.isArray(expList.value)) setExpensesList(expList.value);
-      if (expSum.status === 'fulfilled') setExpenseSummary(expSum.value);
-    } catch (err) {
-      console.warn('Dashboard data fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
     if (authLoading) return;
+
+    const targetProfileId = profile?.id;
+    if (!targetProfileId) {
+      setLoading(false);
+      return;
+    }
+    const validProfileId: string = targetProfileId;
+
+    let isCancelled = false;
+
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedOv = localStorage.getItem(`udyam_cached_dashboard_overview_${validProfileId}`);
+        if (cachedOv) setOverview(JSON.parse(cachedOv));
+        const cachedSum = localStorage.getItem(`udyam_cached_expense_summary_${validProfileId}`);
+        if (cachedSum) setExpenseSummary(JSON.parse(cachedSum));
+        const cachedList = localStorage.getItem(`udyam_cached_expenses_list_${validProfileId}`);
+        if (cachedList) setExpensesList(JSON.parse(cachedList));
+      } catch (e) {}
+    }
+
+    async function loadData() {
+      try {
+        const [ovData, expList, expSum] = await Promise.allSettled([
+          getDashboardOverview(),
+          getExpenses(validProfileId),
+          getExpenseSummary(validProfileId),
+        ]);
+
+        if (isCancelled) return;
+
+        if (ovData.status === 'fulfilled' && ovData.value) {
+          setOverview(ovData.value);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(
+              `udyam_cached_dashboard_overview_${validProfileId}`,
+              JSON.stringify(ovData.value)
+            );
+          }
+        }
+        if (expList.status === 'fulfilled' && Array.isArray(expList.value)) {
+          setExpensesList(expList.value);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(
+              `udyam_cached_expenses_list_${validProfileId}`,
+              JSON.stringify(expList.value)
+            );
+          }
+        }
+        if (expSum.status === 'fulfilled' && expSum.value) {
+          setExpenseSummary(expSum.value);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(
+              `udyam_cached_expense_summary_${validProfileId}`,
+              JSON.stringify(expSum.value)
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('Dashboard data fetch error:', err);
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
     void loadData();
-  }, [authLoading, user]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [authLoading, profile?.id, user?.id]);
 
   async function handleDownloadReport(analysisId: string) {
     try {
@@ -278,20 +370,31 @@ export default function UserOverview() {
     savings: { goals: 0, total_saved: 0, total_target: 0, progress_percent: 0 },
     budgets: { count: 0, active: 0, total_income_target: 0, total_expense_target: 0 },
     debts: { count: 0, total_outstanding: 0, total_principal: 0, total_monthly_emi: 0 },
-    borrowings: { count: 0, exploring: 0, applied: 0, approved: 0, total_requested: 0, total_approved: 0 },
+    borrowings: {
+      count: 0,
+      exploring: 0,
+      applied: 0,
+      approved: 0,
+      total_requested: 0,
+      total_approved: 0,
+    },
     credit: { records: 0, latest_score: null, latest_rating: null },
     recycle_bin: { count: 0 },
   };
 
   const currentFinance = overview?.finance || defaultFinance;
+  const finance = currentFinance;
+  const analyses = overview?.analyses || [];
+  const schemes = overview?.schemes || [];
+  const reports = overview?.reports || [];
 
   const toolsInUseCount = useMemo(() => {
-    return TOOLS.filter((t) => toolStat(t.key, currentFinance).active).length;
-  }, [currentFinance]);
+    return TOOLS.filter((t) => toolStat(t.key, finance).active).length;
+  }, [finance]);
 
-  const analysesCount = overview?.analyses?.length ?? 0;
-  const matchedSchemesCount = overview?.schemes?.length ?? 5;
-  const reportsCount = overview?.reports?.length ?? 4;
+  const analysesCount = analyses.length ?? 0;
+  const matchedSchemesCount = schemes.length ?? 5;
+  const reportsCount = reports.length ?? 4;
 
   const toolTitles: Record<ToolKey, string> = {
     expenses: t('nav.expenses') || 'Expenses',
@@ -312,7 +415,7 @@ export default function UserOverview() {
     { label: t('dash.transport') || 'Transport', pct: 5, amount: expenseSummary?.by_category?.transport || 2050, color: 'bg-teal-500' },
   ];
 
-  if (loading) {
+  if (loading && !overview) {
     return (
       <div className="flex flex-1 items-center justify-center p-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />

@@ -10,7 +10,7 @@ user:
 
 from uuid import UUID
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
@@ -72,93 +72,106 @@ class DashboardService:
 
     @staticmethod
     def _finance_tools(db: Session, profile_id: UUID) -> FinanceToolsOverview:
-        # Expenses
-        expenses_count = (
-            db.scalar(
-                select(func.count())
-                .select_from(Expense)
-                .where(Expense.profile_id == profile_id, ~Expense.deleted)
-            )
-            or 0
-        )
-        expenses_total = _sum_or_zero(
-            db.scalar(
-                select(func.sum(Expense.amount)).where(
-                    Expense.profile_id == profile_id, ~Expense.deleted
-                )
-            )
-        )
+        # 1. Expenses (Count & Total in 1 query)
+        exp_row = db.exec(
+            select(
+                func.count(Expense.id),
+                func.coalesce(func.sum(Expense.amount), 0.0),
+            ).where(Expense.profile_id == profile_id, ~Expense.deleted)
+        ).first() or (0, 0.0)
+        expenses_count = exp_row[0] or 0
+        expenses_total = float(exp_row[1] or 0.0)
 
-        # Cash flow
-        cf_income = _sum_or_zero(
-            db.scalar(
-                select(func.sum(CashFlowEntry.amount)).where(
-                    CashFlowEntry.profile_id == profile_id,
-                    CashFlowEntry.entry_type == "income",
-                    ~CashFlowEntry.deleted,
-                )
-            )
-        )
-        cf_expenses = _sum_or_zero(
-            db.scalar(
-                select(func.sum(CashFlowEntry.amount)).where(
-                    CashFlowEntry.profile_id == profile_id,
-                    CashFlowEntry.entry_type == "expense",
-                    ~CashFlowEntry.deleted,
-                )
-            )
-        )
-        cf_count = (
-            db.scalar(
-                select(func.count())
-                .select_from(CashFlowEntry)
-                .where(CashFlowEntry.profile_id == profile_id, ~CashFlowEntry.deleted)
-            )
-            or 0
-        )
+        # 2. Cash Flow (Count, Income Sum, Expense Sum in 1 query)
+        cf_row = db.exec(
+            select(
+                func.count(CashFlowEntry.id),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (CashFlowEntry.entry_type == "income", CashFlowEntry.amount),
+                            else_=0.0,
+                        )
+                    ),
+                    0.0,
+                ),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (CashFlowEntry.entry_type == "expense", CashFlowEntry.amount),
+                            else_=0.0,
+                        )
+                    ),
+                    0.0,
+                ),
+            ).where(CashFlowEntry.profile_id == profile_id, ~CashFlowEntry.deleted)
+        ).first() or (0, 0.0, 0.0)
+        cf_count = cf_row[0] or 0
+        cf_income = float(cf_row[1] or 0.0)
+        cf_expenses = float(cf_row[2] or 0.0)
 
-        # Savings
+        # 3. Savings Goals
         savings_goals = db.exec(
-            select(SavingsGoal).where(SavingsGoal.profile_id == profile_id, ~SavingsGoal.deleted)
+            select(SavingsGoal.current_amount, SavingsGoal.target_amount).where(
+                SavingsGoal.profile_id == profile_id, ~SavingsGoal.deleted
+            )
         ).all()
-        total_saved = sum(g.current_amount for g in savings_goals)
-        total_target = sum(g.target_amount for g in savings_goals)
+        total_saved = sum(g[0] or 0.0 for g in savings_goals)
+        total_target = sum(g[1] or 0.0 for g in savings_goals)
         savings_progress = round(total_saved / total_target * 100, 1) if total_target > 0 else 0.0
 
-        # Budgets
+        # 4. Budgets
         budgets = db.exec(
-            select(Budget).where(Budget.profile_id == profile_id, ~Budget.deleted)
+            select(Budget.status, Budget.total_income_target, Budget.total_expense_target).where(
+                Budget.profile_id == profile_id, ~Budget.deleted
+            )
         ).all()
-        budgets_active = sum(1 for b in budgets if b.status == "active")
+        budgets_active = sum(1 for b in budgets if b[0] == "active")
+        total_inc_target = sum(b[1] or 0.0 for b in budgets)
+        total_exp_target = sum(b[2] or 0.0 for b in budgets)
 
-        # Debts
-        debts = db.exec(select(Debt).where(Debt.profile_id == profile_id, ~Debt.deleted)).all()
-        total_outstanding = sum(d.outstanding_amount for d in debts)
-        total_principal = sum(d.principal_amount for d in debts)
-        total_emi = sum(d.emi_amount or 0 for d in debts)
+        # 5. Debts
+        debts = db.exec(
+            select(Debt.outstanding_amount, Debt.principal_amount, Debt.emi_amount).where(
+                Debt.profile_id == profile_id, ~Debt.deleted
+            )
+        ).all()
+        total_outstanding = sum(d[0] or 0.0 for d in debts)
+        total_principal = sum(d[1] or 0.0 for d in debts)
+        total_emi = sum(d[2] or 0.0 for d in debts)
 
-        # Borrowings
+        # 6. Borrowings
         borrowings = db.exec(
-            select(Borrowing).where(Borrowing.profile_id == profile_id, ~Borrowing.deleted)
+            select(Borrowing.status, Borrowing.requested_amount, Borrowing.approved_amount).where(
+                Borrowing.profile_id == profile_id, ~Borrowing.deleted
+            )
         ).all()
-        borrow_exploring = sum(1 for b in borrowings if b.status == "exploring")
-        borrow_applied = sum(1 for b in borrowings if b.status in ("applied", "under_review"))
-        borrow_approved = sum(1 for b in borrowings if b.status in ("approved", "disbursed"))
+        borrow_exploring = sum(1 for b in borrowings if b[0] == "exploring")
+        borrow_applied = sum(1 for b in borrowings if b[0] in ("applied", "under_review"))
+        borrow_approved = sum(1 for b in borrowings if b[0] in ("approved", "disbursed"))
+        total_requested = sum(b[1] or 0.0 for b in borrowings)
+        total_approved = sum(b[2] or 0.0 for b in borrowings)
 
-        # Credit
-        credit_rows = db.exec(
-            select(CreditScore)
+        # 7. Credit Score (latest only + count)
+        latest_credit = db.exec(
+            select(CreditScore.score, CreditScore.rating)
             .where(CreditScore.profile_id == profile_id)
             .order_by(CreditScore.recorded_date.desc())
-        ).all()
-        latest_credit = credit_rows[0] if credit_rows else None
+            .limit(1)
+        ).first()
+        credit_count = (
+            db.scalar(
+                select(func.count(CreditScore.id)).where(CreditScore.profile_id == profile_id)
+            )
+            or 0
+        )
 
-        # Recycle bin (items still pending permanent deletion)
+        # 8. Recycle bin
         recycle_count = (
             db.scalar(
-                select(func.count())
-                .select_from(RecycleBinItem)
-                .where(RecycleBinItem.profile_id == profile_id, ~RecycleBinItem.restored)
+                select(func.count(RecycleBinItem.id)).where(
+                    RecycleBinItem.profile_id == profile_id, ~RecycleBinItem.restored
+                )
             )
             or 0
         )
@@ -180,8 +193,8 @@ class DashboardService:
             budgets=BudgetOverview(
                 count=len(budgets),
                 active=budgets_active,
-                total_income_target=round(sum(b.total_income_target for b in budgets), 2),
-                total_expense_target=round(sum(b.total_expense_target for b in budgets), 2),
+                total_income_target=round(total_inc_target, 2),
+                total_expense_target=round(total_exp_target, 2),
             ),
             debts=DebtOverview(
                 count=len(debts),
@@ -194,13 +207,13 @@ class DashboardService:
                 exploring=borrow_exploring,
                 applied=borrow_applied,
                 approved=borrow_approved,
-                total_requested=round(sum(b.requested_amount for b in borrowings), 2),
-                total_approved=round(sum(b.approved_amount or 0 for b in borrowings), 2),
+                total_requested=round(total_requested, 2),
+                total_approved=round(total_approved, 2),
             ),
             credit=CreditOverview(
-                records=len(credit_rows),
-                latest_score=latest_credit.score if latest_credit else None,
-                latest_rating=latest_credit.rating if latest_credit else None,
+                records=credit_count,
+                latest_score=latest_credit[0] if latest_credit else None,
+                latest_rating=latest_credit[1] if latest_credit else None,
             ),
             recycle_bin=RecycleBinOverview(count=recycle_count),
         )
@@ -208,15 +221,6 @@ class DashboardService:
     # ------------------------------------------------------------------
     # Analyses, matched schemes, reports
     # ------------------------------------------------------------------
-
-    @staticmethod
-    def _user_run_ids(db: Session, profile_id: UUID) -> list[UUID]:
-        rows = db.exec(
-            select(AnalysisRun.id)
-            .where(AnalysisRun.user_id == profile_id)
-            .order_by(AnalysisRun.created_at.desc())
-        ).all()
-        return [r for r in rows]
 
     @staticmethod
     def _analyses(db: Session, profile_id: UUID) -> list[AnalysisRunOverview]:
@@ -272,15 +276,15 @@ class DashboardService:
 
     @staticmethod
     def _matched_schemes(db: Session, profile_id: UUID) -> list[SchemeOverviewItem]:
-        run_ids = DashboardService._user_run_ids(db, profile_id)
-        if not run_ids:
-            return []
+        run_ids_subquery = (
+            select(AnalysisRun.id).where(AnalysisRun.user_id == profile_id).scalar_subquery()
+        )
 
         rows = db.exec(
             select(SchemeMatch, Scheme)
             .join(Scheme, Scheme.id == SchemeMatch.scheme_id)
             .where(
-                SchemeMatch.analysis_run_id.in_(run_ids),
+                SchemeMatch.analysis_run_id.in_(run_ids_subquery),
                 SchemeMatch.match_status == SchemeMatchStatus.POTENTIAL_MATCH,
             )
             .order_by(SchemeMatch.match_score.desc())
