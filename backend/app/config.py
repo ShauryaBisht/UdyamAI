@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     AI_MODEL: str | None = "gemini-3.6-flash"
     OPENAI_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
+    SARVAM_API_KEY: str | None = None
+    SARVAM_STT_MODEL: str = "saaras:v3"
+    SARVAM_TTS_MODEL: str = "bulbul:v3"
+    SARVAM_TTS_DEFAULT_SPEAKER: str = "shubh"
 
     # WhatsApp / Twilio access channel
     WHATSAPP_ENABLED: bool = False
@@ -61,6 +65,30 @@ class Settings(BaseSettings):
     RAG_EMBEDDING_ALERT_THRESHOLD_PERCENT: int = 80
     RAG_DEFAULT_TOP_K: int = 5
     RAG_DEFAULT_SCORE_THRESHOLD: float = 0.70
+
+    # Hybrid Search Configuration
+    VECTOR_WEIGHT: float = 0.7
+    KEYWORD_WEIGHT: float = 0.3
+
+    # Reranker Configuration
+    RERANKER_TYPE: str = "score_based"  # "score_based" or "cross_encoder"
+    RERANKER_MODEL: str | None = None
+
+    # LLM Fallback Configuration
+    LLM_TIMEOUT: int = 25  # seconds per model attempt
+    LLM_FALLBACK_MODELS: str = ""  # comma-separated fallback model IDs
+    LLM_MAX_RETRIES: int = 2
+    LLM_CIRCUIT_BREAKER_THRESHOLD: int = 3  # failures before disabling a model
+    LLM_CIRCUIT_BREAKER_RESET_SECONDS: int = 300
+
+    # Caching Configuration
+    CACHE_BACKEND: str = "memory"  # "memory" or "redis"
+    CACHE_TTL: int = 3600  # seconds
+    REDIS_URL: str | None = None
+
+    # Feature Flags
+    VOICE_ENABLED: bool = True
+    SUPPORTED_LANGUAGES: str = "en,hi,mr,bn,ta,te,kn,ml,gu,pa,or,as"
 
     # API Rate Limiting Configuration
     API_RATE_LIMIT_REQUESTS: int = 100

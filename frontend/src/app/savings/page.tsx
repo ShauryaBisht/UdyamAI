@@ -7,6 +7,7 @@ import { PiggyBank, Plus, Target, TrendingUp, X, Check, Loader2 } from 'lucide-r
 import Card from '@/components/ui/Card';
 import MetricDisplay from '@/components/ui/MetricDisplay';
 import { useTranslation } from '@/stores/languageStore';
+import SavingsProgressChart from '@/components/charts/SavingsProgressChart';
 
 export default function SavingsPage() {
   const { t } = useTranslation();
@@ -133,6 +134,18 @@ export default function SavingsPage() {
             />
           </Card>
         </div>
+
+        {/* Savings Goal Accumulation Chart */}
+        {data?.goals && data.goals.length > 0 && (
+          <SavingsProgressChart
+            goals={data.goals.map((g: any) => ({
+              title: g.name || 'Savings Target',
+              targetAmount: Number(g.target_amount) || 0,
+              currentAmount: Number(g.current_amount) || 0,
+              targetDate: g.target_date,
+            }))}
+          />
+        )}
 
         {/* Top Controls */}
         <div className="flex items-center justify-between">

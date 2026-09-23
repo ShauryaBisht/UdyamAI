@@ -7,6 +7,7 @@ import { ClipboardList, Plus, Loader2, X, Target } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import MetricDisplay from '@/components/ui/MetricDisplay';
 import { useTranslation } from '@/stores/languageStore';
+import BudgetComparisonChart from '@/components/charts/BudgetComparisonChart';
 
 export default function BudgetPage() {
   const { t } = useTranslation();
@@ -103,6 +104,27 @@ export default function BudgetPage() {
             />
           </Card>
         </div>
+
+        {/* Budget vs Actual Comparison Chart */}
+        {data?.budgets && data.budgets.length > 0 && (
+          <BudgetComparisonChart
+            items={data.budgets.flatMap((b: any) =>
+              b.items && b.items.length > 0
+                ? b.items.map((it: any) => ({
+                    category: it.category || it.name,
+                    budgetLimit: Number(it.budget_limit || it.allocated_amount || it.target_amount) || 0,
+                    actualSpent: Number(it.actual_spent || it.spent_amount) || 0,
+                  }))
+                : [
+                    {
+                      category: `${b.name} (Expense Cap)`,
+                      budgetLimit: Number(b.total_expense_target) || 0,
+                      actualSpent: Number(b.total_actual_expenses) || 0,
+                    },
+                  ]
+            )}
+          />
+        )}
 
         {/* Action Button */}
         <div className="flex justify-end">

@@ -22,6 +22,7 @@ from app.market.infrastructure import analyze_relevant_infrastructure
 from app.market.risks import assess_market_risks
 from app.models.location import Village
 from app.schemas.feasibility import FeasibilityScoreResult, SWOTIndicators
+from app.services.location_service import LocationService
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,16 @@ class FeasibilityService:
         lng: float | None = None,
         radius_km: float = 10.0,
         business_category_id: UUID | None = None,
+        category_name: str | None = None,
+        project_size_sqm: float = 0.0,
+        electricity_required_kw: float = 0.0,
+        daily_water_req_liters: float = 0.0,
+        road_access_required: bool = True,
+        three_phase_power_required: bool = False,
+        daily_passenger_traffic: int = 0,
+        daily_cargo_tonnage: float = 0.0,
+        is_seasonal: bool = False,
+        price_volatility: str | None = None,
         available_capital: float = 0.0,
         desired_project_cost: float = 0.0,
         estimated_subsidy: float | None = None,
@@ -62,12 +73,10 @@ class FeasibilityService:
                     status_code=404, detail=f"Village with id {village_id} not found"
                 )
             if village.latitude is None or village.longitude is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Village '{village.name}' (id {village_id}) is missing latitude/longitude coordinates.",
-                )
-            target_lat = village.latitude
-            target_lng = village.longitude
+                target_lat, target_lng = LocationService.ensure_village_coordinates(db, village)
+            else:
+                target_lat = village.latitude
+                target_lng = village.longitude
 
         if target_lat is None or target_lng is None:
             raise HTTPException(

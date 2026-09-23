@@ -5,6 +5,7 @@ from app.api.routes import (
     analysis,
     businesses,
     chat,
+    demo,
     economic,
     feasibility,
     finance,
@@ -17,6 +18,7 @@ from app.api.routes import (
     reports,
     schemes,
     users,
+    voice,
     weather,
     whatsapp,
 )
@@ -26,6 +28,7 @@ __all__ = [
     "analysis",
     "businesses",
     "chat",
+    "demo",
     "economic",
     "feasibility",
     "finance",
@@ -38,6 +41,7 @@ __all__ = [
     "reports",
     "schemes",
     "users",
+    "voice",
     "weather",
     "whatsapp",
 ]

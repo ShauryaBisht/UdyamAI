@@ -9,6 +9,7 @@ from app.api.routes import (
     businesses,
     chat,
     dashboard,
+    demo,
     economic,
     feasibility,
     finance,
@@ -21,6 +22,7 @@ from app.api.routes import (
     reports,
     schemes,
     users,
+    voice,
     weather,
     whatsapp,
 )
@@ -299,6 +301,30 @@ app.include_router(
     tags=["Economic"],
     include_in_schema=False,
     dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    voice.router,
+    prefix="/voice",
+    tags=["Voice"],
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    voice.router,
+    prefix="/api/v1/voice",
+    tags=["Voice"],
+    include_in_schema=False,
+    dependencies=[Depends(default_limiter)],
+)
+app.include_router(
+    demo.router,
+    prefix="/demo",
+    tags=["Demo"],
+)
+app.include_router(
+    demo.router,
+    prefix="/api/v1/demo",
+    tags=["Demo"],
+    include_in_schema=False,
 )
 
 

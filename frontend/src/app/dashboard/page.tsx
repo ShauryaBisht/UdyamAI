@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, Sparkles, ArrowLeft, Download, FileText, CheckCircle2 } from 'lucide-react';
+import { Loader2, Sparkles, ArrowLeft, Download, FileText, CheckCircle2, Volume2, VolumeX } from 'lucide-react';
 import AppShell from '@/components/ui/AppShell';
 import DashboardNav, { DashboardSection } from '@/components/dashboard/DashboardNav';
 import FinancialSection from '@/components/dashboard/FinancialSection';
@@ -15,7 +16,9 @@ import UserOverview from '@/components/dashboard/UserOverview';
 import { getConsolidatedAnalysis, downloadAnalysisPdf, ConsolidatedAnalysisData } from '@/lib/api';
 import { useTranslation } from '@/stores/languageStore';
 import Card from '@/components/ui/Card';
-import StatusBadge from '@/components/ui/StatusBadge';
+import StatusBadge, { StatusType } from '@/components/ui/StatusBadge';
+import { useSpeech } from '@/hooks/useSpeech';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 const VALID_SECTIONS: DashboardSection[] = [
   'overview',
@@ -32,17 +35,29 @@ function isDashboardSection(value: string | null): value is DashboardSection {
   return value != null && (VALID_SECTIONS as string[]).includes(value);
 }
 
+function isValidAnalysisData(obj: any): obj is ConsolidatedAnalysisData {
+  return !!(
+    obj &&
+    typeof obj === 'object' &&
+    (obj.feasibility || obj.analysis_id || obj.business)
+  );
+}
+
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { profile, user } = useAuth();
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
   const [data, setData] = useState<ConsolidatedAnalysisData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [resolvedAnalysisId, setResolvedAnalysisId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const { t } = useTranslation();
+  const { isSpeaking, speakingId, toggleSpeak } = useSpeech();
 
   const analysisId = searchParams.get('analysis_id');
+  const userScope = profile?.id || user?.id || 'guest';
 
   useEffect(() => {
     const raw = searchParams.get('section');
@@ -79,14 +94,50 @@ function DashboardContent() {
             } catch (e) {
               console.warn('Could not parse offline cached analysis:', e);
             }
+          } catch (e) {}
+        }
+      }
+
+      if (!hasCachedData) {
+        setData(null);
+        setLoading(true);
+      }
+
+      try {
+        const res = await getConsolidatedAnalysis(requestedId);
+        if (
+          !isCancelled &&
+          searchParams.get('analysis_id') === requestedId &&
+          isValidAnalysisData(res) &&
+          res.analysis_id === requestedId
+        ) {
+          setData(res);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(cacheKey, JSON.stringify(res));
+            localStorage.setItem(`udyam_latest_cached_analysis_${userScope}`, JSON.stringify(res));
+            localStorage.setItem(`udyam_active_analysis_id_${userScope}`, requestedId);
           }
         }
+      } catch (err: any) {
+        console.warn('Failed to fetch fresh consolidated analysis:', err);
+        // If analysis not found (404), purge stale keys from localStorage
+        if (typeof window !== 'undefined' && err?.message?.includes('404')) {
+          localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
+          localStorage.removeItem(cacheKey);
+          localStorage.removeItem(legacyKey);
+        }
       } finally {
-        setLoading(false);
+        if (!isCancelled) {
+          setLoading(false);
+        }
       }
     }
+
     loadAnalysis();
-  }, [analysisId]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [analysisId, searchParams, userScope]);
 
   const feas = data?.feasibility || {};
   const overallScore = feas.overall_score != null ? Math.round(feas.overall_score) : null;
@@ -114,10 +165,18 @@ function DashboardContent() {
           ? t('dash.moderately')
           : t('dash.highRisk');
 
-  const locName = data?.location
-    ? `${data.location.village_name || data.location.name || ''}${data.location.district_name ? `, ${data.location.district_name}` : ''}`.trim()
-    : '';
-  const bizName = data?.business?.category_name || '';
+  const bizName =
+    data?.business?.category_name ||
+    (data as any)?.business_category?.name ||
+    (feas as any)?.business_name ||
+    '';
+  const locName = [
+    data?.location?.village_name || (feas as any)?.village_name,
+    data?.location?.taluka_name || (feas as any)?.taluka_name,
+    data?.location?.district_name || (feas as any)?.district_name,
+  ]
+    .filter(Boolean)
+    .join(', ');
 
   const advisorSummary = data?.ai_advice?.summary || feas.recommendation || '';
   const advisorRecommendations =
@@ -125,12 +184,14 @@ function DashboardContent() {
     data?.ai_advice?.financial_advice ||
     (data?.ai_advice?.recommendation ? [data.ai_advice.recommendation] : []);
 
+  const effectiveAnalysisId = analysisId || resolvedAnalysisId || data?.analysis_id;
+
   async function handleDownloadPdf() {
-    if (!analysisId) return;
+    if (!effectiveAnalysisId) return;
     try {
       setPdfLoading(true);
       setPdfError(null);
-      await downloadAnalysisPdf(analysisId);
+      await downloadAnalysisPdf(effectiveAnalysisId);
     } catch (err: any) {
       setPdfError(err?.message || 'Failed to download PDF report.');
     } finally {
@@ -138,16 +199,19 @@ function DashboardContent() {
     }
   }
 
-  function getScoreStatus(score: number): 'verified' | 'warning' | 'risk' {
+  const getScoreStatus = (score: number | null): StatusType => {
+    if (score == null) return 'neutral';
     if (score >= 75) return 'verified';
     if (score >= 50) return 'warning';
     return 'risk';
-  }
+  };
 
   function ScoreCard({ label, score }: { label: string; score: number }) {
     return (
-      <Card padding="md" className="border-border bg-white dark:bg-[#161B22] rounded-2xl flex flex-col justify-between shadow-subtle hover:border-primary/30 transition-all">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+      <Card className="flex flex-col justify-between p-5 border border-border shadow-subtle hover:border-primary/40 transition">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+        </div>
         <div className="flex items-baseline justify-between mt-3">
           <div className="flex items-baseline gap-1">
             <span className="text-3xl font-extrabold font-financial text-foreground tracking-tight">
@@ -161,7 +225,7 @@ function DashboardContent() {
     );
   }
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <AppShell>
         <div className="flex flex-1 flex-col items-center justify-center p-12">
@@ -172,7 +236,7 @@ function DashboardContent() {
     );
   }
 
-  if (!analysisId || !data) {
+  if (!data) {
     return (
       <AppShell>
         <UserOverview />
@@ -205,11 +269,20 @@ function DashboardContent() {
               <span className="text-primary font-semibold">{locName || t('dash.pendingLoc')}</span>
             </p>
           </div>
-          {analysisId && (
-            <div className="mt-2 sm:mt-0 text-xs font-mono font-medium bg-primary/10 text-primary px-3.5 py-1.5 rounded-full border border-primary/20">
-              Run #{String(analysisId).slice(0, 8)}
-            </div>
-          )}
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/onboarding"
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/20 px-3.5 py-1.5 text-xs font-semibold text-primary transition"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Switch State / New Feasibility
+            </Link>
+            {effectiveAnalysisId && (
+              <div className="text-xs font-mono font-medium bg-slate-100 dark:bg-[#1F242C] text-foreground-muted px-3.5 py-1.5 rounded-full border border-border">
+                Run #{String(effectiveAnalysisId).slice(0, 8)}
+              </div>
+            )}
+          </div>
         </div>
 
         <DashboardNav activeSection={activeSection} onSectionChange={setActiveSection} />
@@ -270,36 +343,60 @@ function DashboardContent() {
               </div>
             )}
 
-            {/* AI Advisor Recommendations */}
-            <div className="rounded-[24px] border border-primary/20 dark:border-primary/30 bg-gradient-to-br from-primary/5 via-white to-indigo-50/20 dark:from-primary/10 dark:via-[#161B22] dark:to-indigo-950/20 p-6 sm:p-8 shadow-subtle">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-                  <Sparkles className="h-4 w-4" />
+            {/* AI Advisor Strategic Summary */}
+            {advisorSummary && (
+              <Card padding="lg" className="border-border bg-white dark:bg-[#161B22] rounded-[24px] shadow-subtle">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    <h3 className="text-base font-bold text-foreground">{t('dash.aiAdvisor')}</h3>
+                  </div>
+
+                  {/* Read Aloud Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const fullAdviceText = `${advisorSummary}. Next steps: ${advisorRecommendations.join('. ')}`;
+                      toggleSpeak(fullAdviceText, 'dashboard-advice');
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition ${
+                      isSpeaking && speakingId === 'dashboard-advice'
+                        ? 'bg-primary text-white animate-pulse'
+                        : 'bg-slate-100 dark:bg-slate-800 text-foreground hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                    title={isSpeaking && speakingId === 'dashboard-advice' ? 'Stop audio' : 'Listen to AI summary'}
+                  >
+                    {isSpeaking && speakingId === 'dashboard-advice' ? (
+                      <>
+                        <VolumeX className="h-3.5 w-3.5 text-white" />
+                        <span>Stop Audio</span>
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="h-3.5 w-3.5 text-primary" />
+                        <span>Read Aloud</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-                <h3 className="text-base sm:text-lg font-bold text-foreground">{t('dash.advisorTitle')}</h3>
-              </div>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                {advisorSummary || t('dash.advisorEmpty')}
-              </p>
-              {data?.ai_advice?.recommendation && (
-                <p className="mt-4 text-sm font-semibold text-foreground bg-white/80 dark:bg-[#1F242C]/80 p-3.5 rounded-xl border border-primary/10 dark:border-primary/20">
-                  {data.ai_advice.recommendation}
-                </p>
-              )}
-              {advisorRecommendations.length > 0 && (
-                <div className="mt-5 space-y-2.5 pt-4 border-t border-primary/10 dark:border-primary/20">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-primary">{t('dash.recommendations')}</h4>
-                  <ul className="space-y-2 text-xs sm:text-sm text-foreground">
-                    {advisorRecommendations.map((rec, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                        <span>{rec}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
+                <p className="text-foreground-muted text-sm leading-relaxed whitespace-pre-line">{advisorSummary}</p>
+              </Card>
+            )}
+
+            {/* Recommendations / Next Steps */}
+            {advisorRecommendations.length > 0 && (
+              <Card padding="lg" className="border-border bg-white dark:bg-[#161B22] rounded-[24px] shadow-subtle">
+                <h3 className="text-base font-bold text-foreground mb-4">{t('dash.nextSteps')}</h3>
+                <ul className="space-y-3">
+                  {advisorRecommendations.map((rec: string, i: number) => (
+                    <li key={i} className="flex items-start gap-3 text-sm text-foreground-muted">
+                      <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                      <span>{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
           </div>
         )}
 
@@ -323,7 +420,7 @@ function DashboardContent() {
             )}
             <button
               onClick={handleDownloadPdf}
-              disabled={!analysisId || pdfLoading}
+              disabled={!effectiveAnalysisId || pdfLoading}
               className="px-8 py-3.5 bg-primary text-white rounded-full text-sm font-semibold shadow-fintech-btn hover:bg-primary-600 transition disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               {pdfLoading ? (

@@ -7,6 +7,7 @@ import { Landmark, Plus, Loader2, X, Search, Clock, CheckCircle2, XCircle, Light
 import Card from '@/components/ui/Card';
 import MetricDisplay from '@/components/ui/MetricDisplay';
 import { useTranslation } from '@/stores/languageStore';
+import BorrowingDistributionChart from '@/components/charts/BorrowingDistributionChart';
 
 export default function BorrowingPage() {
   const { t } = useTranslation();
@@ -114,6 +115,17 @@ export default function BorrowingPage() {
             <p className="text-xs text-foreground-muted mt-1">Cumulative loan pipeline</p>
           </div>
         </div>
+
+        {/* Borrowing Pipeline Distribution Chart */}
+        {data?.borrowings && data.borrowings.length > 0 && (
+          <BorrowingDistributionChart
+            records={data.borrowings.map((b: any) => ({
+              purpose: b.lender_name || b.loan_type,
+              amount: Number(b.requested_amount) || 0,
+              status: b.status,
+            }))}
+          />
+        )}
 
         {/* Guidance Card */}
         <div className="bg-gradient-to-r from-primary-50/50 to-indigo-50/40 dark:from-primary/10 dark:to-indigo-950/20 rounded-2xl border border-primary-100 dark:border-primary/20 p-6">

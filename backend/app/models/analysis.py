@@ -20,7 +20,7 @@ class AnalysisRun(SQLModel, table=True):
     __tablename__ = "analysis_runs"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    user_id: UUID = Field(foreign_key="profiles.id", nullable=False)
+    user_id: UUID = Field(foreign_key="profiles.id", nullable=False, index=True)
     location_id: UUID | None = Field(default=None, foreign_key="villages.id", nullable=True)
     business_category_id: UUID | None = Field(
         default=None, foreign_key="business_categories.id", nullable=True
@@ -28,7 +28,7 @@ class AnalysisRun(SQLModel, table=True):
     available_capital: float | None = Field(default=None)
     status: str = Field(default="pending", nullable=False)  # pending, running, completed, failed
 
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
     completed_at: datetime | None = Field(default=None)
 
     # Relationships
@@ -50,7 +50,7 @@ class FeasibilityAnalysis(SQLModel, table=True):
     __tablename__ = "feasibility_analyses"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    analysis_run_id: UUID = Field(foreign_key="analysis_runs.id", nullable=False)
+    analysis_run_id: UUID = Field(foreign_key="analysis_runs.id", nullable=False, index=True)
 
     market_score: float | None = Field(default=None)
     financial_score: float | None = Field(default=None)

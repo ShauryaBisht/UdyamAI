@@ -14,14 +14,14 @@ class Report(SQLModel, table=True):
     __tablename__ = "reports"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    analysis_run_id: UUID = Field(foreign_key="analysis_runs.id", nullable=False)
-    user_id: UUID = Field(foreign_key="profiles.id", nullable=False)
+    analysis_run_id: UUID = Field(foreign_key="analysis_runs.id", nullable=False, index=True)
+    user_id: UUID = Field(foreign_key="profiles.id", nullable=False, index=True)
 
     title: str | None = Field(default=None)
     language: str | None = Field(default=None)
     report_data: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
     report_file_path: str | None = Field(default=None)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
 
     # Relationships
     analysis_run: "AnalysisRun" = Relationship(back_populates="reports")
