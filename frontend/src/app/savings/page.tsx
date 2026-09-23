@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import AppShell from '@/components/ui/AppShell';
 import { getSavings, createSavingsGoal, addSavingsTransaction } from '@/lib/api';
 import { PiggyBank, Plus, Target, TrendingUp, X, Check, Loader2 } from 'lucide-react';
@@ -20,7 +20,7 @@ export default function SavingsPage() {
   const [submitting, setSubmitting] = useState(false);
   const profileId = typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') || '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000001';
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const res = await getSavings(profileId);
@@ -30,11 +30,11 @@ export default function SavingsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [profileId]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+  }, [loadData]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import AppShell from '@/components/ui/AppShell';
 import { useLanguageStore } from '@/stores/languageStore';
 import { getExpenses, createExpense, deleteExpense, getExpenseSummary } from '@/lib/api';
@@ -44,7 +44,7 @@ export default function ExpensesPage() {
   const [submitting, setSubmitting] = useState(false);
   const profileId = typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') || '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000001';
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [exp, sum] = await Promise.all([
@@ -58,11 +58,11 @@ export default function ExpensesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [profileId, filterCat]);
 
   useEffect(() => {
-    loadData();
-  }, [filterCat]);
+    void loadData();
+  }, [loadData]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();

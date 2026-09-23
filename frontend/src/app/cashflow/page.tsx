@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import AppShell from '@/components/ui/AppShell';
 import { getCashFlow, createCashFlowEntry } from '@/lib/api';
 import { ArrowDownLeft, ArrowUpRight, Banknote, Plus, X, Loader2 } from 'lucide-react';
@@ -23,7 +23,7 @@ export default function CashFlowPage() {
   const [submitting, setSubmitting] = useState(false);
   const profileId = typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') || '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000001';
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const result = await getCashFlow(profileId);
@@ -33,11 +33,11 @@ export default function CashFlowPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [profileId]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+  }, [loadData]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -65,10 +65,11 @@ export default function CashFlowPage() {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
   }
 
-  const entries = data?.entries || [];
+  const entries = data?.entries;
 
   const cashFlowChartData = React.useMemo(() => {
-    if (!entries || entries.length === 0) {
+    const entryList = data?.entries;
+    if (!entryList || entryList.length === 0) {
       if (data?.total_income || data?.total_expenses) {
         return [
           {
@@ -82,7 +83,7 @@ export default function CashFlowPage() {
       return [];
     }
     const grouped: Record<string, { inflow: number; outflow: number }> = {};
-    entries.forEach((e: any) => {
+    entryList.forEach((e: any) => {
       const period = new Date(e.date || Date.now()).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
       if (!grouped[period]) grouped[period] = { inflow: 0, outflow: 0 };
       if (e.entry_type === 'income') grouped[period].inflow += Number(e.amount) || 0;
@@ -94,7 +95,7 @@ export default function CashFlowPage() {
       outflow: val.outflow,
       net: val.inflow - val.outflow,
     }));
-  }, [entries, data]);
+  }, [data]);
 
   return (
     <AppShell>

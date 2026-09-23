@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import AppShell from '@/components/ui/AppShell';
 import { getCreditScore, createCreditScore } from '@/lib/api';
 import { Shield, TrendingUp, TrendingDown, Minus, Plus, Loader2, X, CheckCircle2, Lightbulb, ArrowUpRight, Award } from 'lucide-react';
@@ -19,7 +19,7 @@ export default function CreditPage() {
   const [submitting, setSubmitting] = useState(false);
   const profileId = typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') || '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000001';
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setData(await getCreditScore(profileId));
@@ -28,11 +28,11 @@ export default function CreditPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [profileId]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+  }, [loadData]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();

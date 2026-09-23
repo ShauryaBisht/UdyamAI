@@ -56,10 +56,13 @@ export default function ChatWidget() {
   const welcomeRef = useRef(welcome.content);
 
   useEffect(() => {
-    if (messages.length === 1 && messages[0].role === 'assistant') {
-      setMessages([{ role: 'assistant', content: t('chat.welcome'), confidence: 'high' }]);
-      welcomeRef.current = t('chat.welcome');
-    }
+    setMessages(prev => {
+      if (prev.length === 1 && prev[0].role === 'assistant') {
+        welcomeRef.current = t('chat.welcome');
+        return [{ role: 'assistant', content: t('chat.welcome'), confidence: 'high' }];
+      }
+      return prev;
+    });
   }, [language, t]);
 
   useEffect(() => {

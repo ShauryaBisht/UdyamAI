@@ -65,66 +65,43 @@ function DashboardContent() {
   }, [analysisId, data?.analysis_id, searchParams]);
 
   useEffect(() => {
-    // No analysis_id in URL → always show the Overview, never auto-load from localStorage
+    // No analysis_id in URL → always show the Overview, never auto-load feasibility data
     if (!analysisId) {
       setData(null);
       setLoading(false);
       return;
     }
 
+    let isCancelled = false;
+
     async function loadAnalysis() {
+      setLoading(true);
       try {
-        setLoading(true);
-        const res = await getConsolidatedAnalysis(analysisId);
-        setData(res);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(`udyam_cached_analysis_${analysisId}`, JSON.stringify(res));
-          localStorage.setItem('udyam_latest_cached_analysis', JSON.stringify(res));
-          localStorage.setItem('udyam_active_analysis_id', analysisId);
+        const res = await getConsolidatedAnalysis(analysisId as string);
+        if (!isCancelled && isValidAnalysisData(res)) {
+          setData(res);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(`udyam_cached_analysis_${analysisId}`, JSON.stringify(res));
+            localStorage.setItem('udyam_latest_cached_analysis', JSON.stringify(res));
+            localStorage.setItem('udyam_active_analysis_id', analysisId as string);
+          }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Failed to fetch fresh consolidated analysis, attempting offline cache fallback:', err);
         if (typeof window !== 'undefined') {
           const cached =
             localStorage.getItem(`udyam_cached_analysis_${analysisId}`) ||
             localStorage.getItem('udyam_latest_cached_analysis');
-          if (cached) {
+          if (cached && !isCancelled) {
             try {
-              setData(JSON.parse(cached));
+              const parsed = JSON.parse(cached);
+              if (isValidAnalysisData(parsed)) {
+                setData(parsed);
+              }
             } catch (e) {
               console.warn('Could not parse offline cached analysis:', e);
             }
-          } catch (e) {}
-        }
-      }
-
-      if (!hasCachedData) {
-        setData(null);
-        setLoading(true);
-      }
-
-      try {
-        const res = await getConsolidatedAnalysis(requestedId);
-        if (
-          !isCancelled &&
-          searchParams.get('analysis_id') === requestedId &&
-          isValidAnalysisData(res) &&
-          res.analysis_id === requestedId
-        ) {
-          setData(res);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(cacheKey, JSON.stringify(res));
-            localStorage.setItem(`udyam_latest_cached_analysis_${userScope}`, JSON.stringify(res));
-            localStorage.setItem(`udyam_active_analysis_id_${userScope}`, requestedId);
           }
-        }
-      } catch (err: any) {
-        console.warn('Failed to fetch fresh consolidated analysis:', err);
-        // If analysis not found (404), purge stale keys from localStorage
-        if (typeof window !== 'undefined' && err?.message?.includes('404')) {
-          localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
-          localStorage.removeItem(cacheKey);
-          localStorage.removeItem(legacyKey);
         }
       } finally {
         if (!isCancelled) {
@@ -133,11 +110,11 @@ function DashboardContent() {
       }
     }
 
-    loadAnalysis();
+    void loadAnalysis();
     return () => {
       isCancelled = true;
     };
-  }, [analysisId, searchParams, userScope]);
+  }, [analysisId]);
 
   const feas = data?.feasibility || {};
   const overallScore = feas.overall_score != null ? Math.round(feas.overall_score) : null;
@@ -256,6 +233,7 @@ function DashboardContent() {
                 if (typeof window !== 'undefined') {
                   localStorage.removeItem('udyam_active_analysis_id');
                 }
+                setData(null);
                 router.replace('/dashboard');
               }}
               className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-[#1F242C] hover:bg-slate-200 dark:hover:bg-[#272D37] border border-slate-200 dark:border-[#2B313C] px-3.5 py-1 text-xs font-semibold text-foreground transition"

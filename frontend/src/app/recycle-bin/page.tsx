@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import AppShell from '@/components/ui/AppShell';
 import { getRecycleBin, restoreFromRecycleBin, permanentDeleteRecycleBin } from '@/lib/api';
 import {
@@ -27,7 +27,7 @@ export default function RecycleBinPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const profileId = typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') || '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000001';
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getRecycleBin(profileId);
@@ -37,11 +37,11 @@ export default function RecycleBinPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [profileId]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+  }, [loadData]);
 
   async function handleRestore() {
     if (!selected.length) return;

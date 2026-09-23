@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import AppShell from '@/components/ui/AppShell';
 import { getDebts, createDebt, addDebtPayment } from '@/lib/api';
 import { CreditCard, Plus, Loader2, X, Landmark } from 'lucide-react';
@@ -20,7 +20,7 @@ export default function DebtsPage() {
   const [submitting, setSubmitting] = useState(false);
   const profileId = typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') || '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000001';
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setData(await getDebts(profileId));
@@ -29,11 +29,11 @@ export default function DebtsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [profileId]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+  }, [loadData]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();

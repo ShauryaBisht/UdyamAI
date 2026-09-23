@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import AppShell from '@/components/ui/AppShell';
 import { getBorrowings, createBorrowing } from '@/lib/api';
 import { Landmark, Plus, Loader2, X, Search, Clock, CheckCircle2, XCircle, Lightbulb, ShieldCheck, ArrowUpRight } from 'lucide-react';
@@ -18,7 +18,7 @@ export default function BorrowingPage() {
   const [submitting, setSubmitting] = useState(false);
   const profileId = typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') || '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000001';
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setData(await getBorrowings(profileId));
@@ -27,11 +27,11 @@ export default function BorrowingPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [profileId]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+  }, [loadData]);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import AppShell from '@/components/ui/AppShell';
 import { getPrivacy, updatePrivacyConsent } from '@/lib/api';
 import { Shield, Loader2, CheckCircle2, XCircle, Lock, ShieldCheck } from 'lucide-react';
@@ -21,7 +21,7 @@ export default function PrivacyPage() {
   const [updating, setUpdating] = useState<string | null>(null);
   const profileId = typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') || '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000001';
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setData(await getPrivacy(profileId));
@@ -30,11 +30,11 @@ export default function PrivacyPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [profileId]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+  }, [loadData]);
 
   async function handleToggle(type: string, current: boolean) {
     setUpdating(type);

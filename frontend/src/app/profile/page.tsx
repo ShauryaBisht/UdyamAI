@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import AppShell from '@/components/ui/AppShell';
 import { getProfile, updateProfile } from '@/lib/api';
 import { User, Loader2, Save, Mail, Phone, Building2, Globe, Check, ShieldCheck } from 'lucide-react';
@@ -23,7 +23,7 @@ export default function ProfilePage() {
   });
   const profileId = typeof window !== 'undefined' ? localStorage.getItem('udyam_profile_id') || '00000000-0000-0000-0000-000000000001' : '00000000-0000-0000-0000-000000000001';
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const p = await getProfile(profileId);
@@ -41,11 +41,11 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [profileId, language]);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    void loadData();
+  }, [loadData]);
 
   useEffect(() => {
     setForm(prev => ({ ...prev, preferred_language: language }));
