@@ -75,23 +75,26 @@ function DashboardContent() {
     let isCancelled = false;
     const requestedId = analysisId;
     const cacheKey = `udyam_cached_analysis_${userScope}_${requestedId}`;
-    const legacyKey = `udyam_cached_analysis_${requestedId}`;
 
     // Clear prior data before fetching new ID to avoid showing stale report from previous ID
     setData(null);
     setLoading(true);
 
-    // If valid user-scoped cached data is available for this requestedId, prime it immediately
+    // If valid user-scoped cached data is available for this exact requestedId, prime it immediately
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem(cacheKey) || localStorage.getItem(legacyKey);
+      const cached = localStorage.getItem(cacheKey);
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          if (isValidAnalysisData(parsed) && (parsed.analysis_id === requestedId || !parsed.analysis_id)) {
+          const parsedId = parsed?.analysis_id || (parsed as any)?.id;
+          if (isValidAnalysisData(parsed) && parsedId === requestedId) {
             setData(parsed);
+          } else {
+            localStorage.removeItem(cacheKey);
           }
         } catch (e) {
           console.warn('Could not parse offline cached analysis:', e);
+          localStorage.removeItem(cacheKey);
         }
       }
     }
@@ -99,10 +102,12 @@ function DashboardContent() {
     async function loadAnalysis() {
       try {
         const res = await getConsolidatedAnalysis(requestedId);
+        const resId = res?.analysis_id || (res as any)?.id;
         if (
           !isCancelled &&
           searchParams.get('analysis_id') === requestedId &&
-          isValidAnalysisData(res)
+          isValidAnalysisData(res) &&
+          resId === requestedId
         ) {
           setData(res);
           if (typeof window !== 'undefined') {
@@ -117,12 +122,12 @@ function DashboardContent() {
         if (typeof window !== 'undefined' && err?.message?.includes('404')) {
           localStorage.removeItem(`udyam_active_analysis_id_${userScope}`);
           localStorage.removeItem(cacheKey);
-          localStorage.removeItem(legacyKey);
         }
         if (!isCancelled) {
-          // If no valid data is already loaded for requestedId, ensure data is null
+          // If no valid data is already loaded strictly matching requestedId, ensure data is null
           setData((prev) => {
-            if (prev && isValidAnalysisData(prev) && (prev.analysis_id === requestedId || !prev.analysis_id)) {
+            const prevId = prev?.analysis_id || (prev as any)?.id;
+            if (prev && isValidAnalysisData(prev) && prevId === requestedId) {
               return prev;
             }
             return null;
