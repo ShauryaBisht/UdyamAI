@@ -504,7 +504,7 @@ export default function UserOverview() {
                   <div className="mt-5 pt-3.5 border-t border-border flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => router.push(`/dashboard?analysis_id=${analysis.id}&section=report`)}
+                      onClick={() => router.replace(`/dashboard?analysis_id=${analysis.id}&section=report`)}
                       className="flex-1 py-2.5 px-3.5 rounded-full bg-primary hover:bg-primary-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1 shadow-sm hover:shadow transition-all duration-200 active:scale-95"
                     >
                       {t('dash.viewReport') || 'View Report'}

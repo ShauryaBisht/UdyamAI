@@ -50,38 +50,28 @@ function DashboardContent() {
   }, [analysisId, data?.analysis_id, searchParams]);
 
   useEffect(() => {
+    // No analysis_id in URL → always show the Overview, never auto-load from localStorage
+    if (!analysisId) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
     async function loadAnalysis() {
-      const targetId = analysisId || (typeof window !== 'undefined' ? localStorage.getItem('udyam_active_analysis_id') : null);
-
-      if (!targetId) {
-        // Try fallback to last cached analysis if available
-        if (typeof window !== 'undefined') {
-          const lastSaved = localStorage.getItem('udyam_latest_cached_analysis');
-          if (lastSaved) {
-            try {
-              setData(JSON.parse(lastSaved));
-            } catch (e) {
-              console.warn('Could not parse cached analysis:', e);
-            }
-          }
-        }
-        setLoading(false);
-        return;
-      }
-
       try {
         setLoading(true);
-        const res = await getConsolidatedAnalysis(targetId);
+        const res = await getConsolidatedAnalysis(analysisId);
         setData(res);
         if (typeof window !== 'undefined') {
-          localStorage.setItem(`udyam_cached_analysis_${targetId}`, JSON.stringify(res));
+          localStorage.setItem(`udyam_cached_analysis_${analysisId}`, JSON.stringify(res));
           localStorage.setItem('udyam_latest_cached_analysis', JSON.stringify(res));
+          localStorage.setItem('udyam_active_analysis_id', analysisId);
         }
       } catch (err) {
         console.warn('Failed to fetch fresh consolidated analysis, attempting offline cache fallback:', err);
         if (typeof window !== 'undefined') {
           const cached =
-            localStorage.getItem(`udyam_cached_analysis_${targetId}`) ||
+            localStorage.getItem(`udyam_cached_analysis_${analysisId}`) ||
             localStorage.getItem('udyam_latest_cached_analysis');
           if (cached) {
             try {
@@ -198,7 +188,12 @@ function DashboardContent() {
           <div>
             <button
               type="button"
-              onClick={() => router.push('/dashboard')}
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('udyam_active_analysis_id');
+                }
+                router.replace('/dashboard');
+              }}
               className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-slate-100 dark:bg-[#1F242C] hover:bg-slate-200 dark:hover:bg-[#272D37] border border-slate-200 dark:border-[#2B313C] px-3.5 py-1 text-xs font-semibold text-foreground transition"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
